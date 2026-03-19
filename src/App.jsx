@@ -288,38 +288,4 @@ function PeopleApp({ theme, people }) {
               )}
               {people.map((person) => (
                 <tr key={person.id} className="hover:bg-stone-50 group">
-                  <td className="px-5 py-3 font-medium text-stone-900 flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${theme.light} ${theme.color}`}>
-                      {person.name.charAt(0)}
-                    </div>
-                    {person.name}
-                  </td>
-                  <td className="px-5 py-3 text-stone-500">
-                    <div className="flex flex-col"><span className="truncate">{person.email}</span><span className="text-xs">{person.phone}</span></div>
-                  </td>
-                  <td className="px-5 py-3"><span className="text-stone-600">{person.type}</span></td>
-                  <td className="px-5 py-3 text-right text-stone-400">
-                    <button onClick={() => handleDelete(person.id)} className="hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><AlertCircle size={18} className="ml-auto"/></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CalendarApp({ theme, events }) {
-  const [isAdding, setIsAdding] = useState(false);
-  const [newEvent, setNewEvent] = useState({ title: '', date: 'Feb 20, 2026', time: '', type: 'Meeting' });
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleAddEvent = async () => {
-    if (!newEvent.title) return;
-    setIsSaving(true);
-    try {
-      await addDoc(collection(db, 'events'), newEvent);
-      setIsAdding(false);
-      setNewEvent({ title
+                  <td className="px-
