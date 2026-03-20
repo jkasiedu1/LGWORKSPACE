@@ -16,11 +16,11 @@ import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from 'fi
 // 👇 PASTE YOUR FIREBASE KEYS HERE 👇
 const firebaseConfig = {
   apiKey: "AIzaSyCrPxPLMS_pwryIRHoxYVUFiuxpKHyTk1M",
-  authDomain: "your-app.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-app.appspot.com",
-  messagingSenderId: "your-sender-id",
-  appId: "your-app-id"
+authDomain: "lifegate-workspace.firebaseapp.com",
+  projectId: "lifegate-workspace",
+  storageBucket: "lifegate-workspace.appspot.com",
+  messagingSenderId: "1234567890",
+  appId: "1:1234567890:web:abcdef123456"
 };
 
 let db = null;
