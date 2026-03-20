@@ -16,12 +16,10 @@ import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
 
 // 👇 1. LIVE GEMINI AI INTEGRATION 👇
-// IMPORTANT: If you are deploying this app to Vercel, you MUST paste a real Gemini API Key here.
-// Get one for free at: https://aistudio.google.com/
 const GEMINI_API_KEY = "AIzaSyBxmuVCtzggdSh1uIhqlTjXN79HD_NVauc"; 
 
 const callGeminiAI = async (prompt, systemContext) => {
-  const apiKey = GEMINI_API_KEY || ""; // Uses your key if provided, otherwise attempts platform default
+  const apiKey = GEMINI_API_KEY; 
   
   const retryFetch = async (url, options, retries = 5) => {
     let delay = 1000;
@@ -53,7 +51,7 @@ const callGeminiAI = async (prompt, systemContext) => {
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "Could not generate a response. Please try again.";
   } catch (error) {
     console.error("AI Error:", error);
-    return "An error occurred while connecting to the AI services. Please check your Gemini API key in the code.";
+    return "An error occurred while connecting to the AI services. Please check your connection.";
   }
 };
 
@@ -86,6 +84,7 @@ const UPCOMING_EVENTS = [
   { id: 1, title: 'Ash Wednesday Gathering', date: '2026-02-18', time: '19:00', type: 'Worship' },
   { id: 2, title: 'Sunday Worship Experience', date: '2026-02-22', time: '10:00', type: 'Weekend Service' },
   { id: 3, title: 'Serve Team Rally', date: '2026-02-28', time: '09:00', type: 'Equipping' },
+  { id: 4, title: 'Easter Creative Sync', date: '2026-03-05', time: '13:00', type: 'Collaboration' },
 ];
 
 const PEOPLE_LIST = [
@@ -114,6 +113,7 @@ const RECENT_DONATIONS = [
   { id: 2, name: 'David Chen', amount: '$150.00', date: '2026-02-15', fund: 'Missions', type: 'Online Recurring' },
 ];
 
+// All 13 Ministry Teams Restored
 const MINISTRY_TEAMS = [
   { id: 1, name: 'Men\'s Ministry', lead: 'Michael Carter', members: 42, access: 'Full Admin', status: 'unlocked', desc: 'Manage men\'s breakfasts, retreats, and mentorship groups.', roster: [{id: 3, name: 'David Chen'}] },
   { id: 2, name: 'Women\'s Ministry', lead: 'Sarah Jenkins', members: 56, access: 'View Only', status: 'restricted', desc: 'Coordinate Bible studies, women\'s events, and support groups.', roster: [{id: 1, name: 'Sarah Jenkins'}] },
@@ -121,6 +121,13 @@ const MINISTRY_TEAMS = [
   { id: 4, name: 'Lifegate Kids', lead: 'Emily Thorne', members: 35, access: 'View Only', status: 'restricted', desc: 'Children\'s curriculum, check-in data, and background checks.', roster: [] },
   { id: 5, name: 'Lifegate Music', lead: 'Marcus Johnson', members: 24, access: 'Full Admin', status: 'unlocked', desc: 'Worship sets, band schedules, and rehearsal resources.', roster: [] },
   { id: 6, name: 'Lifegate Media', lead: 'James Wilson', members: 12, access: 'No Access', status: 'locked', desc: 'A/V scheduling, stage plots, and livestream management.', roster: [] },
+  { id: 7, name: 'Lifegate Ushers and Protocol', lead: 'Robert Hayes', members: 28, access: 'No Access', status: 'locked', desc: 'Service protocols, seating logistics, and offering collection.', roster: [] },
+  { id: 8, name: 'Lifegate Hospitality', lead: 'Linda Gomez', members: 30, access: 'View Only', status: 'restricted', desc: 'Coffee bar, guest welcome packages, and event catering.', roster: [] },
+  { id: 9, name: 'Lifegate Sunday Prayer Team', lead: 'Pastor Joshua', members: 15, access: 'Full Admin', status: 'unlocked', desc: 'Altar ministry schedules and confidential prayer requests.', roster: [] },
+  { id: 10, name: 'Lifegate Friday Prayer Team', lead: 'Anna Roberts', members: 20, access: 'No Access', status: 'locked', desc: 'Intercessory prayer focus lists and Friday night watch schedules.', roster: [] },
+  { id: 11, name: 'Lifegate Outreach and Follow-Up', lead: 'Tom Harris', members: 25, access: 'View Only', status: 'restricted', desc: 'Community service events, evangelism, and guest retention tracking.', roster: [] },
+  { id: 12, name: 'Lifegate Board', lead: 'Elder Council', members: 7, access: 'Full Admin', status: 'unlocked', desc: 'Financial reports, strategic planning, and governance documents.', roster: [] },
+  { id: 13, name: 'Lifegate Communications', lead: 'Jessica Lee', members: 8, access: 'No Access', status: 'locked', desc: 'Social media planning, website updates, and bulletin announcements.', roster: [] },
 ];
 
 const APPS = {
@@ -721,6 +728,12 @@ function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch, showToast }) 
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit">
             <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
               <h3 className="font-semibold text-stone-800">Song Catalog</h3>
+              <div className="flex items-center gap-3">
+                 <div className="relative hidden sm:block">
+                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 h-3.5 w-3.5" />
+                   <input type="text" placeholder="Search title or CCLI..." className="pl-8 pr-3 py-1.5 border border-stone-200 rounded-md text-xs outline-none focus:border-rose-500 w-48" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                 </div>
+              </div>
             </div>
             <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
               <table className="w-full text-sm text-left">
@@ -852,7 +865,7 @@ function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast 
   const handleAdd = async () => {
     if (!newPerson.firstName || !newPerson.lastName) return;
     
-    // Auto-format full name
+    // Auto-format full name and generate security codes for kids
     const dataToSave = {
       ...newPerson,
       name: `${newPerson.firstName} ${newPerson.lastName}`,
@@ -921,12 +934,22 @@ function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast 
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.type} onChange={e => setNewPerson({...newPerson, type: e.target.value})}>
-                  <optgroup label="Directory"><option value="Member">Member</option><option value="Volunteer">Volunteer</option><option value="Staff">Staff</option></optgroup>
-                  <optgroup label="Visitors"><option value="First Time">First Time Guest</option><option value="Returning">Returning Guest</option></optgroup>
-                  <optgroup label="Kids Ministry"><option value="Child">Child (Lifegate Kids)</option></optgroup>
+                  <optgroup label="Directory">
+                    <option value="Member">Member</option>
+                    <option value="Volunteer">Volunteer</option>
+                    <option value="Staff">Staff</option>
+                  </optgroup>
+                  <optgroup label="Visitors">
+                    <option value="First Time">First Time Guest</option>
+                    <option value="Returning">Returning Guest</option>
+                  </optgroup>
+                  <optgroup label="Kids Ministry">
+                    <option value="Child">Child (Lifegate Kids)</option>
+                  </optgroup>
                 </select>
                 <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.gender} onChange={e => setNewPerson({...newPerson, gender: e.target.value})}>
-                  <option value="Female">Female</option><option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
                 </select>
               </div>
 
@@ -987,18 +1010,29 @@ function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast 
                   <th className="px-5 py-3">Phone</th>
                   <th className="px-5 py-3">Type</th>
                   <th className="px-5 py-3">Gender</th>
+                  {isAdmin && <th className="px-5 py-3 text-right"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
                 {filteredPeople.map((person) => (
-                  <tr key={person.id} className="hover:bg-stone-50">
-                    <td className="px-5 py-3 font-medium text-stone-900">{person.firstName || person.name.split(' ')[0]}</td>
+                  <tr key={person.id} className="hover:bg-stone-50 group">
+                    <td className="px-5 py-3 font-medium text-stone-900 flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
+                        {person.firstName ? person.firstName.charAt(0) : person.name.charAt(0)}
+                      </div>
+                      {person.firstName || person.name.split(' ')[0]}
+                    </td>
                     <td className="px-5 py-3 font-medium text-stone-900">{person.lastName || person.name.split(' ')[1] || ''}</td>
-                    <td className="px-5 py-3 text-stone-500 text-xs">{person.address}</td>
-                    <td className="px-5 py-3 text-stone-500">{person.email}</td>
+                    <td className="px-5 py-3 text-stone-500 text-xs max-w-[150px] truncate" title={person.address}>{person.address}</td>
+                    <td className="px-5 py-3 text-stone-500 max-w-[150px] truncate" title={person.email}>{person.email}</td>
                     <td className="px-5 py-3 text-stone-500">{person.phone}</td>
-                    <td className="px-5 py-3"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${activeTab === 'visitors' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>{person.type}</span></td>
+                    <td className="px-5 py-3"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === 'visitors' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>{person.type}</span></td>
                     <td className="px-5 py-3 text-stone-500">{person.gender || 'N/A'}</td>
+                    {isAdmin && (
+                      <td className="px-5 py-3 text-right text-stone-400">
+                        <button onClick={() => { if(db) { deleteDoc(doc(db, 'people', person.id)); showToast("Profile deleted"); } else { setPeople(people.filter(p => p.id !== person.id)); showToast("Profile deleted"); } }} className="hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100" title="Delete Profile"><AlertCircle size={18} className="ml-auto"/></button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -1021,9 +1055,14 @@ function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast 
               <tbody className="divide-y divide-stone-100">
                 {filteredPeople.map((child) => (
                   <tr key={child.id} className="hover:bg-stone-50">
-                    <td className="px-5 py-3 font-medium text-stone-900">{child.firstName}</td>
+                    <td className="px-5 py-3 font-medium text-stone-900 flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
+                        {child.firstName ? child.firstName.charAt(0) : child.name.charAt(0)}
+                      </div>
+                      {child.firstName}
+                    </td>
                     <td className="px-5 py-3 font-medium text-stone-900">{child.lastName}</td>
-                    <td className="px-5 py-3 text-stone-500 text-xs">{child.address}</td>
+                    <td className="px-5 py-3 text-stone-500 text-xs max-w-[150px] truncate">{child.address}</td>
                     <td className="px-5 py-3 text-stone-700 font-medium">{child.parents}</td>
                     <td className="px-5 py-3 text-stone-500">{child.parentPhone}</td>
                     <td className="px-5 py-3 text-rose-600 font-semibold text-xs">{child.allergies}</td>
@@ -1193,6 +1232,7 @@ function CalendarApp({ theme, events, setEvents, isAdmin, showToast }) {
   const [isAdding, setIsAdding] = useState(false);
   const [newEvent, setNewEvent] = useState({ title: '', date: new Date().toISOString().split('T')[0], time: '10:00', type: 'Meeting' });
 
+  // Generate dynamic calendar logic (Based on February 2026 for consistent context)
   const today = new Date('2026-02-20T12:00:00'); 
   const currentMonth = today.getMonth(); 
   const currentYear = today.getFullYear();
@@ -1703,7 +1743,7 @@ function SecurityApp({ theme, isSeniorPastor, showToast }) {
             </div>
             <div className="p-5 space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-stone-700">Senior Pastor</span>
+                <span className="text-sm font-medium text-stone-700">Lead Pastors</span>
                 <span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-2 py-1 rounded">Super Admin</span>
               </div>
               <div className="flex justify-between items-center">
