@@ -13,7 +13,7 @@ import {
 import { collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from './firebase';
 
-// --- ORIGINAL MASTER DATA ---
+// --- MASTER DATA (FULL RESTORE) ---
 const PLAN_ITEMS = [
   { id: 1, time: '7:00 PM', length: '5:00', title: 'Welcome & Vision', type: 'Element', person: 'Pastor Joshua' },
   { id: 2, time: '7:05 PM', length: '15:00', title: 'Worship Set (3 Songs)', type: 'Song', person: 'Worship Band' },
@@ -75,7 +75,7 @@ export default function App() {
   if (!isAuthenticated) return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
 
   return (
-    <div className="min-h-screen flex flex-col font-sans">
+    <div className="min-h-screen flex flex-col font-sans bg-stone-50">
       <header className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
         <div className="flex items-center justify-between h-14 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-6">
@@ -112,8 +112,14 @@ export default function App() {
               )}
             </div>
           </div>
+          <div className="hidden md:flex flex-1 max-w-lg mx-8">
+            <div className="relative w-full group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 h-4 w-4 group-focus-within:text-teal-600 transition-colors" />
+              <input type="text" placeholder="Search across all apps..." className="w-full pl-9 pr-4 py-1.5 bg-stone-100 border border-transparent rounded-md text-sm focus:bg-white focus:border-teal-300 focus:ring-2 focus:ring-teal-100 transition-all outline-none" />
+            </div>
+          </div>
           <div className="flex items-center gap-4">
-            <button className="text-stone-400 hover:text-stone-600 transition-colors"><Settings className="h-5 w-5" /></button>
+            <button onClick={() => setActiveApp('security')} className="text-stone-400 hover:text-stone-600 transition-colors"><Settings className="h-5 w-5" /></button>
             <div className="h-8 w-8 rounded-full bg-stone-900 text-white flex items-center justify-center text-xs font-bold shadow-sm cursor-pointer">JA</div>
             <button onClick={() => setIsAuthenticated(false)} className="text-stone-400 hover:text-rose-600 transition-colors ml-2"><LogOut className="h-5 w-5" /></button>
           </div>
@@ -122,13 +128,13 @@ export default function App() {
 
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
         {activeApp === 'home' && <HomeApp events={events} people={people} />}
-        {activeApp === 'services' && <ServicesApp theme={APPS.services} />}
-        {activeApp === 'music' && <MusicApp theme={APPS.music} />}
+        {activeApp === 'services' && <ServicesApp />}
+        {activeApp === 'music' && <MusicApp />}
         {activeApp === 'teams' && <TeamsApp theme={APPS.teams} />}
-        {activeApp === 'people' && <PeopleApp theme={APPS.people} people={people} />}
-        {activeApp === 'giving' && <GivingApp theme={APPS.giving} />}
-        {activeApp === 'calendar' && <CalendarApp theme={APPS.calendar} events={events} />}
-        {activeApp === 'security' && <SecurityApp theme={APPS.security} />}
+        {activeApp === 'people' && <PeopleApp people={people} />}
+        {activeApp === 'giving' && <GivingApp />}
+        {activeApp === 'calendar' && <CalendarApp events={events} />}
+        {activeApp === 'security' && <SecurityApp />}
       </main>
     </div>
   );
@@ -141,8 +147,8 @@ function HomeApp({ events, people }) {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Good Evening, Pastor Joshua</h1>
-          <p className="text-stone-500 text-sm mt-1">Lifegate AG Workspace is connected and live.</p>
+          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight text-left">Good Evening, Pastor Joshua</h1>
+          <p className="text-stone-500 text-sm mt-1 text-left">Lifegate AG Workspace is fully restored and live.</p>
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -157,7 +163,7 @@ function HomeApp({ events, people }) {
 
 function MetricCard({ title, value, label, color }) {
   return (
-    <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm">
+    <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm text-left">
       <span className="text-sm font-medium text-stone-500">{title}</span>
       <div className="mt-2 flex items-baseline gap-2">
         <span className={`text-3xl font-bold tracking-tight ${color}`}>{value}</span>
@@ -171,12 +177,12 @@ function TeamsApp({ theme }) {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
-        <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Ministry Portals</h1>
-        <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium flex items-center gap-2 shadow-sm hover:opacity-90`}><Plus size={16}/> New Portal</button>
+        <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight text-left">Ministry Portals</h1>
+        <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium flex items-center gap-2 shadow-sm`}><Plus size={16}/> New Portal</button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {MINISTRY_TEAMS.map(team => (
-          <div key={team.id} className="bg-white border border-stone-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+          <div key={team.id} className="bg-white border border-stone-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow text-left">
             <div className="flex justify-between items-start mb-4">
               <div className={`p-2.5 rounded-lg ${theme.light} ${theme.color}`}><FolderLock size={26}/></div>
               <div className="flex items-center gap-2 bg-stone-50 px-2 py-1 rounded-full border border-stone-100">
@@ -197,14 +203,14 @@ function TeamsApp({ theme }) {
   );
 }
 
-function MusicApp({ theme }) {
+function MusicApp() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
-        <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Worship Library</h1>
+        <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight text-left">Worship Library</h1>
         <div className="flex gap-3">
           <button className="px-4 py-2 bg-stone-100 text-stone-600 rounded-md text-sm font-medium flex items-center gap-2"><UploadCloud size={16}/> Import</button>
-          <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium flex items-center gap-2 shadow-sm`}><Plus size={16}/> Add Song</button>
+          <button className="px-4 py-2 bg-rose-600 text-white rounded-md text-sm font-medium flex items-center gap-2 shadow-sm"><Plus size={16}/> Add Song</button>
         </div>
       </div>
       <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-sm">
@@ -220,10 +226,10 @@ function MusicApp({ theme }) {
                 <td className="px-6 py-4 font-mono font-bold text-rose-600">{song.key}</td>
                 <td className="px-6 py-4 text-stone-500">{song.bpm}</td>
                 <td className="px-6 py-4">
-                  <div className="flex gap-2">
-                    {song.hasLyrics && <FileText size={14} className="text-stone-300"/>}
-                    {song.hasChords && <Music size={14} className="text-stone-300"/>}
-                    {song.hasAudio && <FileAudio size={14} className="text-stone-300"/>}
+                  <div className="flex gap-2 text-stone-300">
+                    {song.hasLyrics && <FileText size={14}/>}
+                    {song.hasChords && <Music size={14}/>}
+                    {song.hasAudio && <FileAudio size={14}/>}
                   </div>
                 </td>
                 <td className="px-6 py-4 text-right"><button className="text-stone-300 hover:text-stone-600"><MoreHorizontal size={18}/></button></td>
@@ -236,16 +242,16 @@ function MusicApp({ theme }) {
   );
 }
 
-function GivingApp({ theme }) {
+function GivingApp() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
-        <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Financial Stewardship</h1>
+        <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight text-left">Financial Stewardship</h1>
         <button className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm font-medium flex items-center gap-2 shadow-sm"><Download size={16}/> Export Report</button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {RECENT_DONATIONS.map(donation => (
-          <div key={donation.id} className="bg-white border border-stone-200 rounded-xl p-6 shadow-sm">
+          <div key={donation.id} className="bg-white border border-stone-200 rounded-xl p-6 shadow-sm text-left">
             <div className="flex justify-between items-center mb-4">
               <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">{donation.date}</span>
               <span className="text-[10px] bg-teal-50 px-2.5 py-1 rounded-full font-bold text-teal-700 border border-teal-100 uppercase">{donation.type}</span>
@@ -275,21 +281,21 @@ function PeopleApp({ people }) {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center">
         <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">People Directory</h1>
         <button onClick={() => setIsAdding(true)} className="px-4 py-2 bg-sky-600 text-white rounded-md text-sm font-medium flex items-center gap-2 shadow-sm"><UserPlus size={16}/> Add Profile</button>
       </div>
 
       {isAdding && (
-        <div className="bg-white p-6 rounded-xl border-2 border-sky-100 shadow-md grid grid-cols-1 sm:grid-cols-4 gap-4 animate-in zoom-in-95 duration-200">
-          <input type="text" placeholder="Full Name" className="p-2.5 border rounded-lg focus:ring-2 focus:ring-sky-100 outline-none" value={newPerson.name} onChange={e => setNewPerson({...newPerson, name: e.target.value})} />
-          <input type="email" placeholder="Email" className="p-2.5 border rounded-lg focus:ring-2 focus:ring-sky-100 outline-none" value={newPerson.email} onChange={e => setNewPerson({...newPerson, email: e.target.value})} />
+        <div className="bg-white p-6 rounded-xl border-2 border-sky-100 shadow-md grid grid-cols-1 sm:grid-cols-4 gap-4 animate-in zoom-in-95 duration-200 mb-6">
+          <input type="text" placeholder="Full Name" className="p-2.5 border rounded-lg outline-none" value={newPerson.name} onChange={e => setNewPerson({...newPerson, name: e.target.value})} />
+          <input type="email" placeholder="Email" className="p-2.5 border rounded-lg outline-none" value={newPerson.email} onChange={e => setNewPerson({...newPerson, email: e.target.value})} />
           <select className="p-2.5 border rounded-lg outline-none" value={newPerson.type} onChange={e => setNewPerson({...newPerson, type: e.target.value})}>
             <option value="Guest">Guest</option><option value="Member">Member</option><option value="Staff">Staff</option>
           </select>
           <div className="flex gap-2">
-            <button onClick={handleAdd} className="flex-1 bg-sky-600 text-white rounded-lg font-bold text-sm">{isSaving ? 'Saving...' : 'Save'}</button>
+            <button onClick={handleAdd} className="flex-1 bg-sky-600 text-white rounded-lg font-bold text-sm">{isSaving ? '...' : 'Save'}</button>
             <button onClick={() => setIsAdding(false)} className="px-4 text-stone-400 font-bold text-sm">Cancel</button>
           </div>
         </div>
@@ -301,7 +307,6 @@ function PeopleApp({ people }) {
             <tr><th className="px-6 py-4">Name</th><th className="px-6 py-4">Contact</th><th className="px-6 py-4">Status</th><th className="px-6 py-4 text-right">Action</th></tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
-            {people.length === 0 && <tr><td colSpan="4" className="p-12 text-center text-stone-400 italic">No profiles found in the database.</td></tr>}
             {people.map(p => (
               <tr key={p.id} className="hover:bg-stone-50 group transition-colors">
                 <td className="px-6 py-4 font-bold text-stone-900 flex items-center gap-3">
@@ -332,14 +337,14 @@ function CalendarApp({ events }) {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center">
         <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Master Calendar</h1>
         <button onClick={() => setIsAdding(true)} className="px-4 py-2 bg-orange-500 text-white rounded-md text-sm font-medium flex items-center gap-2 shadow-sm"><Plus size={16}/> New Event</button>
       </div>
 
       {isAdding && (
-        <div className="bg-white p-6 rounded-xl border-2 border-orange-100 shadow-md flex gap-4 animate-in zoom-in-95 duration-200">
+        <div className="bg-white p-6 rounded-xl border-2 border-orange-100 shadow-md flex gap-4 animate-in zoom-in-95 duration-200 mb-6">
           <input type="text" placeholder="Event Title" className="flex-1 p-2.5 border rounded-lg outline-none" value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} />
           <input type="text" placeholder="Time" className="w-32 p-2.5 border rounded-lg outline-none" value={newEvent.time} onChange={e => setNewEvent({...newEvent, time: e.target.value})} />
           <button onClick={handleAdd} className="bg-orange-500 text-white px-6 rounded-lg font-bold text-sm">Save</button>
@@ -349,14 +354,14 @@ function CalendarApp({ events }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {events.map(ev => (
           <div key={ev.id} className="bg-white border border-stone-200 p-5 rounded-xl flex justify-between items-center shadow-sm group">
-            <div className="flex gap-4 items-center">
-              <div className="w-12 h-12 bg-orange-50 rounded-lg flex flex-col items-center justify-center border border-orange-100">
+            <div className="flex gap-4 items-center text-left">
+              <div className="w-12 h-12 bg-orange-50 rounded-lg flex flex-col items-center justify-center border border-orange-100 flex-shrink-0">
                 <span className="text-[10px] font-bold text-orange-400 uppercase leading-none">Mar</span>
                 <span className="text-lg font-black text-orange-600 leading-none">20</span>
               </div>
-              <div><div className="font-bold text-stone-900 text-lg">{ev.title}</div><div className="text-sm text-stone-400 font-medium">{ev.time}</div></div>
+              <div><div className="font-bold text-stone-900 text-lg leading-tight">{ev.title}</div><div className="text-sm text-stone-400 font-medium">{ev.time}</div></div>
             </div>
-            <button onClick={() => deleteDoc(doc(db, 'events', ev.id))} className="text-stone-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"><AlertCircle size={20}/></button>
+            <button onClick={() => deleteDoc(doc(db, 'events', ev.id))} className="text-stone-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all ml-4"><AlertCircle size={20}/></button>
           </div>
         ))}
       </div>
@@ -366,14 +371,14 @@ function CalendarApp({ events }) {
 
 function ServicesApp() {
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center">
         <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Service Planning</h1>
         <button className="px-4 py-2 bg-amber-600 text-white rounded-md text-sm font-medium flex items-center gap-2 shadow-sm"><Settings size={16}/> Sequence Editor</button>
       </div>
-      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-sm">
         {PLAN_ITEMS.map((item, idx) => (
-          <div key={item.id} className={`flex items-center p-4 ${idx % 2 === 0 ? 'bg-white' : 'bg-stone-50/50'} border-b border-stone-100 last:border-0 group`}>
+          <div key={item.id} className={`flex items-center p-4 ${idx % 2 === 0 ? 'bg-white' : 'bg-stone-50/30'} border-b border-stone-100 last:border-0 group`}>
             <div className="w-10 text-stone-300 font-bold text-xs">{idx + 1}</div>
             <div className="w-24 text-stone-400 font-bold text-[10px] uppercase tracking-wider">{item.time}</div>
             <div className="flex-1">
@@ -391,21 +396,21 @@ function ServicesApp() {
 
 function SecurityApp() {
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">System Security</h1>
-      <div className="bg-stone-900 rounded-2xl p-8 text-white">
+      <div className="bg-stone-900 rounded-2xl p-8 text-white shadow-xl">
         <div className="flex items-center gap-4 mb-8">
           <div className="p-3 bg-stone-800 rounded-xl text-emerald-400 shadow-inner"><ShieldCheck size={32}/></div>
-          <div><h2 className="text-xl font-bold">Firewall Active</h2><p className="text-stone-400 text-sm">Your connection to Firebase is encrypted and secured.</p></div>
+          <div><h2 className="text-xl font-bold">Firewall Active</h2><p className="text-stone-400 text-sm">Real-time connection to Firebase is encrypted and secured.</p></div>
         </div>
         <div className="space-y-4">
           <div className="flex items-center justify-between p-4 bg-stone-800/50 rounded-lg border border-stone-800">
-            <div className="flex items-center gap-3"><History size={16} className="text-stone-500"/><span className="text-sm font-medium">Last Login</span></div>
-            <span className="text-sm text-stone-300 font-mono">2026-03-19 18:45:02</span>
+            <div className="flex items-center gap-3"><History size={16} className="text-stone-500"/><span className="text-sm font-medium">Last Build Status</span></div>
+            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded">Success</span>
           </div>
           <div className="flex items-center justify-between p-4 bg-stone-800/50 rounded-lg border border-stone-800">
-            <div className="flex items-center gap-3"><MonitorPlay size={16} className="text-stone-500"/><span className="text-sm font-medium">IP Address</span></div>
-            <span className="text-sm text-stone-300 font-mono">72.181.XXX.XXX</span>
+            <div className="flex items-center gap-3"><MonitorPlay size={16} className="text-stone-500"/><span className="text-sm font-medium">Server Location</span></div>
+            <span className="text-sm text-stone-300 font-mono">Vercel (iad1)</span>
           </div>
         </div>
       </div>
@@ -425,14 +430,14 @@ function LoginScreen({ onLogin }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-50 p-6">
+    <div className="min-h-screen flex items-center justify-center bg-stone-50 p-6 font-sans">
       <div className="max-w-md w-full bg-white p-10 rounded-2xl shadow-xl border border-stone-200">
         <div className="text-center mb-10">
           <Grid size={40} className="mx-auto text-stone-800 mb-4" />
           <h2 className="text-3xl font-serif font-bold text-stone-900">Lifegate AG</h2>
           <p className="text-xs text-stone-400 mt-2 uppercase tracking-[0.2em] font-black">Ministry Portal</p>
         </div>
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleLogin} className="space-y-5 text-left">
           <div>
             <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">Email Address</label>
             <input type="email" required className="w-full p-3 border-2 border-stone-100 rounded-xl focus:border-stone-900 outline-none transition-colors" placeholder="joshua@lifegate.ag" value={email} onChange={e => setEmail(e.target.value)} />
@@ -441,7 +446,7 @@ function LoginScreen({ onLogin }) {
             <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest mb-1.5 ml-1">Password</label>
             <input type="password" required className="w-full p-3 border-2 border-stone-100 rounded-xl focus:border-stone-900 outline-none transition-colors" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
           </div>
-          <button type="submit" disabled={loading} className="w-full bg-stone-900 text-white py-4 rounded-xl font-bold hover:bg-stone-800 transition-all flex justify-center items-center">
+          <button type="submit" disabled={loading} className="w-full bg-stone-900 text-white py-4 rounded-xl font-bold hover:bg-stone-800 transition-all flex justify-center items-center shadow-lg">
             {loading ? <Loader2 className="animate-spin" size={20}/> : 'Enter Workspace'}
           </button>
         </form>
