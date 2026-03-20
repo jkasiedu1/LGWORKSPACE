@@ -15,12 +15,12 @@ import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from 'fi
 
 // 👇 PASTE YOUR FIREBASE KEYS HERE 👇
 const firebaseConfig = {
-  apiKey: "AIzaSyCrPxPLMS_pwryIRHoxYVUFiuxpKHyTk1M",
-authDomain: "lifegate-workspace.firebaseapp.com",
-  projectId: "lifegate-workspace",
-  storageBucket: "lifegate-workspace.appspot.com",
-  messagingSenderId: "1234567890",
-  appId: "1:1234567890:web:abcdef123456"
+   apiKey: "AIzaSyCrPxPLMS_pwryIRHoxYVUFiuxpKHyTk1M",
+  authDomain: "lifegate-workspace-5dd48.firebaseapp.com",
+  projectId: "lifegate-workspace-5dd48",
+  storageBucket: "lifegate-workspace-5dd48.firebasestorage.app",
+  messagingSenderId: "747638028505",
+  appId: "1:747638028505:web:e0abb11d1ea0505c5526c8",
 };
 
 let db = null;
