@@ -18,7 +18,7 @@ import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from
 // 👇 1. LIVE GEMINI AI INTEGRATION 👇
 // IMPORTANT: If you are deploying this app to Vercel, you MUST paste a real Gemini API Key here.
 // Get one for free at: https://aistudio.google.com/
-const GEMINI_API_KEY = ""; 
+const GEMINI_API_KEY = "AIzaSyBxmuVCtzggdSh1uIhqlTjXN79HD_NVauc"; 
 
 const callGeminiAI = async (prompt, systemContext) => {
   const apiKey = GEMINI_API_KEY || ""; // Uses your key if provided, otherwise attempts platform default
