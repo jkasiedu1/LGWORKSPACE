@@ -10,6 +10,8 @@ import {
   FolderLock, Lock, Unlock, File, SmartphoneNfc, EyeOff, History, PieChart, 
   BarChart3, Download, TrendingDown, Activity, LogOut 
 } from 'lucide-react';
+import { collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { db } from './firebase';
 
 // --- ENTERPRISE MOCK DATA ---
 const UPCOMING_EVENTS = [
@@ -81,9 +83,9 @@ export default function App() {
   const [activeApp, setActiveApp] = useState('home');
   const [isAppSwitcherOpen, setIsAppSwitcherOpen] = useState(false);
   
-  // Centralized State Management (In-Memory)
-  const [events, setEvents] = useState(UPCOMING_EVENTS);
-  const [people, setPeople] = useState(PEOPLE_LIST);
+  // LIVE FIREBASE STATE
+  const [events, setEvents] = useState([]);
+  const [people, setPeople] = useState([]);
   const [planItems, setPlanItems] = useState(PLAN_ITEMS);
   
   // Inject the HTML Head styles and fonts to ensure exact pixel-perfect match
@@ -111,8 +113,26 @@ export default function App() {
       }
     `;
     document.head.appendChild(style);
-    return () => document.head.removeChild(style);
-  }, []);
+
+    // FIREBASE DATABASE CONNECTION
+    let unsubEvents;
+    let unsubPeople;
+    
+    if (isAuthenticated) {
+      unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
+        setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+      unsubPeople = onSnapshot(collection(db, 'people'), (snapshot) => {
+        setPeople(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+    }
+
+    return () => {
+      document.head.removeChild(style);
+      if (unsubEvents) unsubEvents();
+      if (unsubPeople) unsubPeople();
+    };
+  }, [isAuthenticated]);
 
   const theme = APPS[activeApp];
 
@@ -390,7 +410,7 @@ function ReportingApp({ theme }) {
           <div className="mt-4">
             <span className="text-3xl font-bold tracking-tight text-stone-900">62%</span>
             <div className="flex items-center gap-1 mt-1 text-stone-400 text-xs font-semibold">
-               Unchanged vs last month
+              Unchanged vs last month
             </div>
           </div>
         </div>
@@ -1068,6 +1088,20 @@ function MusicApp({ theme }) {
 function PeopleApp({ theme, people, setPeople }) {
   const [isAdding, setIsAdding] = useState(false);
   const [newPerson, setNewPerson] = useState({ name: '', email: '', phone: '', address: '', type: 'Guest', bgCheck: 'N/A' });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleAdd = async () => {
+    if (!newPerson.name) return;
+    setIsSaving(true);
+    try {
+      await addDoc(collection(db, 'people'), newPerson);
+      setIsAdding(false);
+      setNewPerson({ name: '', email: '', phone: '', address: '', type: 'Guest', bgCheck: 'N/A' });
+    } catch (e) {
+      console.error(e);
+    }
+    setIsSaving(false);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -1102,13 +1136,9 @@ function PeopleApp({ theme, people, setPeople }) {
               </select>
               <div className="flex justify-end gap-2 mt-6">
                 <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
-                <button onClick={() => {
-                  if(newPerson.name) {
-                    setPeople([{ id: Date.now(), ...newPerson }, ...people]);
-                    setIsAdding(false);
-                    setNewPerson({ name: '', email: '', phone: '', address: '', type: 'Guest', bgCheck: 'N/A' });
-                  }
-                }} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Save Profile</button>
+                <button onClick={handleAdd} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>
+                  {isSaving ? 'Saving...' : 'Save Profile'}
+                </button>
               </div>
             </div>
           </div>
@@ -1178,7 +1208,7 @@ function PeopleApp({ theme, people, setPeople }) {
                     {person.bgCheck === 'N/A' && <span className="text-stone-300 text-xs">Not Required</span>}
                   </td>
                   <td className="px-5 py-3 text-right text-stone-400">
-                    <button onClick={() => setPeople(people.filter(p => p.id !== person.id))} className="hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><AlertCircle size={18} className="ml-auto"/></button>
+                    <button onClick={() => deleteDoc(doc(db, 'people', person.id))} className="hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><AlertCircle size={18} className="ml-auto"/></button>
                   </td>
                 </tr>
               ))}
@@ -1289,6 +1319,20 @@ function GivingApp({ theme }) {
 function CalendarApp({ theme, events, setEvents }) {
   const [isAdding, setIsAdding] = useState(false);
   const [newEvent, setNewEvent] = useState({ title: '', date: 'Feb 20, 2026', time: '', type: 'Meeting' });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleAddEvent = async () => {
+    if (!newEvent.title) return;
+    setIsSaving(true);
+    try {
+      await addDoc(collection(db, 'events'), newEvent);
+      setIsAdding(false);
+      setNewEvent({ title: '', date: 'Feb 20, 2026', time: '', type: 'Meeting' });
+    } catch (e) {
+      console.error(e);
+    }
+    setIsSaving(false);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -1320,13 +1364,9 @@ function CalendarApp({ theme, events, setEvents }) {
               </div>
               <div className="flex justify-end gap-2 mt-6">
                 <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
-                <button onClick={() => {
-                  if(newEvent.title) {
-                    setEvents([...events, { id: Date.now(), ...newEvent }]);
-                    setIsAdding(false);
-                    setNewEvent({ title: '', date: 'Feb 20, 2026', time: '', type: 'Meeting' });
-                  }
-                }} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Save Event</button>
+                <button onClick={handleAddEvent} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>
+                  {isSaving ? 'Saving...' : 'Save Event'}
+                </button>
               </div>
             </div>
           </div>
@@ -1500,221 +1540,3 @@ function WorkflowsApp({ theme }) {
                 <th className="px-5 py-3 text-right">Uses</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-100">
-              <tr className="hover:bg-stone-50">
-                <td className="px-5 py-4 font-bold text-stone-900"><Hash size={14} className="inline text-stone-400 mr-1"/>GUEST</td>
-                <td className="px-5 py-4 text-stone-600 truncate max-w-xs">Welcome to Lifegate! Click here to fill out a quick connect card...</td>
-                <td className="px-5 py-4 text-stone-500">Add to "New Guests" list</td>
-                <td className="px-5 py-4 text-right font-medium">142</td>
-              </tr>
-              <tr className="hover:bg-stone-50">
-                <td className="px-5 py-4 font-bold text-stone-900"><Hash size={14} className="inline text-stone-400 mr-1"/>BAPTISM</td>
-                <td className="px-5 py-4 text-stone-600 truncate max-w-xs">Awesome! Baptism is a huge step. Here is the info on our next class...</td>
-                <td className="px-5 py-4 text-stone-500">Add to "Baptism Class" list</td>
-                <td className="px-5 py-4 text-right font-medium">18</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SecurityApp({ theme }) {
-  const [is2FA, setIs2FA] = useState(true);
-  const [isDLP, setIsDLP] = useState(true);
-  const [isPII, setIsPII] = useState(true);
-  const [isOptOut, setIsOptOut] = useState(true);
-  const [isEndpoint, setIsEndpoint] = useState(false);
-
-  return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Workspace Security</h1>
-          <p className="text-stone-500 text-sm mt-1">Manage authentication, data loss prevention (DLP), and AI governance.</p>
-        </div>
-        <div className="flex gap-2">
-          <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
-             Save Security Settings
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          
-          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-            <div className="p-5 border-b border-stone-200 bg-stone-50 flex items-center gap-2">
-              <ShieldCheck size={18} className="text-stone-600"/>
-              <h3 className="font-semibold text-stone-800">Authentication & Access</h3>
-            </div>
-            <div className="divide-y divide-stone-100">
-              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
-                <div>
-                  <h4 className="font-bold text-stone-900 text-sm">Enforce 2-Step Verification (2FA)</h4>
-                  <p className="text-xs text-stone-500 mt-1 max-w-md">Require all staff and team leaders to use a secondary authentication method (Authenticator App or SMS) when logging in.</p>
-                </div>
-                <div onClick={() => setIs2FA(!is2FA)}>
-                  {is2FA ? <ToggleRight size={36} className="text-emerald-500 cursor-pointer"/> : <ToggleLeft size={36} className="text-stone-300 cursor-pointer"/>}
-                </div>
-              </div>
-              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
-                <div>
-                  <h4 className="font-bold text-stone-900 text-sm">Advanced Endpoint Management</h4>
-                  <p className="text-xs text-stone-500 mt-1 max-w-md">Allow admins to remotely wipe church data from personal mobile devices if a volunteer's phone is lost or stolen.</p>
-                </div>
-                <div onClick={() => setIsEndpoint(!isEndpoint)}>
-                  {isEndpoint ? <ToggleRight size={36} className="text-emerald-500 cursor-pointer"/> : <ToggleLeft size={36} className="text-stone-300 cursor-pointer"/>}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-            <div className="p-5 border-b border-stone-200 bg-stone-50 flex items-center gap-2">
-              <ShieldAlert size={18} className="text-stone-600"/>
-              <h3 className="font-semibold text-stone-800">Data Protection & AI Governance</h3>
-            </div>
-            <div className="divide-y divide-stone-100">
-              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-bold text-stone-900 text-sm">Data Loss Prevention (DLP)</h4>
-                    <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 rounded uppercase">Recommended</span>
-                  </div>
-                  <p className="text-xs text-stone-500 mt-1 max-w-md">Automatically scan internal chats and documents to prevent users from sharing sensitive congregant data (SSNs, Credit Cards) externally.</p>
-                </div>
-                <div onClick={() => setIsDLP(!isDLP)}>
-                  {isDLP ? <ToggleRight size={36} className="text-emerald-500 cursor-pointer"/> : <ToggleLeft size={36} className="text-stone-300 cursor-pointer"/>}
-                </div>
-              </div>
-              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
-                <div>
-                  <h4 className="font-bold text-stone-900 text-sm">PII Data Masking for AI</h4>
-                  <p className="text-xs text-stone-500 mt-1 max-w-md">Automatically redact names, phone numbers, and addresses before sending any context to Gemini AI to ensure pastoral confidentiality.</p>
-                </div>
-                <div onClick={() => setIsPII(!isPII)}>
-                  {isPII ? <ToggleRight size={36} className="text-emerald-500 cursor-pointer"/> : <ToggleLeft size={36} className="text-stone-300 cursor-pointer"/>}
-                </div>
-              </div>
-              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
-                <div>
-                  <h4 className="font-bold text-stone-900 text-sm">LLM Training Opt-Out</h4>
-                  <p className="text-xs text-stone-500 mt-1 max-w-md">Enforce Google Workspace privacy policy ensuring your church's internal data is never used to train public generative models.</p>
-                </div>
-                <div onClick={() => setIsOptOut(!isOptOut)}>
-                  {isOptOut ? <ToggleRight size={36} className="text-emerald-500 cursor-pointer"/> : <ToggleLeft size={36} className="text-stone-300 cursor-pointer"/>}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit">
-            <div className="p-5 border-b border-stone-200 bg-stone-50 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <History size={18} className="text-stone-600"/>
-                <h3 className="font-semibold text-stone-800">Security Audit Log</h3>
-              </div>
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-            </div>
-            <div className="divide-y divide-stone-100 max-h-[300px] overflow-y-auto">
-              <div className="p-4 bg-rose-50/30">
-                <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5"><EyeOff size={12}/> DLP Policy Triggered</p>
-                <p className="text-xs text-stone-600 mt-1">Blocked user 'S. Jenkins' from emailing a spreadsheet containing credit card numbers externally.</p>
-                <p className="text-[10px] text-stone-400 mt-1">Today, 10:42 AM</p>
-              </div>
-              <div className="p-4">
-                <p className="text-xs font-bold text-stone-700 flex items-center gap-1.5"><ShieldCheck size={12}/> Successful Login (2FA)</p>
-                <p className="text-xs text-stone-600 mt-1">User 'J. Asiedu' authenticated successfully from recognized IP address.</p>
-                <p className="text-[10px] text-stone-400 mt-1">Today, 8:15 AM</p>
-              </div>
-              <div className="p-4">
-                <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5"><SmartphoneNfc size={12}/> New Device Registered</p>
-                <p className="text-xs text-stone-600 mt-1">A new mobile device was registered to 'D. Chen' via Endpoint Management.</p>
-                <p className="text-[10px] text-stone-400 mt-1">Yesterday, 4:30 PM</p>
-              </div>
-            </div>
-            <div className="p-3 border-t border-stone-100 bg-stone-50 text-center">
-              <button className="text-xs font-semibold text-stone-600 hover:text-stone-900">View Full Logs (Google Vault)</button>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit">
-            <div className="p-5 border-b border-stone-200 bg-stone-50">
-              <h3 className="font-semibold text-stone-800">Role-Based Access</h3>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-stone-700">Lead Pastors</span>
-                <span className="text-xs font-bold bg-stone-100 text-stone-700 px-2 py-1 rounded">Full Admin</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-stone-700">Staff / Directors</span>
-                <span className="text-xs font-bold bg-stone-100 text-stone-700 px-2 py-1 rounded">Editor Access</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-stone-700">Volunteers</span>
-                <span className="text-xs font-bold bg-rose-50 text-rose-700 px-2 py-1 rounded">No System Access</span>
-              </div>
-              <button className="w-full mt-2 py-2 border border-stone-200 rounded text-xs font-semibold text-stone-600 hover:bg-stone-50">Manage Roles</button>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  );
-}
-
-// ==========================================
-// REUSABLE COMPONENTS
-// ==========================================
-
-function HomeMetricCard({ title, value, label, color }) {
-  return (
-    <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col">
-      <span className="text-sm font-medium text-stone-500">{title}</span>
-      <div className="mt-2 flex items-baseline gap-2">
-        <span className={`text-3xl font-bold tracking-tight ${color}`}>{value}</span>
-        <span className="text-xs font-medium text-stone-400 uppercase tracking-wide">{label}</span>
-      </div>
-    </div>
-  );
-}
-
-function QuickActionButton({ icon: Icon, label, color }) {
-  return (
-    <button className={`p-4 rounded-lg border flex flex-col items-center justify-center gap-2 transition-colors ${color}`}>
-      <Icon size={24} />
-      <span className="text-xs font-bold">{label}</span>
-    </button>
-  );
-}
-
-function WorkflowCard({ title, trigger, actions, icon: Icon }) {
-  return (
-    <div className="p-5 flex items-start gap-4 hover:bg-stone-50 transition-colors cursor-pointer group">
-      <div className="p-2.5 bg-stone-100 rounded-lg text-stone-500 group-hover:bg-violet-100 group-hover:text-violet-600 transition-colors">
-        <Icon size={20} />
-      </div>
-      <div className="flex-1">
-        <div className="flex justify-between items-start">
-          <h4 className="font-semibold text-stone-900">{title}</h4>
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-700 uppercase tracking-wider">Active</span>
-        </div>
-        <div className="mt-1 text-sm text-stone-500 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-          <span><strong className="font-medium text-stone-700">When:</strong> {trigger}</span>
-          <span className="hidden sm:inline text-stone-300">•</span>
-          <span><strong className="font-medium text-stone-700">Then:</strong> {actions}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
