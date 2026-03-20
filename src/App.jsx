@@ -12,21 +12,24 @@ import {
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
 
 // 👇 PASTE YOUR FIREBASE KEYS HERE 👇
 const firebaseConfig = {
-   apiKey: "AIzaSyCrPxPLMS_pwryIRHoxYVUFiuxpKHyTk1M",
-  authDomain: "lifegate-workspace-5dd48.firebaseapp.com",
-  projectId: "lifegate-workspace-5dd48",
-  storageBucket: "lifegate-workspace-5dd48.firebasestorage.app",
-  messagingSenderId: "747638028505",
-  appId: "1:747638028505:web:e0abb11d1ea0505c5526c8",
+  apiKey: "YOUR_API_KEY",
+  authDomain: "your-app.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-app.appspot.com",
+  messagingSenderId: "your-sender-id",
+  appId: "your-app-id"
 };
 
 let db = null;
+let auth = null;
 try {
   const app = initializeApp(firebaseConfig);
   db = getFirestore(app);
+  auth = getAuth(app);
 } catch (e) {
   console.warn("Firebase not fully initialized with demo keys.");
 }
@@ -98,6 +101,7 @@ const APPS = {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [activeApp, setActiveApp] = useState('home');
   const [isAppSwitcherOpen, setIsAppSwitcherOpen] = useState(false);
   
@@ -106,6 +110,19 @@ export default function App() {
   const [people, setPeople] = useState([]);
   const [planItems, setPlanItems] = useState(PLAN_ITEMS);
   
+  useEffect(() => {
+    if (auth) {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        setIsAuthenticated(!!user);
+        setAuthCheckComplete(true);
+      });
+      return () => unsubscribe();
+    } else {
+      setAuthCheckComplete(true);
+    }
+  }, []);
+
+  // Inject the HTML Head styles and fonts to ensure exact pixel-perfect match
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
@@ -138,10 +155,16 @@ export default function App() {
 
   const theme = APPS[activeApp];
 
-  if (!isAuthenticated) return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
+  if (!authCheckComplete) {
+    return <div className="min-h-screen flex items-center justify-center bg-stone-50"><Loader2 className="animate-spin text-stone-400" size={32} /></div>;
+  }
+
+  if (!isAuthenticated) {
+    return <LoginScreen />;
+  }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-stone-50 font-sans">
       <header className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
         <div className="flex items-center justify-between h-14 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-6">
@@ -192,44 +215,66 @@ export default function App() {
             <button className={`text-stone-400 hover:text-stone-600 transition-colors ${activeApp === 'security' ? 'text-stone-800' : ''}`} onClick={() => setActiveApp('security')}>
               <Settings className="h-5 w-5" />
             </button>
-            <div className="h-8 w-8 rounded-full bg-stone-900 text-white flex items-center justify-center text-xs font-bold shadow-sm cursor-pointer hover:ring-2 ring-stone-300 ring-offset-2 transition-all">JA</div>
-            <button onClick={() => setIsAuthenticated(false)} className="text-stone-400 hover:text-rose-600 transition-colors ml-2"><LogOut className="h-5 w-5" /></button>
+            <div className="h-8 w-8 rounded-full bg-stone-900 text-white flex items-center justify-center text-xs font-bold shadow-sm cursor-pointer hover:ring-2 ring-stone-300 ring-offset-2 transition-all">
+              JA
+            </div>
+            <button onClick={() => auth && signOut(auth)} className="text-stone-400 hover:text-rose-600 transition-colors ml-2" title="Logout">
+              <LogOut className="h-5 w-5" />
+            </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
         {activeApp === 'home' && <HomeApp events={events} people={people} />}
-        {activeApp === 'services' && <ServicesApp theme={APPS.services} planItems={planItems} setPlanItems={setPlanItems} />}
-        {activeApp === 'music' && <MusicApp theme={APPS.music} />}
-        {activeApp === 'teams' && <TeamsApp theme={APPS.teams} setActiveApp={setActiveApp} />}
-        {activeApp === 'people' && <PeopleApp theme={APPS.people} people={people} setPeople={setPeople} />}
-        {activeApp === 'giving' && <GivingApp theme={APPS.giving} />}
-        {activeApp === 'calendar' && <CalendarApp theme={APPS.calendar} events={events} setEvents={setEvents} />}
-        {activeApp === 'workflows' && <WorkflowsApp theme={APPS.workflows} />}
-        {activeApp === 'security' && <SecurityApp theme={APPS.security} />}
-        {activeApp === 'reporting' && <ReportingApp theme={APPS.reporting} />}
+        {activeApp === 'services' && <ServicesApp theme={theme} planItems={planItems} setPlanItems={setPlanItems} />}
+        {activeApp === 'music' && <MusicApp theme={theme} />}
+        {activeApp === 'teams' && <TeamsApp theme={theme} setActiveApp={setActiveApp} />}
+        {activeApp === 'people' && <PeopleApp theme={theme} people={people} setPeople={setPeople} />}
+        {activeApp === 'giving' && <GivingApp theme={theme} />}
+        {activeApp === 'calendar' && <CalendarApp theme={theme} events={events} setEvents={setEvents} />}
+        {activeApp === 'workflows' && <WorkflowsApp theme={theme} />}
+        {activeApp === 'security' && <SecurityApp theme={theme} />}
+        {activeApp === 'reporting' && <ReportingApp theme={theme} />}
       </main>
     </div>
   );
 }
 
-function LoginScreen({ onLogin }) {
+// ==========================================
+// APP MODULES
+// ==========================================
+
+function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => { setIsLoading(false); onLogin(); }, 800);
+    setErrorMsg('');
+    try {
+      if (auth) {
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        setErrorMsg("Firebase Auth not connected.");
+        setIsLoading(false);
+      }
+    } catch (error) {
+      setErrorMsg("Invalid email or password. Please try again.");
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-stone-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl border border-stone-200">
         <div className="text-center">
-          <div className="flex justify-center items-center gap-2 mb-2"><Grid size={32} className="text-stone-800" /></div>
+          <div className="flex justify-center items-center gap-2 mb-2">
+            <Grid size={32} className="text-stone-800" />
+          </div>
           <h2 className="mt-2 text-center text-3xl font-serif font-bold tracking-tight text-stone-900">Lifegate AG</h2>
           <p className="mt-2 text-center text-sm text-stone-500 font-medium">Workspace & Ministry Portal</p>
         </div>
@@ -237,13 +282,35 @@ function LoginScreen({ onLogin }) {
           <div className="space-y-4 rounded-md shadow-sm">
             <div>
               <label className="block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">Email Address</label>
-              <input type="email" required className="relative block w-full rounded-lg border border-stone-300 px-3 py-2.5 text-stone-900 focus:z-10 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm transition-colors" placeholder="joshua@lifegate.ag" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input 
+                type="email" 
+                required 
+                className="relative block w-full rounded-lg border border-stone-300 px-3 py-2.5 text-stone-900 focus:z-10 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm transition-colors" 
+                placeholder="joshua@lifegate.ag" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+              />
             </div>
             <div>
               <label className="block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">Password</label>
-              <input type="password" required className="relative block w-full rounded-lg border border-stone-300 px-3 py-2.5 text-stone-900 focus:z-10 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm transition-colors" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <input
+                type="password"
+                required
+                className="relative block w-full rounded-lg border border-stone-300 px-3 py-2.5 text-stone-900 focus:z-10 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm transition-colors"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
           </div>
+
+          {errorMsg && (
+            <div className="bg-rose-50 text-rose-600 text-sm p-3 rounded-lg flex items-center gap-2 font-medium">
+              <AlertCircle size={16} />
+              {errorMsg}
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <input id="remember-me" type="checkbox" className="h-4 w-4 rounded border-stone-300 text-teal-600 focus:ring-teal-600" />
@@ -262,6 +329,53 @@ function LoginScreen({ onLogin }) {
   );
 }
 
+function HomeApp({ events, people }) {
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex justify-between items-end">
+        <div className="text-left">
+          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Good Morning, Joshua</h1>
+          <p className="text-stone-500 text-sm mt-1">Here is your ministry pulse for the week of Feb 16, 2026.</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <HomeMetricCard title="Upcoming Services" value={events.length} label="Scheduled" color="text-amber-600" />
+        <HomeMetricCard title="Total Profiles" value={people.length} label="In Database" color="text-sky-600" />
+        <HomeMetricCard title="Serve Team" value="82%" label="Filled for Sunday" color="text-orange-600" />
+        <HomeMetricCard title="Weekly Giving" value="$14.2k" label="Ahead of Goal" color="text-teal-600" />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden flex flex-col text-left">
+          <div className="px-5 py-4 border-b border-stone-100 flex justify-between items-center bg-stone-50/50">
+            <h2 className="font-semibold text-stone-800">Your Schedule</h2>
+            <button className="text-sm text-stone-500 hover:text-stone-800 font-medium">View Calendar</button>
+          </div>
+          <div className="divide-y divide-stone-100 flex-1">
+            {events.slice(0, 4).map(event => (
+              <div key={event.id} className="p-4 hover:bg-stone-50 transition-colors flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-stone-900 text-sm">{event.title}</h3>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-stone-500"><span>{event.date}</span><span>•</span><span>{event.time}</span></div>
+                </div>
+                <ChevronRight size={16} className="text-stone-400" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden text-left">
+          <div className="px-5 py-4 border-b border-stone-100 bg-stone-50/50"><h2 className="font-semibold text-stone-800">Quick Actions</h2></div>
+          <div className="p-5 grid grid-cols-2 gap-4">
+            <QuickActionButton icon={BookOpen} label="Plan a Service" color="bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200" />
+            <QuickActionButton icon={UserPlus} label="Add a Person" color="bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200" />
+            <QuickActionButton icon={DollarSign} label="Zelle Sync" color="bg-teal-50 text-teal-700 hover:bg-teal-100 border-teal-200" />
+            <QuickActionButton icon={Send} label="Send Message" color="bg-violet-50 text-violet-700 hover:bg-violet-100 border-violet-200" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReportingApp({ theme }) {
   const attendanceData = [
     { label: 'Jan 18', value: 45 }, { label: 'Jan 25', value: 55 }, { label: 'Feb 1', value: 68 },
@@ -273,7 +387,7 @@ function ReportingApp({ theme }) {
   ];
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Insights & Reports</h1>
@@ -381,7 +495,7 @@ function TeamsApp({ theme, setActiveApp }) {
 
   if (activePortal) {
     return (
-      <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="space-y-6 animate-in fade-in duration-500 text-left">
         <div className="flex justify-between items-end mb-6">
           <div>
             <button onClick={() => setActivePortal(null)} className="text-stone-400 hover:text-stone-600 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1 transition-colors"><ChevronRight className="rotate-180" size={14}/> Back to Portals</button>
@@ -439,7 +553,7 @@ function TeamsApp({ theme, setActiveApp }) {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Ministry Portals</h1>
@@ -482,53 +596,6 @@ function TeamsApp({ theme, setActiveApp }) {
   );
 }
 
-function HomeApp({ events, people }) {
-  return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Good Morning, Joshua</h1>
-          <p className="text-stone-500 text-sm mt-1">Here is your ministry pulse for the week of Feb 16, 2026.</p>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <HomeMetricCard title="Upcoming Services" value={events.length} label="Scheduled" color="text-amber-600" />
-        <HomeMetricCard title="Total Profiles" value={people.length} label="In Database" color="text-sky-600" />
-        <HomeMetricCard title="Serve Team" value="82%" label="Filled for Sunday" color="text-orange-600" />
-        <HomeMetricCard title="Weekly Giving" value="$14.2k" label="Ahead of Goal" color="text-teal-600" />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden flex flex-col">
-          <div className="px-5 py-4 border-b border-stone-100 flex justify-between items-center bg-stone-50/50">
-            <h2 className="font-semibold text-stone-800">Your Schedule</h2>
-            <button className="text-sm text-stone-500 hover:text-stone-800 font-medium">View Calendar</button>
-          </div>
-          <div className="divide-y divide-stone-100 flex-1">
-            {events.slice(0, 4).map(event => (
-              <div key={event.id} className="p-4 hover:bg-stone-50 transition-colors flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-stone-900 text-sm">{event.title}</h3>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-stone-500"><span>{event.date}</span><span>•</span><span>{event.time}</span></div>
-                </div>
-                <ChevronRight size={16} className="text-stone-400" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-stone-100 bg-stone-50/50"><h2 className="font-semibold text-stone-800">Quick Actions</h2></div>
-          <div className="p-5 grid grid-cols-2 gap-4">
-            <QuickActionButton icon={BookOpen} label="Plan a Service" color="bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200" />
-            <QuickActionButton icon={UserPlus} label="Add a Person" color="bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200" />
-            <QuickActionButton icon={DollarSign} label="Zelle Sync" color="bg-teal-50 text-teal-700 hover:bg-teal-100 border-teal-200" />
-            <QuickActionButton icon={Send} label="Send Message" color="bg-violet-50 text-violet-700 hover:bg-violet-100 border-violet-200" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ServicesApp({ theme, planItems, setPlanItems }) {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -546,7 +613,7 @@ function ServicesApp({ theme, planItems, setPlanItems }) {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Ash Wednesday Gathering</h1>
@@ -638,7 +705,7 @@ function MusicApp({ theme }) {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Music Library</h1>
@@ -758,7 +825,7 @@ function PeopleApp({ theme, people, setPeople }) {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
        <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">People & Check-ins</h1>
@@ -837,7 +904,7 @@ function GivingApp({ theme }) {
   const [reportResult, setReportResult] = useState(null);
   
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Financial Analytics & Giving</h1>
@@ -906,7 +973,7 @@ function CalendarApp({ theme, events, setEvents }) {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Master Calendar</h1>
@@ -966,7 +1033,7 @@ function CalendarApp({ theme, events, setEvents }) {
 function WorkflowsApp({ theme }) {
   const [activeSubTab, setActiveSubTab] = useState('automations'); 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Comms & Workflows</h1>
@@ -1046,7 +1113,7 @@ function SecurityApp({ theme }) {
   const [isEndpoint, setIsEndpoint] = useState(false);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Workspace Security</h1>
