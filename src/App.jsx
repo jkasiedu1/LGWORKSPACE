@@ -16,12 +16,12 @@ import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from
 
 // 👇 PASTE YOUR FIREBASE KEYS HERE 👇
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "your-app.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-app.appspot.com",
-  messagingSenderId: "your-sender-id",
-  appId: "your-app-id"
+  apiKey: "AIzaSyCrPxPLMS_pwryIRHoxYVUFiuxpKHyTk1M",
+  authDomain: "lifegate-workspace-5dd48.firebaseapp.com",
+  projectId: "lifegate-workspace-5dd48",
+  storageBucket: "lifegate-workspace-5dd48.firebasestorage.app",
+  messagingSenderId: "747638028505",
+  appId: "1:747638028505:web:e0abb11d1ea0505c5526c8",
 };
 
 let db = null;
