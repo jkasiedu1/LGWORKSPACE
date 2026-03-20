@@ -119,10 +119,11 @@ export default function App() {
   const [activeApp, setActiveApp] = useState('home');
   const [isAppSwitcherOpen, setIsAppSwitcherOpen] = useState(false);
   
-  // LIVE FIREBASE STATE
+  // LIVE & LOCAL STATE
   const [events, setEvents] = useState(UPCOMING_EVENTS);
   const [people, setPeople] = useState(PEOPLE_LIST);
   const [planItems, setPlanItems] = useState(PLAN_ITEMS);
+  const [donations, setDonations] = useState(RECENT_DONATIONS); // Lifted state for Giving
   
   // LIVE FIREBASE AUTH STATE & ROLE ASSIGNMENT
   useEffect(() => {
@@ -167,13 +168,13 @@ export default function App() {
       resetTimer(); // Start timer on login
       
       // Watch for any interactions
-      const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
-      events.forEach(event => window.addEventListener(event, resetTimer));
+      const eventsListener = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+      eventsListener.forEach(event => window.addEventListener(event, resetTimer));
 
       // Cleanup
       return () => {
         if (timeoutId) clearTimeout(timeoutId);
-        events.forEach(event => window.removeEventListener(event, resetTimer));
+        eventsListener.forEach(event => window.removeEventListener(event, resetTimer));
       };
     }
   }, [isAuthenticated]);
@@ -298,12 +299,12 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
-        {activeApp === 'home' && <HomeApp events={events} people={people} isAdmin={isAdmin} isSeniorPastor={isSeniorPastor} />}
+        {activeApp === 'home' && <HomeApp events={events} people={people} isAdmin={isAdmin} isSeniorPastor={isSeniorPastor} setActiveApp={setActiveApp} />}
         {activeApp === 'services' && <ServicesApp theme={theme} planItems={planItems} setPlanItems={setPlanItems} isAdmin={isAdmin} />}
         {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} />}
         {activeApp === 'teams' && <TeamsApp theme={theme} setActiveApp={setActiveApp} isAdmin={isAdmin} />}
         {activeApp === 'people' && <PeopleApp theme={theme} people={people} setPeople={setPeople} isAdmin={isAdmin} />}
-        {activeApp === 'giving' && isAdmin && <GivingApp theme={theme} />}
+        {activeApp === 'giving' && isAdmin && <GivingApp theme={theme} donations={donations} setDonations={setDonations} />}
         {activeApp === 'calendar' && <CalendarApp theme={theme} events={events} setEvents={setEvents} isAdmin={isAdmin} />}
         {activeApp === 'workflows' && isAdmin && <WorkflowsApp theme={theme} />}
         {activeApp === 'security' && isAdmin && <SecurityApp theme={theme} isSeniorPastor={isSeniorPastor} />}
@@ -394,7 +395,7 @@ function LoginScreen() {
   );
 }
 
-function HomeApp({ events, people, isAdmin, isSeniorPastor }) {
+function HomeApp({ events, people, isAdmin, isSeniorPastor, setActiveApp }) {
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-end">
@@ -415,7 +416,7 @@ function HomeApp({ events, people, isAdmin, isSeniorPastor }) {
         <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-stone-100 flex justify-between items-center bg-stone-50/50">
             <h2 className="font-semibold text-stone-800">Your Schedule</h2>
-            <button className="text-sm text-stone-500 hover:text-stone-800 font-medium">View Calendar</button>
+            <button onClick={() => setActiveApp('calendar')} className="text-sm text-stone-500 hover:text-stone-800 font-medium">View Calendar</button>
           </div>
           <div className="divide-y divide-stone-100 flex-1">
             {events.slice(0, 4).map(event => (
@@ -434,10 +435,10 @@ function HomeApp({ events, people, isAdmin, isSeniorPastor }) {
             <h2 className="font-semibold text-stone-800">Quick Actions</h2>
           </div>
           <div className="p-5 grid grid-cols-2 gap-4">
-            <QuickActionButton icon={BookOpen} label="View Services" color="bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200" />
-            {isAdmin && <QuickActionButton icon={UserPlus} label="Add a Person" color="bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200" />}
-            {isAdmin && <QuickActionButton icon={DollarSign} label="Zelle Sync" color="bg-teal-50 text-teal-700 hover:bg-teal-100 border-teal-200" />}
-            {isAdmin && <QuickActionButton icon={Send} label="Send Message" color="bg-violet-50 text-violet-700 hover:bg-violet-100 border-violet-200" />}
+            <QuickActionButton icon={BookOpen} label="View Services" color="bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200" onClick={() => setActiveApp('services')} />
+            {isAdmin && <QuickActionButton icon={UserPlus} label="Add a Person" color="bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200" onClick={() => setActiveApp('people')} />}
+            {isAdmin && <QuickActionButton icon={DollarSign} label="Zelle Sync" color="bg-teal-50 text-teal-700 hover:bg-teal-100 border-teal-200" onClick={() => setActiveApp('giving')} />}
+            {isAdmin && <QuickActionButton icon={Send} label="Send Message" color="bg-violet-50 text-violet-700 hover:bg-violet-100 border-violet-200" onClick={() => setActiveApp('workflows')} />}
           </div>
         </div>
       </div>
@@ -550,6 +551,12 @@ function MusicApp({ theme, isAdmin }) {
   const [analysisMode, setAnalysisMode] = useState('vocals'); 
   const [selectedSong, setSelectedSong] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredSongs = SONG_LIBRARY.filter(song => 
+    song.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    song.ccli.includes(searchQuery)
+  );
 
   const handleMusicAnalysis = () => {
     if (!musicPrompt) return;
@@ -574,6 +581,12 @@ function MusicApp({ theme, isAdmin }) {
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit">
             <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
               <h3 className="font-semibold text-stone-800">Song Catalog</h3>
+              <div className="flex items-center gap-3">
+                 <div className="relative hidden sm:block">
+                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 h-3.5 w-3.5" />
+                   <input type="text" placeholder="Search title or CCLI..." className="pl-8 pr-3 py-1.5 border border-stone-200 rounded-md text-xs outline-none focus:border-rose-500 w-48" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                 </div>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
@@ -581,7 +594,7 @@ function MusicApp({ theme, isAdmin }) {
                   <tr><th className="px-5 py-3">Song Title</th><th className="px-5 py-3">Key / BPM</th><th className="px-5 py-3">CCLI #</th><th className="px-5 py-3">Assets</th></tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
-                  {SONG_LIBRARY.map((song) => (
+                  {filteredSongs.map((song) => (
                     <tr key={song.id} onClick={() => setSelectedSong(song)} className={`cursor-pointer transition-colors ${selectedSong?.id === song.id ? 'bg-rose-50' : 'hover:bg-stone-50'}`}>
                       <td className="px-5 py-4"><div className="font-medium text-stone-900">{song.title}</div><div className="text-xs text-stone-500 mt-0.5">{song.artist}</div></td>
                       <td className="px-5 py-4 text-stone-500"><span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-stone-100 text-stone-700 mr-2 border border-stone-200">{song.key}</span><span className="text-xs">{song.bpm} bpm</span></td>
@@ -593,6 +606,9 @@ function MusicApp({ theme, isAdmin }) {
                       </div></td>
                     </tr>
                   ))}
+                  {filteredSongs.length === 0 && (
+                    <tr><td colSpan="4" className="px-5 py-8 text-center text-stone-500">No songs found matching "{searchQuery}"</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -642,7 +658,13 @@ function MusicApp({ theme, isAdmin }) {
 
 function PeopleApp({ theme, people, setPeople, isAdmin }) {
   const [isAdding, setIsAdding] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [newPerson, setNewPerson] = useState({ name: '', email: '', phone: '', address: '', type: 'Guest', bgCheck: 'N/A' });
+
+  const filteredPeople = people.filter(p => 
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    p.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleAdd = async () => {
     if (!newPerson.name) return;
@@ -703,7 +725,10 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
         <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
           <h3 className="font-semibold text-stone-800">Directory & Screening</h3>
           <div className="flex items-center gap-4">
-             <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 h-4 w-4" /><input type="text" placeholder="Search people..." className="pl-9 pr-4 py-1.5 border border-stone-200 rounded-md text-sm outline-none focus:border-sky-500"/></div>
+             <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 h-4 w-4" />
+              <input type="text" placeholder="Search people..." className="pl-9 pr-4 py-1.5 border border-stone-200 rounded-md text-sm outline-none focus:border-sky-500" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+             </div>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -712,7 +737,7 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
               <tr><th className="px-5 py-3">Name</th><th className="px-5 py-3">Contact</th><th className="px-5 py-3">Address</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Background Check</th><th className="px-5 py-3 text-right"></th></tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {people.map((person) => (
+              {filteredPeople.map((person) => (
                 <tr key={person.id} className="hover:bg-stone-50 group">
                   <td className="px-5 py-3 font-medium text-stone-900 flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${theme.light} ${theme.color}`}>{person.name.charAt(0)}</div>{person.name}
@@ -731,6 +756,9 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
                   </td>
                 </tr>
               ))}
+              {filteredPeople.length === 0 && (
+                <tr><td colSpan="6" className="px-5 py-8 text-center text-stone-500">No matching people found.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -739,112 +767,18 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
   );
 }
 
-function TeamsApp({ theme, setActiveApp, isAdmin }) {
-  const [activePortal, setActivePortal] = useState(null);
-  const [activeTab, setActiveTab] = useState('roster');
-
-  if (activePortal) {
-    return (
-      <div className="space-y-6 animate-in fade-in duration-500 text-left">
-        <div className="flex justify-between items-end mb-6">
-          <div>
-            <button onClick={() => setActivePortal(null)} className="text-stone-400 hover:text-stone-600 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1 transition-colors"><ChevronRight className="rotate-180" size={14}/> Back to Portals</button>
-            <div className="flex items-center gap-3">
-              <div className={`p-2.5 rounded-lg ${theme.light} ${theme.color}`}><FolderLock size={24}/></div>
-              <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">{activePortal.name}</h1>
-            </div>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-stone-500 text-sm font-medium">Team Lead: {activePortal.lead}</span><span className="text-stone-300">•</span>
-              <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isAdmin ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>Your Access: {isAdmin ? 'Full Admin' : 'View Only'}</span>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><MessageSquare size={16}/> Team Chat</button>
-          </div>
-        </div>
-        <div className="border-b border-stone-200 mb-6">
-          <nav className="-mb-px flex space-x-8">
-            <button onClick={() => setActiveTab('roster')} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === 'roster' ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>Team Roster & Schedule</button>
-            <button onClick={() => setActiveTab('files')} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === 'files' ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>Secure Files & Resources</button>
-          </nav>
-        </div>
-        {activeTab === 'files' && (
-          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
-              <h3 className="font-semibold text-stone-800">Restricted Team Documents</h3>
-              {isAdmin && (<button className={`text-sm font-medium ${theme.color} flex items-center gap-1`}><UploadCloud size={14}/> Upload File</button>)}
-            </div>
-            <div className="divide-y divide-stone-100">
-              <div className="p-4 flex items-center justify-between hover:bg-stone-50">
-                <div className="flex items-center gap-3"><File className="text-stone-400" size={20}/><div><p className="font-medium text-stone-900 text-sm">Q1 Volunteer Handbook.pdf</p><p className="text-xs text-stone-500">Uploaded 2 days ago</p></div></div>
-                {isAdmin && <button className="text-stone-400 hover:text-indigo-600"><MoreHorizontal size={18}/></button>}
-              </div>
-            </div>
-            {!isAdmin && (
-              <div className="p-4 bg-amber-50 border-t border-amber-100 flex items-start gap-3">
-                <ShieldAlert className="text-amber-600 shrink-0" size={18}/><p className="text-xs text-amber-800 font-medium">You have 'View Only' access. Contact team lead to request edit permissions.</p>
-              </div>
-            )}
-          </div>
-        )}
-        {activeTab === 'roster' && (
-          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden p-8 text-center">
-            <Users className="mx-auto text-stone-300 mb-3" size={32}/><h3 className="font-medium text-stone-900">Roster View</h3>
-            <p className="text-sm text-stone-500 mt-1">Displaying schedules for {activePortal.members} active team members.</p>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6 animate-in fade-in duration-500 text-left">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Ministry Portals</h1>
-          <p className="text-stone-500 text-sm mt-1">Secure, role-based workspaces restricted by department.</p>
-        </div>
-        {isAdmin && (
-          <div className="flex gap-2">
-            <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><Plus size={16}/> Create New Portal</button>
-          </div>
-        )}
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {MINISTRY_TEAMS.map(team => (
-          <div key={team.id} className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col relative overflow-hidden group">
-            {!isAdmin && team.status === 'locked' && (
-              <div className="absolute inset-0 bg-stone-100/60 backdrop-blur-[1px] z-10 flex items-center justify-center flex-col">
-                <Lock size={32} className="text-stone-400 mb-2"/><span className="bg-white px-3 py-1 rounded shadow-sm text-xs font-bold text-stone-600 uppercase tracking-wider border border-stone-200">Access Denied</span>
-              </div>
-            )}
-            <div className="flex justify-between items-start mb-4">
-              <div className={`p-3 rounded-lg ${theme.light} ${theme.color}`}><FolderLock size={20}/></div>
-              <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded ${isAdmin || team.status === 'unlocked' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{isAdmin ? 'Full Admin' : team.access}</span>
-            </div>
-            <h3 className="text-lg font-bold text-stone-900">{team.name}</h3>
-            <p className="text-sm text-stone-500 mt-1 flex-1">{team.desc}</p>
-            <div className="mt-6 pt-4 border-t border-stone-100 flex items-center justify-between">
-              <div className="flex -space-x-2">
-                {[...Array(Math.min(3, team.members))].map((_, i) => (<div key={i} className="w-6 h-6 rounded-full bg-stone-200 border-2 border-white"></div>))}
-                {team.members > 3 && (<div className="w-6 h-6 rounded-full bg-stone-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-stone-500">+{team.members - 3}</div>)}
-              </div>
-              <button 
-                onClick={() => { if (isAdmin || team.status !== 'locked') { team.name === 'Lifegate Music' ? setActiveApp('music') : setActivePortal(team); } }}
-                className={`text-sm font-semibold flex items-center gap-1 transition-colors ${!isAdmin && team.status === 'locked' ? 'text-stone-300 cursor-not-allowed' : `${theme.color} hover:opacity-80`}`}
-              >
-                Enter Portal <ChevronRight size={16}/>
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function GivingApp({ theme }) {
+function GivingApp({ theme, donations, setDonations }) {
   const [reportResult, setReportResult] = useState(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const [newDonation, setNewDonation] = useState({ name: '', amount: '', fund: 'General Tithe', type: 'Zelle', date: 'Today' });
+
+  const handleAddDonation = () => {
+    if (!newDonation.name || !newDonation.amount) return;
+    setDonations([{ id: Date.now(), ...newDonation }, ...donations]);
+    setIsAdding(false);
+    setNewDonation({ name: '', amount: '', fund: 'General Tithe', type: 'Zelle', date: 'Today' });
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
@@ -853,9 +787,38 @@ function GivingApp({ theme }) {
           <p className="text-stone-500 text-sm mt-1">Track donations, Zelle reconciliation, and generate insights.</p>
         </div>
         <div className="flex gap-2">
-          <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><DollarSign size={16}/> Record Gift / Zelle Sync</button>
+          <button onClick={() => setIsAdding(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><DollarSign size={16}/> Record Gift / Zelle Sync</button>
         </div>
       </div>
+
+      {isAdding && (
+        <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+            <h2 className="text-xl font-bold text-stone-900 mb-4">Record New Gift</h2>
+            <div className="space-y-4">
+              <input type="text" placeholder="Donor Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500" value={newDonation.name} onChange={e => setNewDonation({...newDonation, name: e.target.value})} />
+              <input type="text" placeholder="Amount (e.g. $100.00)" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500" value={newDonation.amount} onChange={e => setNewDonation({...newDonation, amount: e.target.value})} />
+              <div className="grid grid-cols-2 gap-4">
+                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500" value={newDonation.fund} onChange={e => setNewDonation({...newDonation, fund: e.target.value})}>
+                  <option value="General Tithe">General Tithe</option>
+                  <option value="Missions">Missions</option>
+                  <option value="Building Fund">Building Fund</option>
+                </select>
+                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500" value={newDonation.type} onChange={e => setNewDonation({...newDonation, type: e.target.value})}>
+                  <option value="Zelle">Zelle</option>
+                  <option value="Cash/Check">Cash/Check</option>
+                  <option value="Online Card">Online Card</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
+                <button onClick={handleAddDonation} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Save Record</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between"><div><p className="text-sm font-medium text-stone-500">YTD Giving</p><h3 className="text-2xl font-bold text-stone-900">$142,500</h3></div><div className={`p-3 rounded-lg ${theme.light} ${theme.color}`}><TrendingUp size={20}/></div></div>
         <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between"><div><p className="text-sm font-medium text-stone-500">Recurring Donors</p><h3 className="text-2xl font-bold text-stone-900">184</h3></div><div className="p-3 rounded-lg bg-teal-50 text-teal-600"><Users size={20}/></div></div>
@@ -870,7 +833,7 @@ function GivingApp({ theme }) {
                 <tr><th className="px-5 py-3">Donor</th><th className="px-5 py-3">Amount</th><th className="px-5 py-3">Fund</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Date</th></tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {RECENT_DONATIONS.map((donation) => (
+                {donations.map((donation) => (
                   <tr key={donation.id} className="hover:bg-stone-50">
                     <td className="px-5 py-4 font-medium text-stone-900">{donation.name}</td>
                     <td className="px-5 py-4 font-semibold text-teal-600">{donation.amount}</td>
@@ -1114,6 +1077,7 @@ function ReportingApp({ theme }) {
 // ==========================================
 // REUSABLE COMPONENTS
 // ==========================================
+
 function HomeMetricCard({ title, value, label, color }) {
   return (
     <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col">
@@ -1126,9 +1090,9 @@ function HomeMetricCard({ title, value, label, color }) {
   );
 }
 
-function QuickActionButton({ icon: Icon, label, color }) {
+function QuickActionButton({ icon: Icon, label, color, onClick }) {
   return (
-    <button className={`p-4 rounded-lg border flex flex-col items-center justify-center gap-2 transition-colors ${color}`}>
+    <button onClick={onClick} className={`p-4 rounded-lg border flex flex-col items-center justify-center gap-2 transition-colors ${color}`}>
       <Icon size={24} />
       <span className="text-xs font-bold">{label}</span>
     </button>
