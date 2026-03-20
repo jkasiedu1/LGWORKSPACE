@@ -8,15 +8,20 @@ import {
   ShieldCheck, TrendingUp, CreditCard, Inbox, Hash, UserCheck, ToggleRight, 
   ToggleLeft, ShieldAlert, Play, Pause, SkipBack, SkipForward, MonitorPlay, 
   FolderLock, Lock, Unlock, File, SmartphoneNfc, EyeOff, History, PieChart, 
-  BarChart3, Download, TrendingDown, Activity, LogOut, Youtube, Edit2, Save, X, UserCog
+  BarChart3, Download, TrendingDown, Activity, LogOut, Youtube, Edit2, Save, X, UserCog,
+  QrCode, Printer, CheckSquare
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
 
 // 👇 1. LIVE GEMINI AI INTEGRATION 👇
+// IMPORTANT: If you are deploying this app to Vercel, you MUST paste a real Gemini API Key here.
+// Get one for free at: https://aistudio.google.com/
+const GEMINI_API_KEY = ""; 
+
 const callGeminiAI = async (prompt, systemContext) => {
-  const apiKey = ""; // The execution environment provides the key at runtime
+  const apiKey = GEMINI_API_KEY || ""; // Uses your key if provided, otherwise attempts platform default
   
   const retryFetch = async (url, options, retries = 5) => {
     let delay = 1000;
@@ -48,7 +53,7 @@ const callGeminiAI = async (prompt, systemContext) => {
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "Could not generate a response. Please try again.";
   } catch (error) {
     console.error("AI Error:", error);
-    return "An error occurred while connecting to the AI services. Please check your connection and try again.";
+    return "An error occurred while connecting to the AI services. Please check your Gemini API key in the code.";
   }
 };
 
@@ -84,9 +89,12 @@ const UPCOMING_EVENTS = [
 ];
 
 const PEOPLE_LIST = [
-  { id: 1, name: 'Sarah Jenkins', email: 'sarah.j@example.com', phone: '(555) 123-4567', address: '123 Meadow Ln, Heartland, TX', type: 'Guest', bgCheck: 'N/A' },
-  { id: 2, name: 'The Martinez Family', email: 'martinez@example.com', phone: '(555) 987-6543', address: '456 Oak Dr, Heartland, TX', type: 'Member', bgCheck: 'N/A' },
-  { id: 3, name: 'David Chen', email: 'dchen88@example.com', phone: '(555) 456-7890', address: '789 Pine St, Heartland, TX', type: 'Volunteer', bgCheck: 'Clear' },
+  { id: 1, firstName: 'Sarah', lastName: 'Jenkins', name: 'Sarah Jenkins', email: 'sarah.j@example.com', phone: '(555) 123-4567', address: '123 Meadow Ln, TX', type: 'First Time', gender: 'Female', bgCheck: 'N/A' },
+  { id: 2, firstName: 'David', lastName: 'Martinez', name: 'David Martinez', email: 'martinez@example.com', phone: '(555) 987-6543', address: '456 Oak Dr, TX', type: 'Member', gender: 'Male', bgCheck: 'N/A' },
+  { id: 3, firstName: 'Marcus', lastName: 'Johnson', name: 'Marcus Johnson', email: 'marcus.j@example.com', phone: '(555) 654-3210', address: '654 Maple Ave, TX', type: 'Volunteer', gender: 'Male', bgCheck: 'Expired' },
+  { id: 4, firstName: 'Emily', lastName: 'Thorne', name: 'Emily Thorne', email: 'emily.t@example.com', phone: '(555) 321-0987', address: '321 Elm Ct, TX', type: 'Staff', gender: 'Female', bgCheck: 'Clear' },
+  { id: 5, firstName: 'Liam', lastName: 'Martinez', name: 'Liam Martinez', email: '', phone: '', address: '456 Oak Dr, TX', type: 'Child', gender: 'Male', parents: 'David Martinez', parentPhone: '(555) 987-6543', allergies: 'Peanuts', securityCode: 'A4B2', checkInStatus: 'Checked In', room: 'Preschool' },
+  { id: 6, firstName: 'Chloe', lastName: 'Jenkins', name: 'Chloe Jenkins', email: '', phone: '', address: '123 Meadow Ln, TX', type: 'Child', gender: 'Female', parents: 'Sarah Jenkins', parentPhone: '(555) 123-4567', allergies: 'None', securityCode: 'X9M1', checkInStatus: 'Signed Out', room: 'Elementary' },
 ];
 
 const PLAN_ITEMS = [
@@ -106,7 +114,6 @@ const RECENT_DONATIONS = [
   { id: 2, name: 'David Chen', amount: '$150.00', date: '2026-02-15', fund: 'Missions', type: 'Online Recurring' },
 ];
 
-// Fully Restored Ministry Teams
 const MINISTRY_TEAMS = [
   { id: 1, name: 'Men\'s Ministry', lead: 'Michael Carter', members: 42, access: 'Full Admin', status: 'unlocked', desc: 'Manage men\'s breakfasts, retreats, and mentorship groups.', roster: [{id: 3, name: 'David Chen'}] },
   { id: 2, name: 'Women\'s Ministry', lead: 'Sarah Jenkins', members: 56, access: 'View Only', status: 'restricted', desc: 'Coordinate Bible studies, women\'s events, and support groups.', roster: [{id: 1, name: 'Sarah Jenkins'}] },
@@ -114,13 +121,6 @@ const MINISTRY_TEAMS = [
   { id: 4, name: 'Lifegate Kids', lead: 'Emily Thorne', members: 35, access: 'View Only', status: 'restricted', desc: 'Children\'s curriculum, check-in data, and background checks.', roster: [] },
   { id: 5, name: 'Lifegate Music', lead: 'Marcus Johnson', members: 24, access: 'Full Admin', status: 'unlocked', desc: 'Worship sets, band schedules, and rehearsal resources.', roster: [] },
   { id: 6, name: 'Lifegate Media', lead: 'James Wilson', members: 12, access: 'No Access', status: 'locked', desc: 'A/V scheduling, stage plots, and livestream management.', roster: [] },
-  { id: 7, name: 'Lifegate Ushers and Protocol', lead: 'Robert Hayes', members: 28, access: 'No Access', status: 'locked', desc: 'Service protocols, seating logistics, and offering collection.', roster: [] },
-  { id: 8, name: 'Lifegate Hospitality', lead: 'Linda Gomez', members: 30, access: 'View Only', status: 'restricted', desc: 'Coffee bar, guest welcome packages, and event catering.', roster: [] },
-  { id: 9, name: 'Lifegate Sunday Prayer Team', lead: 'Pastor Joshua', members: 15, access: 'Full Admin', status: 'unlocked', desc: 'Altar ministry schedules and confidential prayer requests.', roster: [] },
-  { id: 10, name: 'Lifegate Friday Prayer Team', lead: 'Anna Roberts', members: 20, access: 'No Access', status: 'locked', desc: 'Intercessory prayer focus lists and Friday night watch schedules.', roster: [] },
-  { id: 11, name: 'Lifegate Outreach and Follow-Up', lead: 'Tom Harris', members: 25, access: 'View Only', status: 'restricted', desc: 'Community service events, evangelism, and guest retention tracking.', roster: [] },
-  { id: 12, name: 'Lifegate Board', lead: 'Elder Council', members: 7, access: 'Full Admin', status: 'unlocked', desc: 'Financial reports, strategic planning, and governance documents.', roster: [] },
-  { id: 13, name: 'Lifegate Communications', lead: 'Jessica Lee', members: 8, access: 'No Access', status: 'locked', desc: 'Social media planning, website updates, and bulletin announcements.', roster: [] },
 ];
 
 const APPS = {
@@ -146,9 +146,10 @@ export default function App() {
   
   const [activeApp, setActiveApp] = useState('home');
   const [isAppSwitcherOpen, setIsAppSwitcherOpen] = useState(false);
-  const [globalSearch, setGlobalSearch] = useState('');
+  const [globalSearchInput, setGlobalSearchInput] = useState('');
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   
-  // LIVE & LOCAL STATE (LIFTED TO APP LEVEL)
+  // LIVE & LOCAL STATE
   const [events, setEvents] = useState(UPCOMING_EVENTS);
   const [people, setPeople] = useState(PEOPLE_LIST);
   const [planItems, setPlanItems] = useState(PLAN_ITEMS);
@@ -163,7 +164,7 @@ export default function App() {
     setTimeout(() => setToastMsg(null), 3000);
   };
   
-  // LIVE FIREBASE AUTH STATE & ROLE ASSIGNMENT
+  // LIVE FIREBASE AUTH STATE
   useEffect(() => {
     if (auth) {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -187,10 +188,10 @@ export default function App() {
     }
   }, []);
 
-  // INACTIVITY AUTO-LOGOUT (15 Minutes)
+  // INACTIVITY AUTO-LOGOUT
   useEffect(() => {
     let timeoutId;
-    const INACTIVITY_LIMIT = 15 * 60 * 1000;
+    const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 mins
 
     const resetTimer = () => {
       if (timeoutId) clearTimeout(timeoutId);
@@ -212,7 +213,7 @@ export default function App() {
     }
   }, [isAuthenticated]);
 
-  // Sync with Firestore (if available)
+  // Sync with Firestore
   useEffect(() => {
     let unsubEvents;
     let unsubPeople;
@@ -230,7 +231,7 @@ export default function App() {
     };
   }, [isAuthenticated]);
 
-  // Inject Custom Fonts & Scrollbars
+  // Inject Fonts & Scrollbars
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
@@ -248,6 +249,11 @@ export default function App() {
     return () => document.head.removeChild(style);
   }, []);
 
+  const handleGlobalSearch = (e) => {
+    e.preventDefault();
+    setGlobalSearchQuery(globalSearchInput);
+  };
+
   const theme = APPS[activeApp];
 
   if (!authCheckComplete) {
@@ -258,7 +264,6 @@ export default function App() {
     return <LoginScreen />;
   }
 
-  // CORE RBAC LOGIC: Hide sensitive apps from non-admins
   const visibleApps = Object.values(APPS).filter(app => {
     if (!isAdmin && ['security', 'reporting', 'giving', 'workflows'].includes(app.id)) return false;
     return true;
@@ -313,23 +318,30 @@ export default function App() {
               )}
             </div>
           </div>
+          
           <div className="hidden md:flex flex-1 max-w-lg mx-8">
-            <div className="relative w-full group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 h-4 w-4 group-focus-within:text-teal-600 transition-colors" />
+            <form onSubmit={handleGlobalSearch} className="relative w-full group flex">
               <input 
                 type="text" 
                 placeholder={`Search across apps...`} 
-                value={globalSearch}
-                onChange={(e) => setGlobalSearch(e.target.value)}
-                className="w-full pl-9 pr-8 py-1.5 bg-stone-100 border border-transparent rounded-md text-sm focus:bg-white focus:border-teal-300 focus:ring-2 focus:ring-teal-100 transition-all outline-none" 
+                value={globalSearchInput}
+                onChange={(e) => {
+                  setGlobalSearchInput(e.target.value);
+                  if (e.target.value === '') setGlobalSearchQuery('');
+                }}
+                className="w-full pl-4 pr-10 py-1.5 bg-stone-100 border border-transparent rounded-l-md text-sm focus:bg-white focus:border-teal-300 focus:ring-2 focus:ring-teal-100 transition-all outline-none" 
               />
-              {globalSearch && (
-                <button onClick={() => setGlobalSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
+              <button type="submit" className="bg-stone-200 hover:bg-stone-300 text-stone-600 px-3 rounded-r-md transition-colors flex items-center justify-center">
+                <Search size={16} />
+              </button>
+              {globalSearchInput && (
+                <button type="button" onClick={() => { setGlobalSearchInput(''); setGlobalSearchQuery(''); }} className="absolute right-12 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
                   <X size={14} />
                 </button>
               )}
-            </div>
+            </form>
           </div>
+
           <div className="flex items-center gap-4">
             <button className="relative text-stone-400 hover:text-stone-600 transition-colors">
               <Bell className="h-5 w-5" />
@@ -353,9 +365,9 @@ export default function App() {
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
         {activeApp === 'home' && <HomeApp events={events} people={people} isAdmin={isAdmin} isSeniorPastor={isSeniorPastor} setActiveApp={setActiveApp} />}
         {activeApp === 'services' && <ServicesApp theme={theme} planItems={planItems} setPlanItems={setPlanItems} isAdmin={isAdmin} showToast={showToast} />}
-        {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} songs={songs} setSongs={setSongs} globalSearch={globalSearch} showToast={showToast} />}
-        {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={teamsList} setTeamsList={setTeamsList} people={people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} globalSearch={globalSearch} />}
-        {activeApp === 'people' && <PeopleApp theme={theme} people={people} setPeople={setPeople} isAdmin={isAdmin} globalSearch={globalSearch} showToast={showToast} />}
+        {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} songs={songs} setSongs={setSongs} globalSearch={globalSearchQuery} showToast={showToast} />}
+        {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={teamsList} setTeamsList={setTeamsList} people={people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} globalSearch={globalSearchQuery} />}
+        {activeApp === 'people' && <PeopleApp theme={theme} people={people} setPeople={setPeople} isAdmin={isAdmin} globalSearch={globalSearchQuery} showToast={showToast} />}
         {activeApp === 'giving' && isAdmin && <GivingApp theme={theme} donations={donations} setDonations={setDonations} showToast={showToast} />}
         {activeApp === 'calendar' && <CalendarApp theme={theme} events={events} setEvents={setEvents} isAdmin={isAdmin} showToast={showToast} />}
         {activeApp === 'workflows' && isAdmin && <WorkflowsApp theme={theme} showToast={showToast} />}
@@ -407,35 +419,18 @@ function LoginScreen() {
           <div className="space-y-4 rounded-md shadow-sm">
             <div>
               <label className="block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">Email Address</label>
-              <input 
-                type="email" 
-                required 
-                className="relative block w-full rounded-lg border border-stone-300 px-3 py-2.5 text-stone-900 focus:z-10 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm transition-colors" 
-                placeholder="name@example.com" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
-              />
+              <input type="email" required className="relative block w-full rounded-lg border border-stone-300 px-3 py-2.5 text-stone-900 focus:z-10 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm transition-colors" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-stone-500 mb-1.5 uppercase tracking-wide">Password</label>
-              <input
-                type="password"
-                required
-                className="relative block w-full rounded-lg border border-stone-300 px-3 py-2.5 text-stone-900 focus:z-10 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm transition-colors"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <input type="password" required className="relative block w-full rounded-lg border border-stone-300 px-3 py-2.5 text-stone-900 focus:z-10 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:text-sm transition-colors" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
           </div>
-
           {errorMsg && (
             <div className="bg-rose-50 text-rose-600 text-sm p-3 rounded-lg flex items-center gap-2 font-medium">
-              <AlertCircle size={16} />
-              {errorMsg}
+              <AlertCircle size={16} />{errorMsg}
             </div>
           )}
-
           <div>
             <button type="submit" disabled={isLoading || !email || !password} className="group relative flex w-full justify-center rounded-lg bg-stone-900 px-3 py-3 text-sm font-semibold text-white hover:bg-stone-800 disabled:opacity-70 transition-all">
               {isLoading ? <Loader2 size={20} className="animate-spin" /> : 'Sign in to Workspace'}
@@ -448,7 +443,6 @@ function LoginScreen() {
 }
 
 function HomeApp({ events, people, isAdmin, isSeniorPastor, setActiveApp }) {
-  // Utility for formatting dates for the dashboard
   const formatEventDate = (dateStr, timeStr) => {
     if (!dateStr) return '';
     try {
@@ -517,7 +511,6 @@ function ServicesApp({ theme, planItems, setPlanItems, isAdmin, showToast }) {
   const [isAdding, setIsAdding] = useState(false);
   const [newItem, setNewItem] = useState({ time: '', length: '', title: '', type: 'Element', person: '' });
 
-  // Editable Service Header with Standard Date formatting
   const [isEditingHeader, setIsEditingHeader] = useState(false);
   const [headerData, setHeaderData] = useState({ title: 'Ash Wednesday Gathering', date: '2026-02-18', time: '19:00', location: 'Main Auditorium' });
 
@@ -534,10 +527,8 @@ function ServicesApp({ theme, planItems, setPlanItems, isAdmin, showToast }) {
     if (!prompt) return;
     setIsGenerating(true); 
     setResult(null);
-    
     const context = `You are a pastoral assistant helping plan a church service. Give a brief, insightful, 3-point teaching outline or service element note based on this prompt: "${prompt}". Keep it short and highly actionable.`;
     const responseText = await callGeminiAI(prompt, context);
-    
     setResult(responseText);
     setIsGenerating(false);
   };
@@ -545,7 +536,6 @@ function ServicesApp({ theme, planItems, setPlanItems, isAdmin, showToast }) {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-start mb-6">
-        
         <div className="flex-1">
           {isEditingHeader ? (
             <div className="space-y-3 bg-white p-4 rounded-xl shadow-sm border border-stone-200 max-w-lg animate-in slide-in-from-top-2">
@@ -663,7 +653,6 @@ function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch, showToast }) 
   const [isUploading, setIsUploading] = useState(false);
   const [newSong, setNewSong] = useState({ title: '', artist: '', key: 'C', bpm: 70, ccli: '', hasLyrics: true, hasChords: true, hasAudio: true, youtube: '' });
 
-  // Sync with global header search if provided
   useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);
 
   const filteredSongs = songs.filter(song => 
@@ -675,10 +664,8 @@ function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch, showToast }) 
     if (!musicPrompt) return;
     setIsAnalyzingMusic(true); 
     setMusicAnalysisResult(null);
-    
     const context = `You are a professional church music director. The user is asking about the song or lyrics provided. Analyze it focusing on the '${analysisMode}' perspective. Be brief and highly practical. Provide chords, vocal ranges, or lyrical themes based on what is asked.`;
     const responseText = await callGeminiAI(musicPrompt, context);
-    
     setMusicAnalysisResult(responseText);
     setIsAnalyzingMusic(false); 
   };
@@ -734,16 +721,10 @@ function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch, showToast }) 
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit">
             <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
               <h3 className="font-semibold text-stone-800">Song Catalog</h3>
-              <div className="flex items-center gap-3">
-                 <div className="relative hidden sm:block">
-                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 h-3.5 w-3.5" />
-                   <input type="text" placeholder="Search title or CCLI..." className="pl-8 pr-3 py-1.5 border border-stone-200 rounded-md text-xs outline-none focus:border-rose-500 w-48" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                 </div>
-              </div>
             </div>
             <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
               <table className="w-full text-sm text-left">
-                <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white">
+                <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white z-10">
                   <tr><th className="px-5 py-3">Song Title</th><th className="px-5 py-3">Key / BPM</th><th className="px-5 py-3">CCLI #</th><th className="px-5 py-3">Assets</th></tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -846,30 +827,56 @@ function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch, showToast }) 
 }
 
 function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast }) {
+  const [activeTab, setActiveTab] = useState('directory'); // directory, visitors, kids, checkin
   const [isAdding, setIsAdding] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [newPerson, setNewPerson] = useState({ name: '', email: '', phone: '', address: '', type: 'Guest', bgCheck: 'N/A' });
+  
+  const [newPerson, setNewPerson] = useState({ 
+    firstName: '', lastName: '', email: '', phone: '', address: '', 
+    type: 'Member', gender: 'Female', bgCheck: 'N/A',
+    parents: '', parentPhone: '', allergies: ''
+  });
 
-  // Sync with global search from header
   useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);
 
-  const filteredPeople = people.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    p.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPeople = people.filter(p => {
+    const matchesSearch = (p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.email?.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (!matchesSearch) return false;
+
+    if (activeTab === 'directory') return ['Member', 'Staff', 'Volunteer'].includes(p.type);
+    if (activeTab === 'visitors') return ['First Time', 'Returning', 'Guest'].includes(p.type);
+    if (activeTab === 'kids' || activeTab === 'checkin') return p.type === 'Child';
+    return true;
+  });
 
   const handleAdd = async () => {
-    if (!newPerson.name) return;
+    if (!newPerson.firstName || !newPerson.lastName) return;
+    
+    // Auto-format full name
+    const dataToSave = {
+      ...newPerson,
+      name: `${newPerson.firstName} ${newPerson.lastName}`,
+      securityCode: newPerson.type === 'Child' ? Math.random().toString(36).substring(2, 6).toUpperCase() : '',
+      checkInStatus: newPerson.type === 'Child' ? 'Signed Out' : ''
+    };
+
     try {
       if (db) {
-        await addDoc(collection(db, 'people'), newPerson);
+        await addDoc(collection(db, 'people'), dataToSave);
       } else {
-        setPeople([{ id: Date.now(), ...newPerson }, ...people]);
+        setPeople([{ id: Date.now(), ...dataToSave }, ...people]);
       }
       setIsAdding(false);
       showToast("Profile created successfully!");
-      setNewPerson({ name: '', email: '', phone: '', address: '', type: 'Guest', bgCheck: 'N/A' });
+      setNewPerson({ firstName: '', lastName: '', email: '', phone: '', address: '', type: 'Member', gender: 'Female', bgCheck: 'N/A', parents: '', parentPhone: '', allergies: '' });
     } catch(e) { console.error(e); }
+  };
+
+  const handleCheckInToggle = (childId, currentStatus) => {
+    if (!isAdmin) return;
+    const newStatus = currentStatus === 'Checked In' ? 'Signed Out' : 'Checked In';
+    setPeople(people.map(p => p.id === childId ? { ...p, checkInStatus: newStatus } : p));
+    showToast(newStatus === 'Checked In' ? "Child Checked In Successfully" : "Child Signed Out Successfully");
   };
 
   return (
@@ -877,28 +884,70 @@ function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast 
        <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">People & Check-ins</h1>
-          <p className="text-stone-500 text-sm mt-1">Manage profiles, background checks, and secure kids check-in.</p>
+          <p className="text-stone-500 text-sm mt-1">Manage profiles, backgrounds, and secure kids check-in.</p>
         </div>
         <div className="flex gap-3">
-          <button className={`px-4 py-2 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center gap-2`}><UserCheck size={16}/> Launch Check-in Station</button>
+          <button onClick={() => setActiveTab('checkin')} className={`px-4 py-2 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center gap-2`}>
+            <UserCheck size={16}/> Launch Check-in Station
+          </button>
           {isAdmin && (
-            <button onClick={() => setIsAdding(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><UserPlus size={16}/> Add Person</button>
+            <button onClick={() => setIsAdding(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
+              <UserPlus size={16}/> Add Profile
+            </button>
           )}
         </div>
       </div>
+
+      <div className="border-b border-stone-200 mb-6">
+        <nav className="-mb-px flex space-x-8">
+          <button onClick={() => setActiveTab('directory')} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === 'directory' ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>General Directory</button>
+          <button onClick={() => setActiveTab('visitors')} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === 'visitors' ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>Visitors</button>
+          <button onClick={() => setActiveTab('kids')} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === 'kids' ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>Lifegate Kids</button>
+          <button onClick={() => setActiveTab('checkin')} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === 'checkin' ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}><QrCode size={14} className="inline mr-1"/> Kids Check-in</button>
+        </nav>
+      </div>
       
       {isAdding && isAdmin && (
-        <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
-            <h2 className="text-xl font-bold text-stone-900 mb-4">Add New Profile</h2>
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-stone-900">Add New Profile</h2>
+              <button onClick={() => setIsAdding(false)} className="text-stone-400 hover:text-rose-500"><X size={20}/></button>
+            </div>
             <div className="space-y-4">
-              <input type="text" placeholder="Full Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.name} onChange={e => setNewPerson({...newPerson, name: e.target.value})} />
-              <input type="email" placeholder="Email Address" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.email} onChange={e => setNewPerson({...newPerson, email: e.target.value})} />
-              <input type="text" placeholder="Phone Number" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.phone} onChange={e => setNewPerson({...newPerson, phone: e.target.value})} />
-              <input type="text" placeholder="Mailing Address" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.address} onChange={e => setNewPerson({...newPerson, address: e.target.value})} />
-              <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.type} onChange={e => setNewPerson({...newPerson, type: e.target.value})}>
-                <option value="Guest">Guest</option><option value="Member">Member</option><option value="Volunteer">Volunteer</option><option value="Staff">Staff</option>
-              </select>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="text" placeholder="First Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.firstName} onChange={e => setNewPerson({...newPerson, firstName: e.target.value})} />
+                <input type="text" placeholder="Last Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.lastName} onChange={e => setNewPerson({...newPerson, lastName: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.type} onChange={e => setNewPerson({...newPerson, type: e.target.value})}>
+                  <optgroup label="Directory"><option value="Member">Member</option><option value="Volunteer">Volunteer</option><option value="Staff">Staff</option></optgroup>
+                  <optgroup label="Visitors"><option value="First Time">First Time Guest</option><option value="Returning">Returning Guest</option></optgroup>
+                  <optgroup label="Kids Ministry"><option value="Child">Child (Lifegate Kids)</option></optgroup>
+                </select>
+                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.gender} onChange={e => setNewPerson({...newPerson, gender: e.target.value})}>
+                  <option value="Female">Female</option><option value="Male">Male</option>
+                </select>
+              </div>
+
+              {newPerson.type !== 'Child' && (
+                <>
+                  <input type="email" placeholder="Email Address" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.email} onChange={e => setNewPerson({...newPerson, email: e.target.value})} />
+                  <input type="text" placeholder="Phone Number" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.phone} onChange={e => setNewPerson({...newPerson, phone: e.target.value})} />
+                </>
+              )}
+
+              <input type="text" placeholder={newPerson.type === 'Child' ? "Home Address" : "Mailing Address"} className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.address} onChange={e => setNewPerson({...newPerson, address: e.target.value})} />
+              
+              {newPerson.type === 'Child' && (
+                <div className="p-4 bg-stone-50 border border-stone-200 rounded-lg space-y-3">
+                  <h4 className="text-xs font-bold text-stone-500 uppercase tracking-wider">Parents & Guardians</h4>
+                  <input type="text" placeholder="Parent(s) Full Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.parents} onChange={e => setNewPerson({...newPerson, parents: e.target.value})} />
+                  <input type="text" placeholder="Parent Phone Number" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.parentPhone} onChange={e => setNewPerson({...newPerson, parentPhone: e.target.value})} />
+                  <input type="text" placeholder="Allergies / Medical Notes" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.allergies} onChange={e => setNewPerson({...newPerson, allergies: e.target.value})} />
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 mt-6">
                 <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
                 <button onClick={handleAdd} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Save Profile</button>
@@ -908,52 +957,133 @@ function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast 
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between"><div><p className="text-sm font-medium text-stone-500">Total Profiles</p><h3 className="text-2xl font-bold text-stone-900">{people.length}</h3></div><div className={`p-3 rounded-lg ${theme.light} ${theme.color}`}><Users size={20}/></div></div>
-        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between"><div><p className="text-sm font-medium text-stone-500">New Guests (30d)</p><h3 className="text-2xl font-bold text-stone-900">24</h3></div><div className="p-3 rounded-lg bg-sky-50 text-sky-600"><UserPlus size={20}/></div></div>
-        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between"><div><p className="text-sm font-medium text-stone-500">Scheduled This Week</p><h3 className="text-2xl font-bold text-stone-900">86</h3></div><div className="p-3 rounded-lg bg-orange-50 text-orange-600"><CalendarDays size={20}/></div></div>
-      </div>
-
+      {/* RENDER ACTIVE TAB */}
       <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
-          <h3 className="font-semibold text-stone-800">Directory & Screening</h3>
+          <h3 className="font-semibold text-stone-800">
+            {activeTab === 'directory' && "General Church Directory"}
+            {activeTab === 'visitors' && "Visitor Log"}
+            {activeTab === 'kids' && "Lifegate Kids Roster"}
+            {activeTab === 'checkin' && "Live Check-in Station"}
+          </h3>
           <div className="flex items-center gap-4">
              <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 h-4 w-4" />
-              <input type="text" placeholder="Search people..." className="pl-9 pr-4 py-1.5 border border-stone-200 rounded-md text-sm outline-none focus:border-sky-500" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              <input type="text" placeholder="Search records..." className="pl-9 pr-4 py-1.5 border border-stone-200 rounded-md text-sm outline-none focus:border-sky-500" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
              </div>
           </div>
         </div>
-        <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-          <table className="w-full text-sm text-left relative">
-            <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white">
-              <tr><th className="px-5 py-3">Name</th><th className="px-5 py-3">Contact</th><th className="px-5 py-3">Address</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Background Check</th><th className="px-5 py-3 text-right"></th></tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {filteredPeople.map((person) => (
-                <tr key={person.id} className="hover:bg-stone-50 group">
-                  <td className="px-5 py-3 font-medium text-stone-900 flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${theme.light} ${theme.color}`}>{person.name.charAt(0)}</div>{person.name}
-                  </td>
-                  <td className="px-5 py-3 text-stone-500"><div className="flex flex-col"><span className="truncate">{person.email}</span><span className="text-xs">{person.phone}</span></div></td>
-                  <td className="px-5 py-3 text-stone-500 text-xs">{person.address}</td>
-                  <td className="px-5 py-3"><span className="text-stone-600">{person.type}</span></td>
-                  <td className="px-5 py-3">
-                    {person.bgCheck === 'Clear' && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800"><ShieldCheck size={12} className="mr-1"/> Clear</span>}
-                    {person.bgCheck === 'Pending' && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800"><Clock size={12} className="mr-1"/> Pending</span>}
-                    {person.bgCheck === 'Expired' && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-800"><AlertCircle size={12} className="mr-1"/> Expired</span>}
-                    {person.bgCheck === 'N/A' && <span className="text-stone-300 text-xs">Not Required</span>}
-                  </td>
-                  <td className="px-5 py-3 text-right text-stone-400">
-                    {isAdmin && <button onClick={() => { if(db) { deleteDoc(doc(db, 'people', person.id)); showToast("Profile deleted"); } else { setPeople(people.filter(p => p.id !== person.id)); showToast("Profile deleted"); } }} className="hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100" title="Delete Profile"><AlertCircle size={18} className="ml-auto"/></button>}
-                  </td>
+
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+          {/* TAB: DIRECTORY & VISITORS */}
+          {(activeTab === 'directory' || activeTab === 'visitors') && (
+            <table className="w-full text-sm text-left relative">
+              <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white z-10">
+                <tr>
+                  <th className="px-5 py-3">First Name</th>
+                  <th className="px-5 py-3">Last Name</th>
+                  <th className="px-5 py-3">Address</th>
+                  <th className="px-5 py-3">Email</th>
+                  <th className="px-5 py-3">Phone</th>
+                  <th className="px-5 py-3">Type</th>
+                  <th className="px-5 py-3">Gender</th>
                 </tr>
-              ))}
-              {filteredPeople.length === 0 && (
-                <tr><td colSpan="6" className="px-5 py-8 text-center text-stone-500">No matching people found.</td></tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredPeople.map((person) => (
+                  <tr key={person.id} className="hover:bg-stone-50">
+                    <td className="px-5 py-3 font-medium text-stone-900">{person.firstName || person.name.split(' ')[0]}</td>
+                    <td className="px-5 py-3 font-medium text-stone-900">{person.lastName || person.name.split(' ')[1] || ''}</td>
+                    <td className="px-5 py-3 text-stone-500 text-xs">{person.address}</td>
+                    <td className="px-5 py-3 text-stone-500">{person.email}</td>
+                    <td className="px-5 py-3 text-stone-500">{person.phone}</td>
+                    <td className="px-5 py-3"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${activeTab === 'visitors' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>{person.type}</span></td>
+                    <td className="px-5 py-3 text-stone-500">{person.gender || 'N/A'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* TAB: KIDS */}
+          {activeTab === 'kids' && (
+            <table className="w-full text-sm text-left relative">
+              <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white z-10">
+                <tr>
+                  <th className="px-5 py-3">First Name</th>
+                  <th className="px-5 py-3">Last Name</th>
+                  <th className="px-5 py-3">Address</th>
+                  <th className="px-5 py-3">Parents / Guardians</th>
+                  <th className="px-5 py-3">Parent Phone</th>
+                  <th className="px-5 py-3">Allergies</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredPeople.map((child) => (
+                  <tr key={child.id} className="hover:bg-stone-50">
+                    <td className="px-5 py-3 font-medium text-stone-900">{child.firstName}</td>
+                    <td className="px-5 py-3 font-medium text-stone-900">{child.lastName}</td>
+                    <td className="px-5 py-3 text-stone-500 text-xs">{child.address}</td>
+                    <td className="px-5 py-3 text-stone-700 font-medium">{child.parents}</td>
+                    <td className="px-5 py-3 text-stone-500">{child.parentPhone}</td>
+                    <td className="px-5 py-3 text-rose-600 font-semibold text-xs">{child.allergies}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* TAB: CHECK-IN */}
+          {activeTab === 'checkin' && (
+            <table className="w-full text-sm text-left relative">
+              <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white z-10">
+                <tr>
+                  <th className="px-5 py-3">Child Name</th>
+                  <th className="px-5 py-3">Room / Group</th>
+                  <th className="px-5 py-3">Security Code</th>
+                  <th className="px-5 py-3">Allergies</th>
+                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredPeople.map((child) => {
+                  const isCheckedIn = child.checkInStatus === 'Checked In';
+                  return (
+                    <tr key={child.id} className={`${isCheckedIn ? 'bg-emerald-50/30' : ''} hover:bg-stone-50 transition-colors`}>
+                      <td className="px-5 py-4 font-bold text-stone-900">{child.firstName} {child.lastName}</td>
+                      <td className="px-5 py-4 text-stone-600 font-medium">{child.room || 'Unassigned'}</td>
+                      <td className="px-5 py-4 font-mono font-bold tracking-widest text-indigo-600">{child.securityCode}</td>
+                      <td className="px-5 py-4 text-rose-500 text-xs font-bold uppercase tracking-wider">{child.allergies !== 'None' ? child.allergies : ''}</td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${isCheckedIn ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-500'}`}>
+                          {isCheckedIn ? <CheckCircle2 size={12} className="mr-1"/> : null}
+                          {child.checkInStatus}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {isCheckedIn && <button className="p-1.5 text-stone-400 hover:text-stone-700 bg-white border border-stone-200 rounded shadow-sm" title="Print Tag"><Printer size={14}/></button>}
+                          {isAdmin && (
+                            <button 
+                              onClick={() => handleCheckInToggle(child.id, child.checkInStatus)}
+                              className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${isCheckedIn ? 'bg-stone-200 text-stone-700 hover:bg-stone-300' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                            >
+                              {isCheckedIn ? 'Sign Out' : 'Check In'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+
+          {filteredPeople.length === 0 && (
+            <div className="px-5 py-12 text-center text-stone-500">No records found matching your criteria.</div>
+          )}
         </div>
       </div>
     </div>
@@ -1024,7 +1154,7 @@ function GivingApp({ theme, donations, setDonations, showToast }) {
           <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center"><h3 className="font-semibold text-stone-800">Recent Transactions</h3></div>
           <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
             <table className="w-full text-sm text-left">
-              <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white">
+              <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white z-10">
                 <tr><th className="px-5 py-3">Donor</th><th className="px-5 py-3">Amount</th><th className="px-5 py-3">Fund</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Date</th></tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -1063,8 +1193,7 @@ function CalendarApp({ theme, events, setEvents, isAdmin, showToast }) {
   const [isAdding, setIsAdding] = useState(false);
   const [newEvent, setNewEvent] = useState({ title: '', date: new Date().toISOString().split('T')[0], time: '10:00', type: 'Meeting' });
 
-  // Generate dynamic calendar logic (Based on current system context month)
-  const today = new Date('2026-02-20T12:00:00'); // Seed date from context
+  const today = new Date('2026-02-20T12:00:00'); 
   const currentMonth = today.getMonth(); 
   const currentYear = today.getFullYear();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -1124,7 +1253,6 @@ function CalendarApp({ theme, events, setEvents, isAdmin, showToast }) {
             const dayNum = i - firstDayOfMonth + 1; 
             const isCurrentMonth = dayNum > 0 && dayNum <= daysInMonth; 
             
-            // Format to match event state YYYY-MM-DD
             const formattedDate = isCurrentMonth ? `2026-02-${dayNum.toString().padStart(2, '0')}` : null;
             const daysEvents = events.filter(e => e.date === formattedDate);
 
