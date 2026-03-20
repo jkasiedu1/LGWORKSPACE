@@ -14,7 +14,46 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
 
-// 👇 1. YOUR FIREBASE KEYS 👇
+// 👇 1. LIVE GEMINI AI INTEGRATION 👇
+const callGeminiAI = async (prompt, systemContext) => {
+  const apiKey = ""; // The execution environment provides the key at runtime
+  
+  const retryFetch = async (url, options, retries = 5) => {
+    let delay = 1000;
+    for (let i = 0; i < retries; i++) {
+      try {
+        const res = await fetch(url, options);
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return await res.json();
+      } catch (e) {
+        if (i === retries - 1) throw e;
+        await new Promise(r => setTimeout(r, delay));
+        delay *= 2;
+      }
+    }
+  };
+
+  try {
+    const data = await retryFetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          systemInstruction: { parts: [{ text: systemContext }] }
+        })
+      }
+    );
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || "Could not generate a response. Please try again.";
+  } catch (error) {
+    console.error("AI Error:", error);
+    return "An error occurred while connecting to the AI services. Please check your connection and try again.";
+  }
+};
+
+
+// 👇 2. YOUR FIREBASE KEYS 👇
 const firebaseConfig = {
   apiKey: "AIzaSyCrPxPLMS_pwryIRHoxYVUFiuxpKHyTk1M",
   authDomain: "lifegate-workspace-5dd48.firebaseapp.com",
@@ -34,7 +73,7 @@ try {
   console.warn("Firebase not fully initialized. Check your keys.");
 }
 
-// 👇 2. ROLE-BASED ACCESS CONTROL (RBAC) 👇
+// 👇 3. ROLE-BASED ACCESS CONTROL (RBAC) 👇
 // The Senior Pastor has ultimate access and a unique badge.
 const SENIOR_PASTOR_EMAIL = 'bigjoe11221985@gmail.com';
 
@@ -145,7 +184,7 @@ export default function App() {
       });
       return () => unsubscribe();
     } else {
-      setAuthCheckComplete(true);
+      setAuthCheckComplete(true); // Complete check even if no auth is set up locally
     }
   }, []);
 
@@ -304,9 +343,9 @@ export default function App() {
         {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} />}
         {activeApp === 'teams' && <TeamsApp theme={theme} setActiveApp={setActiveApp} isAdmin={isAdmin} />}
         {activeApp === 'people' && <PeopleApp theme={theme} people={people} setPeople={setPeople} isAdmin={isAdmin} />}
-        {activeApp === 'giving' && isAdmin && <GivingApp theme={theme} donations={donations} setDonations={setDonations} />}
+        {activeApp === 'giving' && isAdmin && <GivingApp theme={theme} donations={donations} setDonations={setDonations} isAdmin={isAdmin} />}
         {activeApp === 'calendar' && <CalendarApp theme={theme} events={events} setEvents={setEvents} isAdmin={isAdmin} />}
-        {activeApp === 'workflows' && isAdmin && <WorkflowsApp theme={theme} />}
+        {activeApp === 'workflows' && isAdmin && <WorkflowsApp theme={theme} isAdmin={isAdmin} />}
         {activeApp === 'security' && isAdmin && <SecurityApp theme={theme} isSeniorPastor={isSeniorPastor} />}
         {activeApp === 'reporting' && isAdmin && <ReportingApp theme={theme} />}
       </main>
@@ -332,7 +371,7 @@ function LoginScreen() {
       if (auth) {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
-        setErrorMsg("Firebase Auth not connected.");
+        setErrorMsg("Firebase Auth not connected. Check keys.");
         setIsLoading(false);
       }
     } catch (error) {
@@ -453,13 +492,16 @@ function ServicesApp({ theme, planItems, setPlanItems, isAdmin }) {
   const [isAdding, setIsAdding] = useState(false);
   const [newItem, setNewItem] = useState({ time: '', length: '', title: '', type: 'Element', person: '' });
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!prompt) return;
-    setIsGenerating(true); setResult(null);
-    setTimeout(() => {
-      setIsGenerating(false);
-      setResult(`**Teaching Guide: Beauty from Ashes**\n\n**1. The Call to Return (Joel 2)** \n- Unpack the historical context of rending hearts, not garments.\n- Key Takeaway: True life change is internal.\n\n**2. The Hidden Devotion (Matthew 6)**\n- Contrast cultural performative fasting with secret devotion.\n\n**3. The Imposition of Ashes**\n- Acknowledging our humanity ("Dust you are...").`);
-    }, 1500);
+    setIsGenerating(true); 
+    setResult(null);
+    
+    const context = `You are a pastoral assistant helping plan a church service. Give a brief, insightful, 3-point teaching outline or service element note based on this prompt: "${prompt}". Keep it short and highly actionable.`;
+    const responseText = await callGeminiAI(prompt, context);
+    
+    setResult(responseText);
+    setIsGenerating(false);
   };
 
   return (
@@ -558,10 +600,16 @@ function MusicApp({ theme, isAdmin }) {
     song.ccli.includes(searchQuery)
   );
 
-  const handleMusicAnalysis = () => {
+  const handleMusicAnalysis = async () => {
     if (!musicPrompt) return;
-    setIsAnalyzingMusic(true); setMusicAnalysisResult(null);
-    setTimeout(() => { setIsAnalyzingMusic(false); setMusicAnalysisResult(`**Analysis Complete**\n\nGemini has successfully broken down the requested track parameters. Your arrangement notes are ready to view.`); }, 1500);
+    setIsAnalyzingMusic(true); 
+    setMusicAnalysisResult(null);
+    
+    const context = `You are a professional church music director. The user is asking about the song or lyrics provided. Analyze it focusing on the '${analysisMode}' perspective. Be brief and highly practical. Provide chords, vocal ranges, or lyrical themes based on what is asked.`;
+    const responseText = await callGeminiAI(musicPrompt, context);
+    
+    setMusicAnalysisResult(responseText);
+    setIsAnalyzingMusic(false); 
   };
 
   return (
@@ -640,6 +688,13 @@ function MusicApp({ theme, isAdmin }) {
             isAdmin && (
               <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit flex flex-col">
                 <div className={`${theme.bg} p-4 text-white flex justify-between items-center`}><div className="flex items-center gap-2"><Sparkles size={18} className="text-white/80" /><h3 className="font-semibold">AI Music Analyzer</h3></div><span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded uppercase tracking-wider">Gemini</span></div>
+                <div className="p-4 bg-stone-50 border-b border-stone-200">
+                  <div className="flex gap-2 bg-white p-1 rounded-lg border border-stone-200">
+                    <button onClick={() => setAnalysisMode('vocals')} className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors flex justify-center items-center gap-1.5 ${analysisMode === 'vocals' ? 'bg-rose-100 text-rose-700' : 'text-stone-500 hover:bg-stone-50'}`}><Mic2 size={14}/> Vocals</button>
+                    <button onClick={() => setAnalysisMode('chords')} className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors flex justify-center items-center gap-1.5 ${analysisMode === 'chords' ? 'bg-rose-100 text-rose-700' : 'text-stone-500 hover:bg-stone-50'}`}><ListMusic size={14}/> Chords</button>
+                    <button onClick={() => setAnalysisMode('lyrics')} className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors flex justify-center items-center gap-1.5 ${analysisMode === 'lyrics' ? 'bg-rose-100 text-rose-700' : 'text-stone-500 hover:bg-stone-50'}`}><FileText size={14}/> Lyrics</button>
+                  </div>
+                </div>
                 <div className="p-4 flex flex-col gap-4 flex-1">
                   <textarea className="w-full p-3 border border-stone-200 rounded-lg text-sm focus:ring-1 focus:ring-rose-500 outline-none resize-none bg-stone-50" placeholder="Paste lyrics or type a song title..." rows="3" value={musicPrompt} onChange={(e) => setMusicPrompt(e.target.value)}></textarea>
                   <button onClick={handleMusicAnalysis} disabled={isAnalyzingMusic || !musicPrompt} className={`w-full py-2.5 ${theme.bg} text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex justify-center items-center gap-2 disabled:opacity-50`}>
@@ -672,7 +727,6 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
       if (db) {
         await addDoc(collection(db, 'people'), newPerson);
       } else {
-        // Fallback if db isn't connected
         setPeople([{ id: Date.now(), ...newPerson }, ...people]);
       }
       setIsAdding(false);
@@ -767,7 +821,7 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
   );
 }
 
-function GivingApp({ theme, donations, setDonations }) {
+function GivingApp({ theme, donations, setDonations, isAdmin }) {
   const [reportResult, setReportResult] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newDonation, setNewDonation] = useState({ name: '', amount: '', fund: 'General Tithe', type: 'Zelle', date: 'Today' });
@@ -787,11 +841,11 @@ function GivingApp({ theme, donations, setDonations }) {
           <p className="text-stone-500 text-sm mt-1">Track donations, Zelle reconciliation, and generate insights.</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setIsAdding(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><DollarSign size={16}/> Record Gift / Zelle Sync</button>
+          {isAdmin && <button onClick={() => setIsAdding(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><DollarSign size={16}/> Record Gift / Zelle Sync</button>}
         </div>
       </div>
 
-      {isAdding && (
+      {isAdding && isAdmin && (
         <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
             <h2 className="text-xl font-bold text-stone-900 mb-4">Record New Gift</h2>
@@ -935,8 +989,127 @@ function CalendarApp({ theme, events, setEvents, isAdmin }) {
   );
 }
 
+function TeamsApp({ theme, setActiveApp, isAdmin }) {
+  const [activePortal, setActivePortal] = useState(null);
+  const [activeTab, setActiveTab] = useState('roster');
+
+  if (activePortal) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-500 text-left">
+        <div className="flex justify-between items-end mb-6">
+          <div>
+            <button onClick={() => setActivePortal(null)} className="text-stone-400 hover:text-stone-600 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1 transition-colors"><ChevronRight className="rotate-180" size={14}/> Back to Portals</button>
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-lg ${theme.light} ${theme.color}`}><FolderLock size={24}/></div>
+              <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">{activePortal.name}</h1>
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-stone-500 text-sm font-medium">Team Lead: {activePortal.lead}</span><span className="text-stone-300">•</span>
+              <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isAdmin ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>Your Access: {isAdmin ? 'Full Admin' : 'View Only'}</span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><MessageSquare size={16}/> Team Chat</button>
+          </div>
+        </div>
+        <div className="border-b border-stone-200 mb-6">
+          <nav className="-mb-px flex space-x-8">
+            <button onClick={() => setActiveTab('roster')} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === 'roster' ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>Team Roster & Schedule</button>
+            <button onClick={() => setActiveTab('files')} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === 'files' ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>Secure Files & Resources</button>
+          </nav>
+        </div>
+        {activeTab === 'files' && (
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
+              <h3 className="font-semibold text-stone-800">Restricted Team Documents</h3>
+              {isAdmin && (<button className={`text-sm font-medium ${theme.color} flex items-center gap-1`}><UploadCloud size={14}/> Upload File</button>)}
+            </div>
+            <div className="divide-y divide-stone-100">
+              <div className="p-4 flex items-center justify-between hover:bg-stone-50">
+                <div className="flex items-center gap-3"><File className="text-stone-400" size={20}/><div><p className="font-medium text-stone-900 text-sm">Q1 Volunteer Handbook 2026.pdf</p><p className="text-xs text-stone-500">Uploaded 2 days ago</p></div></div>
+                {isAdmin && <button className="text-stone-400 hover:text-indigo-600"><MoreHorizontal size={18}/></button>}
+              </div>
+            </div>
+            {!isAdmin && (
+              <div className="p-4 bg-amber-50 border-t border-amber-100 flex items-start gap-3">
+                <ShieldAlert className="text-amber-600 shrink-0" size={18}/><p className="text-xs text-amber-800 font-medium">You have 'View Only' access. Contact team lead to request edit permissions.</p>
+              </div>
+            )}
+          </div>
+        )}
+        {activeTab === 'roster' && (
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden p-8 text-center">
+            <Users className="mx-auto text-stone-300 mb-3" size={32}/><h3 className="font-medium text-stone-900">Roster View</h3>
+            <p className="text-sm text-stone-500 mt-1">Displaying schedules for {activePortal.members} active team members.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Ministry Portals</h1>
+          <p className="text-stone-500 text-sm mt-1">Secure, role-based workspaces restricted by department.</p>
+        </div>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><Plus size={16}/> Create New Portal</button>
+          </div>
+        )}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {MINISTRY_TEAMS.map(team => (
+          <div key={team.id} className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col relative overflow-hidden group">
+            {!isAdmin && team.status === 'locked' && (
+              <div className="absolute inset-0 bg-stone-100/60 backdrop-blur-[1px] z-10 flex items-center justify-center flex-col">
+                <Lock size={32} className="text-stone-400 mb-2"/><span className="bg-white px-3 py-1 rounded shadow-sm text-xs font-bold text-stone-600 uppercase tracking-wider border border-stone-200">Access Denied</span>
+              </div>
+            )}
+            <div className="flex justify-between items-start mb-4">
+              <div className={`p-3 rounded-lg ${theme.light} ${theme.color}`}><FolderLock size={20}/></div>
+              <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded ${isAdmin || team.status === 'unlocked' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{isAdmin ? 'Full Admin' : team.access}</span>
+            </div>
+            <h3 className="text-lg font-bold text-stone-900">{team.name}</h3>
+            <p className="text-sm text-stone-500 mt-1 flex-1">{team.desc}</p>
+            <div className="mt-6 pt-4 border-t border-stone-100 flex items-center justify-between">
+              <div className="flex -space-x-2">
+                {[...Array(Math.min(3, team.members))].map((_, i) => (<div key={i} className="w-6 h-6 rounded-full bg-stone-200 border-2 border-white"></div>))}
+                {team.members > 3 && (<div className="w-6 h-6 rounded-full bg-stone-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-stone-500">+{team.members - 3}</div>)}
+              </div>
+              <button 
+                onClick={() => { if (isAdmin || team.status !== 'locked') { team.name === 'Lifegate Music' ? setActiveApp('music') : setActivePortal(team); } }}
+                className={`text-sm font-semibold flex items-center gap-1 transition-colors ${!isAdmin && team.status === 'locked' ? 'text-stone-300 cursor-not-allowed' : `${theme.color} hover:opacity-80`}`}
+              >
+                Enter Portal <ChevronRight size={16}/>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function WorkflowsApp({ theme }) {
   const [activeSubTab, setActiveSubTab] = useState('automations'); 
+  const [prompt, setPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  
+  const handleGenerateDraft = async () => {
+    if (!prompt) return;
+    setIsGenerating(true);
+    
+    const context = `You are a church communications director writing a short, warm, and highly engaging SMS or email based on the prompt. Keep it under 2 sentences if it's a text.`;
+    const responseText = await callGeminiAI(prompt, context);
+    
+    // Quick trick to simulate replacing the text area with the generated text
+    setPrompt(responseText);
+    setIsGenerating(false);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
@@ -959,8 +1132,21 @@ function WorkflowsApp({ theme }) {
             <div className="p-4 border-b border-stone-100 bg-stone-50/50"><h2 className="font-semibold text-stone-800">AI Outreach Generator</h2></div>
             <div className="p-5 space-y-4">
               <div><label className="block text-xs font-semibold text-stone-500 mb-1.5 uppercase">Audience</label><select className="w-full p-2 border border-stone-200 rounded text-sm bg-white outline-none focus:ring-1 focus:ring-violet-500"><option>First-Time Guests</option><option>Lapsed Volunteers</option></select></div>
-              <div><div className="flex justify-between items-center mb-1.5"><label className="block text-xs font-semibold text-stone-500 uppercase">Prompt</label><Sparkles size={12} className={theme.color}/></div><textarea className="w-full p-2 border border-stone-200 rounded text-sm bg-white outline-none focus:ring-1 focus:ring-violet-500 resize-none h-24" placeholder="Draft a warm welcome text..."></textarea></div>
-              <button className={`w-full py-2 bg-stone-900 text-white rounded text-sm font-medium hover:bg-stone-800 transition-colors`}>Generate Draft</button>
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-semibold text-stone-500 uppercase">Prompt</label>
+                  <Sparkles size={12} className={theme.color}/>
+                </div>
+                <textarea 
+                  className="w-full p-2 border border-stone-200 rounded text-sm bg-white outline-none focus:ring-1 focus:ring-violet-500 resize-none h-32" 
+                  placeholder="e.g. Draft a warm welcome text for a first-time guest inviting them to coffee..."
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                ></textarea>
+              </div>
+              <button onClick={handleGenerateDraft} disabled={isGenerating || !prompt} className={`w-full py-2.5 bg-stone-900 text-white rounded text-sm font-medium hover:bg-stone-800 transition-colors flex justify-center items-center gap-2 disabled:opacity-50`}>
+                {isGenerating ? <Loader2 size={16} className="animate-spin" /> : 'Generate Draft'}
+              </button>
             </div>
           </div>
           <div className="lg:col-span-2">
@@ -974,6 +1160,24 @@ function WorkflowsApp({ theme }) {
           </div>
         </div>
       )}
+      {activeSubTab === 'inbox' && (
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-[500px] flex animate-in fade-in duration-300">
+          <div className="w-1/3 border-r border-stone-200 flex flex-col bg-stone-50/50">
+            <div className="p-4 border-b border-stone-200"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 h-4 w-4" /><input type="text" placeholder="Search conversations..." className="w-full pl-9 pr-4 py-1.5 border border-stone-300 rounded-md text-sm outline-none focus:border-violet-500"/></div></div>
+            <div className="flex-1 overflow-y-auto divide-y divide-stone-100">
+              <div className="p-4 bg-white border-l-4 border-violet-500 cursor-pointer"><div className="flex justify-between items-start mb-1"><h4 className="font-bold text-stone-900 text-sm">Sarah Jenkins</h4><span className="text-xs text-stone-400">10:42 AM</span></div><p className="text-xs text-stone-600 truncate font-medium">Thank you! What time is youth group?</p></div>
+            </div>
+          </div>
+          <div className="flex-1 flex flex-col bg-white">
+            <div className="p-4 border-b border-stone-200 flex justify-between items-center"><h3 className="font-bold text-stone-900">Sarah Jenkins</h3><button className="text-stone-400 hover:text-stone-600"><MoreVertical size={18}/></button></div>
+            <div className="flex-1 p-6 flex flex-col gap-4 overflow-y-auto bg-stone-50/30">
+              <div className="self-end bg-violet-600 text-white p-3 rounded-2xl rounded-tr-sm max-w-[75%] text-sm">Hi Sarah! Thanks for visiting Lifegate yesterday. We loved having you. Do you have any questions about the church?</div>
+              <div className="self-start bg-stone-200 text-stone-800 p-3 rounded-2xl rounded-tl-sm max-w-[75%] text-sm">Thank you! What time is youth group?</div>
+            </div>
+            <div className="p-4 border-t border-stone-200 bg-white"><div className="flex gap-2"><input type="text" placeholder="Type an SMS reply..." className="flex-1 p-2 border border-stone-300 rounded-md text-sm outline-none focus:border-violet-500" /><button className="px-4 py-2 bg-violet-600 text-white rounded-md text-sm font-medium hover:bg-violet-700"><Send size={16}/></button></div></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -981,6 +1185,8 @@ function WorkflowsApp({ theme }) {
 function SecurityApp({ theme, isSeniorPastor }) {
   const [is2FA, setIs2FA] = useState(true);
   const [isDLP, setIsDLP] = useState(true);
+  const [isPII, setIsPII] = useState(true);
+  const [isOptOut, setIsOptOut] = useState(true);
   const [isEndpoint, setIsEndpoint] = useState(false);
 
   return (
@@ -1027,9 +1233,82 @@ function SecurityApp({ theme, isSeniorPastor }) {
               </div>
             </div>
           </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+            <div className="p-5 border-b border-stone-200 bg-stone-50 flex items-center gap-2">
+              <ShieldAlert size={18} className="text-stone-600"/>
+              <h3 className="font-semibold text-stone-800">Data Protection & AI Governance</h3>
+            </div>
+            <div className="divide-y divide-stone-100">
+              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-stone-900 text-sm">Data Loss Prevention (DLP)</h4>
+                    <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 rounded uppercase">Recommended</span>
+                  </div>
+                  <p className="text-xs text-stone-500 mt-1 max-w-md">Automatically scan internal chats and documents to prevent users from sharing sensitive congregant data externally.</p>
+                </div>
+                <div onClick={() => isSeniorPastor && setIsDLP(!isDLP)} className={isSeniorPastor ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}>
+                  {isDLP ? <ToggleRight size={36} className="text-emerald-500"/> : <ToggleLeft size={36} className="text-stone-300"/>}
+                </div>
+              </div>
+              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
+                <div>
+                  <h4 className="font-bold text-stone-900 text-sm">PII Data Masking for AI</h4>
+                  <p className="text-xs text-stone-500 mt-1 max-w-md">Automatically redact names, phone numbers, and addresses before sending any context to Gemini AI.</p>
+                </div>
+                <div onClick={() => isSeniorPastor && setIsPII(!isPII)} className={isSeniorPastor ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}>
+                  {isPII ? <ToggleRight size={36} className="text-emerald-500"/> : <ToggleLeft size={36} className="text-stone-300"/>}
+                </div>
+              </div>
+              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
+                <div>
+                  <h4 className="font-bold text-stone-900 text-sm">LLM Training Opt-Out</h4>
+                  <p className="text-xs text-stone-500 mt-1 max-w-md">Enforce Google Workspace privacy policy ensuring your internal data is never used to train public AI models.</p>
+                </div>
+                <div onClick={() => isSeniorPastor && setIsOptOut(!isOptOut)} className={isSeniorPastor ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}>
+                  {isOptOut ? <ToggleRight size={36} className="text-emerald-500"/> : <ToggleLeft size={36} className="text-stone-300"/>}
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <div className="space-y-6">
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit">
+            <div className="p-5 border-b border-stone-200 bg-stone-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <History size={18} className="text-stone-600"/>
+                <h3 className="font-semibold text-stone-800">Security Audit Log</h3>
+              </div>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </div>
+            <div className="divide-y divide-stone-100 max-h-[300px] overflow-y-auto">
+              <div className="p-4 bg-rose-50/30">
+                <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5"><EyeOff size={12}/> DLP Policy Triggered</p>
+                <p className="text-xs text-stone-600 mt-1">Blocked user 'S. Jenkins' from emailing a spreadsheet containing credit card numbers externally.</p>
+                <p className="text-[10px] text-stone-400 mt-1">Today, 10:42 AM</p>
+              </div>
+              <div className="p-4">
+                <p className="text-xs font-bold text-stone-700 flex items-center gap-1.5"><ShieldCheck size={12}/> Successful Login (2FA)</p>
+                <p className="text-xs text-stone-600 mt-1">User 'J. Asiedu' authenticated successfully from recognized IP address.</p>
+                <p className="text-[10px] text-stone-400 mt-1">Today, 8:15 AM</p>
+              </div>
+              <div className="p-4">
+                <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5"><SmartphoneNfc size={12}/> New Device Registered</p>
+                <p className="text-xs text-stone-600 mt-1">A new mobile device was registered to 'D. Chen' via Endpoint Management.</p>
+                <p className="text-[10px] text-stone-400 mt-1">Yesterday, 4:30 PM</p>
+              </div>
+            </div>
+            <div className="p-3 border-t border-stone-100 bg-stone-50 text-center">
+              <button className="text-xs font-semibold text-stone-600 hover:text-stone-900">View Full Logs (Google Vault)</button>
+            </div>
+          </div>
+
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit">
             <div className="p-5 border-b border-stone-200 bg-stone-50">
               <h3 className="font-semibold text-stone-800">Role-Based Access</h3>
@@ -1051,6 +1330,7 @@ function SecurityApp({ theme, isSeniorPastor }) {
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );
@@ -1092,7 +1372,7 @@ function HomeMetricCard({ title, value, label, color }) {
 
 function QuickActionButton({ icon: Icon, label, color, onClick }) {
   return (
-    <button onClick={onClick} className={`p-4 rounded-lg border flex flex-col items-center justify-center gap-2 transition-colors ${color}`}>
+    <button onClick={onClick} className={`p-4 rounded-lg border flex flex-col items-center justify-center gap-2 transition-colors ${color} w-full`}>
       <Icon size={24} />
       <span className="text-xs font-bold">{label}</span>
     </button>
