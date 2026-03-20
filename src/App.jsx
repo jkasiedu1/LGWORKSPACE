@@ -8,7 +8,7 @@ import {
   ShieldCheck, TrendingUp, CreditCard, Inbox, Hash, UserCheck, ToggleRight, 
   ToggleLeft, ShieldAlert, Play, Pause, SkipBack, SkipForward, MonitorPlay, 
   FolderLock, Lock, Unlock, File, SmartphoneNfc, EyeOff, History, PieChart, 
-  BarChart3, Download, TrendingDown, Activity, LogOut 
+  BarChart3, Download, TrendingDown, Activity, LogOut, Youtube, Edit2, Save, X, UserCog
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
@@ -52,7 +52,6 @@ const callGeminiAI = async (prompt, systemContext) => {
   }
 };
 
-
 // 👇 2. YOUR FIREBASE KEYS 👇
 const firebaseConfig = {
   apiKey: "AIzaSyCrPxPLMS_pwryIRHoxYVUFiuxpKHyTk1M",
@@ -74,28 +73,20 @@ try {
 }
 
 // 👇 3. ROLE-BASED ACCESS CONTROL (RBAC) 👇
-// The Senior Pastor has ultimate access and a unique badge.
 const SENIOR_PASTOR_EMAIL = 'bigjoe11221985@gmail.com';
-
-// Admins have full access to manage data. Everyone else gets limited Volunteer access.
-const ADMIN_EMAILS = [
-  'jkasiedu1@gmail.com' 
-];
+const ADMIN_EMAILS = ['jkasiedu1@gmail.com'];
 
 // --- ENTERPRISE MOCK DATA ---
 const UPCOMING_EVENTS = [
-  { id: 1, title: 'Ash Wednesday Gathering', date: 'Feb 18, 2026', time: '7:00 PM', type: 'Worship' },
-  { id: 2, title: 'Sunday Worship Experience', date: 'Feb 22, 2026', time: '10:00 AM', type: 'Weekend Service' },
-  { id: 3, title: 'Serve Team Rally', date: 'Feb 28, 2026', time: '9:00 AM', type: 'Equipping' },
-  { id: 4, title: 'Easter Creative Sync', date: 'Mar 5, 2026', time: '1:00 PM', type: 'Collaboration' },
+  { id: 1, title: 'Ash Wednesday Gathering', date: '2026-02-18', time: '19:00', type: 'Worship' },
+  { id: 2, title: 'Sunday Worship Experience', date: '2026-02-22', time: '10:00', type: 'Weekend Service' },
+  { id: 3, title: 'Serve Team Rally', date: '2026-02-28', time: '09:00', type: 'Equipping' },
 ];
 
 const PEOPLE_LIST = [
   { id: 1, name: 'Sarah Jenkins', email: 'sarah.j@example.com', phone: '(555) 123-4567', address: '123 Meadow Ln, Heartland, TX', type: 'Guest', bgCheck: 'N/A' },
   { id: 2, name: 'The Martinez Family', email: 'martinez@example.com', phone: '(555) 987-6543', address: '456 Oak Dr, Heartland, TX', type: 'Member', bgCheck: 'N/A' },
   { id: 3, name: 'David Chen', email: 'dchen88@example.com', phone: '(555) 456-7890', address: '789 Pine St, Heartland, TX', type: 'Volunteer', bgCheck: 'Clear' },
-  { id: 4, name: 'Emily Thorne', email: 'emily.t@example.com', phone: '(555) 321-0987', address: '321 Elm Ct, Heartland, TX', type: 'Staff', bgCheck: 'Pending' },
-  { id: 5, name: 'Marcus Johnson', email: 'marcus.j@example.com', phone: '(555) 654-3210', address: '654 Maple Ave, Heartland, TX', type: 'Volunteer', bgCheck: 'Expired' },
 ];
 
 const PLAN_ITEMS = [
@@ -103,35 +94,23 @@ const PLAN_ITEMS = [
   { id: 2, time: '7:05 PM', length: '15:00', title: 'Worship Set (3 Songs)', type: 'Song', person: 'Worship Band' },
   { id: 3, time: '7:20 PM', length: '5:00', title: 'Guided Prayer Moment', type: 'Element', person: 'Elder Team' },
   { id: 4, time: '7:25 PM', length: '35:00', title: 'Message: Beauty from Ashes', type: 'Sermon', person: 'Pastor Joshua' },
-  { id: 5, time: '8:00 PM', length: '15:00', title: 'Imposition of Ashes / Response', type: 'Element', person: 'All Staff' },
 ];
 
 const SONG_LIBRARY = [
-  { id: 1, title: 'Build My Life', artist: 'Housefires', key: 'G', originalKey: 'G', bpm: 70, ccli: '7070345', lastPlayed: 'Feb 1', hasLyrics: true, hasChords: true, hasAudio: true },
-  { id: 2, title: 'What A Beautiful Name', artist: 'Hillsong Worship', key: 'D', originalKey: 'D', bpm: 68, ccli: '7068424', lastPlayed: 'Jan 25', hasLyrics: true, hasChords: true, hasAudio: false },
-  { id: 3, title: 'Graves Into Gardens', artist: 'Elevation Worship', key: 'B', originalKey: 'B', bpm: 70, ccli: '7138219', lastPlayed: 'Feb 8', hasLyrics: true, hasChords: false, hasAudio: true },
+  { id: 1, title: 'Build My Life', artist: 'Housefires', key: 'G', originalKey: 'G', bpm: 70, ccli: '7070345', lastPlayed: 'Feb 1', hasLyrics: true, hasChords: true, hasAudio: true, youtube: 'https://youtube.com/watch?v=QZW4_8_zCBE' },
+  { id: 2, title: 'What A Beautiful Name', artist: 'Hillsong Worship', key: 'D', originalKey: 'D', bpm: 68, ccli: '7068424', lastPlayed: 'Jan 25', hasLyrics: true, hasChords: true, hasAudio: false, youtube: 'https://youtube.com/watch?v=nQWFzMvCfLE' },
 ];
 
 const RECENT_DONATIONS = [
   { id: 1, name: 'Anonymous', amount: '$500.00', date: 'Feb 16, 2026', fund: 'General Tithe', type: 'Zelle' },
   { id: 2, name: 'David Chen', amount: '$150.00', date: 'Feb 15, 2026', fund: 'Missions', type: 'Online Recurring' },
-  { id: 3, name: 'Emily Thorne', amount: '$250.00', date: 'Feb 15, 2026', fund: 'Building Fund', type: 'Zelle' },
 ];
 
 const MINISTRY_TEAMS = [
-  { id: 1, name: 'Men\'s Ministry', lead: 'Michael Carter', members: 42, access: 'Full Admin', status: 'unlocked', desc: 'Manage men\'s breakfasts, retreats, and mentorship groups.' },
-  { id: 2, name: 'Women\'s Ministry', lead: 'Sarah Jenkins', members: 56, access: 'View Only', status: 'restricted', desc: 'Coordinate Bible studies, women\'s events, and support groups.' },
-  { id: 3, name: 'Lifegate Youth', lead: 'David Chen', members: 18, access: 'Full Admin', status: 'unlocked', desc: 'Youth group scheduling, parent communications, and camp planning.' },
-  { id: 4, name: 'Lifegate Kids', lead: 'Emily Thorne', members: 35, access: 'View Only', status: 'restricted', desc: 'Children\'s curriculum, check-in data, and background checks.' },
-  { id: 5, name: 'Lifegate Music', lead: 'Marcus Johnson', members: 24, access: 'Full Admin', status: 'unlocked', desc: 'Worship sets, band schedules, and rehearsal resources.' },
-  { id: 6, name: 'Lifegate Media', lead: 'James Wilson', members: 12, access: 'No Access', status: 'locked', desc: 'A/V scheduling, stage plots, and livestream management.' },
-  { id: 7, name: 'Lifegate Ushers and Protocol', lead: 'Robert Hayes', members: 28, access: 'No Access', status: 'locked', desc: 'Service protocols, seating logistics, and offering collection.' },
-  { id: 8, name: 'Lifegate Hospitality', lead: 'Linda Gomez', members: 30, access: 'View Only', status: 'restricted', desc: 'Coffee bar, guest welcome packages, and event catering.' },
-  { id: 9, name: 'Lifegate Sunday Prayer Team', lead: 'Pastor Joshua', members: 15, access: 'Full Admin', status: 'unlocked', desc: 'Altar ministry schedules and confidential prayer requests.' },
-  { id: 10, name: 'Lifegate Friday Prayer Team', lead: 'Anna Roberts', members: 20, access: 'No Access', status: 'locked', desc: 'Intercessory prayer focus lists and Friday night watch schedules.' },
-  { id: 11, name: 'Lifegate Outreach and Follow-Up', lead: 'Tom Harris', members: 25, access: 'View Only', status: 'restricted', desc: 'Community service events, evangelism, and guest retention tracking.' },
-  { id: 12, name: 'Lifegate Board', lead: 'Elder Council', members: 7, access: 'Full Admin', status: 'unlocked', desc: 'Financial reports, strategic planning, and governance documents.' },
-  { id: 13, name: 'Lifegate Communications', lead: 'Jessica Lee', members: 8, access: 'No Access', status: 'locked', desc: 'Social media planning, website updates, and bulletin announcements.' },
+  { id: 1, name: 'Men\'s Ministry', lead: 'Michael Carter', members: 42, access: 'Full Admin', status: 'unlocked', desc: 'Manage men\'s breakfasts, retreats, and mentorship groups.', roster: [{id: 3, name: 'David Chen'}] },
+  { id: 2, name: 'Women\'s Ministry', lead: 'Sarah Jenkins', members: 56, access: 'View Only', status: 'restricted', desc: 'Coordinate Bible studies, women\'s events, and support groups.', roster: [{id: 1, name: 'Sarah Jenkins'}] },
+  { id: 3, name: 'Lifegate Youth', lead: 'David Chen', members: 18, access: 'Full Admin', status: 'unlocked', desc: 'Youth group scheduling, parent communications, and camp planning.', roster: [] },
+  { id: 4, name: 'Lifegate Music', lead: 'Marcus Johnson', members: 24, access: 'Full Admin', status: 'unlocked', desc: 'Worship sets, band schedules, and rehearsal resources.', roster: [] },
 ];
 
 const APPS = {
@@ -157,12 +136,22 @@ export default function App() {
   
   const [activeApp, setActiveApp] = useState('home');
   const [isAppSwitcherOpen, setIsAppSwitcherOpen] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState('');
   
-  // LIVE & LOCAL STATE
+  // LIVE & LOCAL STATE (LIFTED TO APP LEVEL FOR CROSS-MODULE USE)
   const [events, setEvents] = useState(UPCOMING_EVENTS);
   const [people, setPeople] = useState(PEOPLE_LIST);
   const [planItems, setPlanItems] = useState(PLAN_ITEMS);
-  const [donations, setDonations] = useState(RECENT_DONATIONS); // Lifted state for Giving
+  const [donations, setDonations] = useState(RECENT_DONATIONS);
+  const [songs, setSongs] = useState(SONG_LIBRARY);
+  const [teamsList, setTeamsList] = useState(MINISTRY_TEAMS);
+  
+  // GLOBAL TOAST NOTIFICATION
+  const [toastMsg, setToastMsg] = useState(null);
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
   
   // LIVE FIREBASE AUTH STATE & ROLE ASSIGNMENT
   useEffect(() => {
@@ -184,33 +173,28 @@ export default function App() {
       });
       return () => unsubscribe();
     } else {
-      setAuthCheckComplete(true); // Complete check even if no auth is set up locally
+      setAuthCheckComplete(true);
     }
   }, []);
 
   // INACTIVITY AUTO-LOGOUT (15 Minutes)
   useEffect(() => {
     let timeoutId;
-    const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 minutes in milliseconds
+    const INACTIVITY_LIMIT = 15 * 60 * 1000;
 
     const resetTimer = () => {
       if (timeoutId) clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
         if (auth && auth.currentUser) {
-          console.log("Logged out due to inactivity.");
           signOut(auth);
         }
       }, INACTIVITY_LIMIT);
     };
 
     if (isAuthenticated) {
-      resetTimer(); // Start timer on login
-      
-      // Watch for any interactions
+      resetTimer();
       const eventsListener = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
       eventsListener.forEach(event => window.addEventListener(event, resetTimer));
-
-      // Cleanup
       return () => {
         if (timeoutId) clearTimeout(timeoutId);
         eventsListener.forEach(event => window.removeEventListener(event, resetTimer));
@@ -222,7 +206,6 @@ export default function App() {
   useEffect(() => {
     let unsubEvents;
     let unsubPeople;
-    
     if (isAuthenticated && db) {
       unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
         if (!snapshot.empty) setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -231,7 +214,6 @@ export default function App() {
         if (!snapshot.empty) setPeople(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       });
     }
-
     return () => {
       if (unsubEvents) unsubEvents();
       if (unsubPeople) unsubPeople();
@@ -247,6 +229,12 @@ export default function App() {
       ::selection { background-color: #99f6e4 !important; }
       .font-sans { font-family: 'Inter', sans-serif !important; }
       .font-serif { font-family: 'Playfair Display', serif !important; }
+      
+      /* Hide standard scrollbar for cleaner look */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #e7e5e4; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #d6d3d1; }
     `;
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
@@ -269,7 +257,15 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen flex flex-col bg-stone-50 font-sans">
+    <div className="min-h-screen flex flex-col bg-stone-50 font-sans relative">
+      {/* GLOBAL TOAST NOTIFICATION */}
+      {toastMsg && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-stone-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-4 fade-in">
+          <CheckCircle2 size={18} className="text-emerald-400" />
+          <span className="text-sm font-medium">{toastMsg}</span>
+        </div>
+      )}
+
       <header className="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
         <div className="flex items-center justify-between h-14 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-6">
@@ -279,8 +275,6 @@ export default function App() {
                 <div className="flex flex-col items-start leading-none mt-1">
                   <div className="flex items-center gap-1.5">
                     <span className="text-stone-900 font-serif font-bold text-lg leading-none">Lifegate AG</span>
-                    
-                    {/* DYNAMIC ROLE BADGE */}
                     <div className={`hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-full border ml-1 ${isSeniorPastor ? 'bg-indigo-50 border-indigo-200' : isAdmin ? 'bg-emerald-50 border-emerald-200' : 'bg-stone-100 border-stone-200'}`}>
                       {isSeniorPastor ? <Sparkles size={10} className="text-indigo-500" /> : isAdmin ? <ShieldCheck size={10} className="text-emerald-500" /> : <Users size={10} className="text-stone-500" />}
                       <span className={`text-[8px] font-bold uppercase tracking-wider ${isSeniorPastor ? 'text-indigo-700' : isAdmin ? 'text-emerald-700' : 'text-stone-600'}`}>
@@ -314,7 +308,13 @@ export default function App() {
           <div className="hidden md:flex flex-1 max-w-lg mx-8">
             <div className="relative w-full group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 h-4 w-4 group-focus-within:text-teal-600 transition-colors" />
-              <input type="text" placeholder="Search across all apps..." className="w-full pl-9 pr-4 py-1.5 bg-stone-100 border border-transparent rounded-md text-sm focus:bg-white focus:border-teal-300 focus:ring-2 focus:ring-teal-100 transition-all outline-none" />
+              <input 
+                type="text" 
+                placeholder={`Search ${theme.name}...`} 
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-1.5 bg-stone-100 border border-transparent rounded-md text-sm focus:bg-white focus:border-teal-300 focus:ring-2 focus:ring-teal-100 transition-all outline-none" 
+              />
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -339,14 +339,14 @@ export default function App() {
 
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
         {activeApp === 'home' && <HomeApp events={events} people={people} isAdmin={isAdmin} isSeniorPastor={isSeniorPastor} setActiveApp={setActiveApp} />}
-        {activeApp === 'services' && <ServicesApp theme={theme} planItems={planItems} setPlanItems={setPlanItems} isAdmin={isAdmin} />}
-        {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} />}
-        {activeApp === 'teams' && <TeamsApp theme={theme} setActiveApp={setActiveApp} isAdmin={isAdmin} />}
-        {activeApp === 'people' && <PeopleApp theme={theme} people={people} setPeople={setPeople} isAdmin={isAdmin} />}
-        {activeApp === 'giving' && isAdmin && <GivingApp theme={theme} donations={donations} setDonations={setDonations} isAdmin={isAdmin} />}
-        {activeApp === 'calendar' && <CalendarApp theme={theme} events={events} setEvents={setEvents} isAdmin={isAdmin} />}
-        {activeApp === 'workflows' && isAdmin && <WorkflowsApp theme={theme} isAdmin={isAdmin} />}
-        {activeApp === 'security' && isAdmin && <SecurityApp theme={theme} isSeniorPastor={isSeniorPastor} />}
+        {activeApp === 'services' && <ServicesApp theme={theme} planItems={planItems} setPlanItems={setPlanItems} isAdmin={isAdmin} showToast={showToast} />}
+        {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} songs={songs} setSongs={setSongs} globalSearch={globalSearch} showToast={showToast} />}
+        {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={teamsList} setTeamsList={setTeamsList} people={people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} />}
+        {activeApp === 'people' && <PeopleApp theme={theme} people={people} setPeople={setPeople} isAdmin={isAdmin} globalSearch={globalSearch} showToast={showToast} />}
+        {activeApp === 'giving' && isAdmin && <GivingApp theme={theme} donations={donations} setDonations={setDonations} showToast={showToast} />}
+        {activeApp === 'calendar' && <CalendarApp theme={theme} events={events} setEvents={setEvents} isAdmin={isAdmin} showToast={showToast} />}
+        {activeApp === 'workflows' && isAdmin && <WorkflowsApp theme={theme} showToast={showToast} />}
+        {activeApp === 'security' && isAdmin && <SecurityApp theme={theme} isSeniorPastor={isSeniorPastor} showToast={showToast} />}
         {activeApp === 'reporting' && isAdmin && <ReportingApp theme={theme} />}
       </main>
     </div>
@@ -485,12 +485,16 @@ function HomeApp({ events, people, isAdmin, isSeniorPastor, setActiveApp }) {
   );
 }
 
-function ServicesApp({ theme, planItems, setPlanItems, isAdmin }) {
+function ServicesApp({ theme, planItems, setPlanItems, isAdmin, showToast }) {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newItem, setNewItem] = useState({ time: '', length: '', title: '', type: 'Element', person: '' });
+
+  // Editable Service Header
+  const [isEditingHeader, setIsEditingHeader] = useState(false);
+  const [headerData, setHeaderData] = useState({ title: 'Ash Wednesday Gathering', date: 'Feb 18, 2026', time: '7:00 PM', location: 'Main Auditorium' });
 
   const handleGenerate = async () => {
     if (!prompt) return;
@@ -506,23 +510,50 @@ function ServicesApp({ theme, planItems, setPlanItems, isAdmin }) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 text-left">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Ash Wednesday Gathering</h1>
-          <p className="text-stone-500 text-sm mt-1">Feb 18, 2026 • 7:00 PM • Main Auditorium</p>
+      <div className="flex justify-between items-start mb-6">
+        
+        <div className="flex-1">
+          {isEditingHeader ? (
+            <div className="space-y-3 bg-white p-4 rounded-xl shadow-sm border border-stone-200 max-w-lg animate-in slide-in-from-top-2">
+              <input type="text" className="w-full font-serif text-2xl font-bold text-stone-900 border-b border-stone-200 focus:border-amber-500 outline-none pb-1" value={headerData.title} onChange={e => setHeaderData({...headerData, title: e.target.value})} />
+              <div className="grid grid-cols-3 gap-2">
+                 <input type="text" className="w-full text-sm border border-stone-200 p-1.5 rounded outline-none" value={headerData.date} onChange={e => setHeaderData({...headerData, date: e.target.value})} />
+                 <input type="text" className="w-full text-sm border border-stone-200 p-1.5 rounded outline-none" value={headerData.time} onChange={e => setHeaderData({...headerData, time: e.target.value})} />
+                 <input type="text" className="w-full text-sm border border-stone-200 p-1.5 rounded outline-none" value={headerData.location} onChange={e => setHeaderData({...headerData, location: e.target.value})} />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                 <button onClick={() => setIsEditingHeader(false)} className="px-3 py-1.5 text-xs font-semibold text-white bg-stone-900 rounded-md flex items-center gap-1 hover:bg-stone-800"><Save size={14}/> Save Details</button>
+              </div>
+            </div>
+          ) : (
+            <div className="group flex items-start gap-3">
+              <div>
+                <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">{headerData.title}</h1>
+                <p className="text-stone-500 text-sm mt-1">{headerData.date} • {headerData.time} • {headerData.location}</p>
+              </div>
+              {isAdmin && (
+                <button onClick={() => setIsEditingHeader(true)} className="mt-1 text-stone-300 hover:text-amber-600 transition-colors opacity-0 group-hover:opacity-100" title="Edit Service Details">
+                  <Edit2 size={18} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex gap-2 shrink-0">
           <button className="px-4 py-2 bg-white border border-stone-200 rounded-md text-sm font-medium text-stone-700 hover:bg-stone-50 shadow-sm">Print</button>
-          {isAdmin && <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90`}>Save Plan</button>}
+          {isAdmin && <button onClick={() => showToast("Service Plan Saved Successfully!")} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90`}>Save Plan</button>}
         </div>
       </div>
+
       <div className="border-b border-stone-200 mb-6">
         <nav className="-mb-px flex space-x-8">
-          <a href="#" className={`border-b-2 ${theme.border} ${theme.color} py-4 px-1 text-sm font-medium`}>Order</a>
-          <a href="#" className="border-b-2 border-transparent text-stone-500 hover:text-stone-700 py-4 px-1 text-sm font-medium">Teams</a>
-          <a href="#" className="border-b-2 border-transparent text-stone-500 hover:text-stone-700 py-4 px-1 text-sm font-medium">Times</a>
+          <button className={`border-b-2 ${theme.border} ${theme.color} py-4 px-1 text-sm font-medium`}>Order</button>
+          <button className="border-b-2 border-transparent text-stone-500 hover:text-stone-700 py-4 px-1 text-sm font-medium">Teams</button>
+          <button className="border-b-2 border-transparent text-stone-500 hover:text-stone-700 py-4 px-1 text-sm font-medium">Times</button>
         </nav>
       </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
           <div className="overflow-x-auto">
@@ -586,7 +617,7 @@ function ServicesApp({ theme, planItems, setPlanItems, isAdmin }) {
   );
 }
 
-function MusicApp({ theme, isAdmin }) {
+function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch, showToast }) {
   const [musicPrompt, setMusicPrompt] = useState('');
   const [isAnalyzingMusic, setIsAnalyzingMusic] = useState(false);
   const [musicAnalysisResult, setMusicAnalysisResult] = useState(null);
@@ -594,10 +625,16 @@ function MusicApp({ theme, isAdmin }) {
   const [selectedSong, setSelectedSong] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const [isUploading, setIsUploading] = useState(false);
+  const [newSong, setNewSong] = useState({ title: '', artist: '', key: 'C', bpm: 70, ccli: '', hasLyrics: true, hasChords: true, hasAudio: true, youtube: '' });
 
-  const filteredSongs = SONG_LIBRARY.filter(song => 
+  // Sync with global header search if provided
+  useEffect(() => { if (globalSearch) setSearchQuery(globalSearch); }, [globalSearch]);
+
+  const filteredSongs = songs.filter(song => 
     song.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    song.ccli.includes(searchQuery)
+    song.ccli?.includes(searchQuery)
   );
 
   const handleMusicAnalysis = async () => {
@@ -612,18 +649,52 @@ function MusicApp({ theme, isAdmin }) {
     setIsAnalyzingMusic(false); 
   };
 
+  const handleAddSong = () => {
+    if (!newSong.title || !newSong.artist) return;
+    setSongs([{ id: Date.now(), ...newSong, lastPlayed: 'Never' }, ...songs]);
+    setIsUploading(false);
+    showToast("Song added to library successfully!");
+    setNewSong({ title: '', artist: '', key: 'C', bpm: 70, ccli: '', hasLyrics: true, hasChords: true, hasAudio: true, youtube: '' });
+  };
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 text-left">
+    <div className="space-y-6 animate-in fade-in duration-500 text-left relative">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Music Library</h1>
-          <p className="text-stone-500 text-sm mt-1">Manage songs, analyze arrangements, and view assets.</p>
+          <p className="text-stone-500 text-sm mt-1">Manage songs, analyze arrangements, and link YouTube assets.</p>
         </div>
         <div className="flex gap-2">
           <button className={`px-4 py-2 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center gap-2`}><MonitorPlay size={16}/> Music Stand Mode</button>
-          {isAdmin && <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><UploadCloud size={16}/> Upload Song</button>}
+          {isAdmin && <button onClick={() => setIsUploading(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><UploadCloud size={16}/> Upload Song</button>}
         </div>
       </div>
+
+      {isUploading && isAdmin && (
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+            <h2 className="text-xl font-bold text-stone-900 mb-4 flex items-center gap-2"><UploadCloud className="text-rose-600"/> Add New Song</h2>
+            <div className="space-y-4">
+              <input type="text" placeholder="Song Title" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-rose-500" value={newSong.title} onChange={e => setNewSong({...newSong, title: e.target.value})} />
+              <input type="text" placeholder="Artist" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-rose-500" value={newSong.artist} onChange={e => setNewSong({...newSong, artist: e.target.value})} />
+              <div className="grid grid-cols-3 gap-2">
+                <input type="text" placeholder="Key (e.g. C)" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-rose-500" value={newSong.key} onChange={e => setNewSong({...newSong, key: e.target.value, originalKey: e.target.value})} />
+                <input type="number" placeholder="BPM" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-rose-500" value={newSong.bpm} onChange={e => setNewSong({...newSong, bpm: e.target.value})} />
+                <input type="text" placeholder="CCLI #" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-rose-500" value={newSong.ccli} onChange={e => setNewSong({...newSong, ccli: e.target.value})} />
+              </div>
+              <div className="relative">
+                <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-500 h-5 w-5" />
+                <input type="text" placeholder="YouTube URL (Optional)" className="w-full pl-10 p-2 border border-stone-200 rounded-md outline-none focus:border-rose-500" value={newSong.youtube} onChange={e => setNewSong({...newSong, youtube: e.target.value})} />
+              </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <button onClick={() => setIsUploading(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
+                <button onClick={handleAddSong} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Save to Library</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit">
@@ -636,9 +707,9 @@ function MusicApp({ theme, isAdmin }) {
                  </div>
               </div>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
               <table className="w-full text-sm text-left">
-                <thead className="border-b border-stone-100 text-stone-500 font-medium">
+                <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white">
                   <tr><th className="px-5 py-3">Song Title</th><th className="px-5 py-3">Key / BPM</th><th className="px-5 py-3">CCLI #</th><th className="px-5 py-3">Assets</th></tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -647,11 +718,19 @@ function MusicApp({ theme, isAdmin }) {
                       <td className="px-5 py-4"><div className="font-medium text-stone-900">{song.title}</div><div className="text-xs text-stone-500 mt-0.5">{song.artist}</div></td>
                       <td className="px-5 py-4 text-stone-500"><span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-stone-100 text-stone-700 mr-2 border border-stone-200">{song.key}</span><span className="text-xs">{song.bpm} bpm</span></td>
                       <td className="px-5 py-4 text-stone-500 text-xs">{song.ccli}<br/><span className="text-[10px] text-stone-400">Played: {song.lastPlayed}</span></td>
-                      <td className="px-5 py-4"><div className="flex items-center gap-1.5">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-1.5">
                           <span className={`p-1.5 rounded-md ${song.hasLyrics ? 'bg-stone-100 text-stone-700' : 'bg-white text-stone-300 border border-stone-100'}`} title="Lyrics"><FileText size={14}/></span>
                           <span className={`p-1.5 rounded-md ${song.hasChords ? 'bg-stone-100 text-stone-700' : 'bg-white text-stone-300 border border-stone-100'}`} title="Chords"><Music size={14}/></span>
-                          <span className={`p-1.5 rounded-md ${song.hasAudio ? 'bg-rose-100 text-rose-700' : 'bg-white text-stone-300 border border-stone-100'}`} title="Audio"><FileAudio size={14}/></span>
-                      </div></td>
+                          {song.youtube ? (
+                            <a href={song.youtube} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-md bg-rose-100 text-rose-600 hover:bg-rose-200 transition-colors" title="Watch on YouTube">
+                              <Youtube size={14}/>
+                            </a>
+                          ) : (
+                            <span className={`p-1.5 rounded-md ${song.hasAudio ? 'bg-stone-100 text-stone-700' : 'bg-white text-stone-300 border border-stone-100'}`} title="Audio"><FileAudio size={14}/></span>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {filteredSongs.length === 0 && (
@@ -669,15 +748,36 @@ function MusicApp({ theme, isAdmin }) {
                 <div><h2 className="font-bold text-lg text-stone-900 leading-tight">{selectedSong.title}</h2><p className="text-sm font-medium text-stone-500">{selectedSong.artist}</p></div>
                 <button onClick={() => setSelectedSong(null)} className="text-stone-400 hover:text-stone-600 text-xs font-semibold uppercase tracking-wider">Close</button>
               </div>
-              <div className="p-5 border-b border-stone-100 bg-stone-900 text-white">
-                <div className="flex justify-between items-center mb-3"><span className="text-xs font-bold text-stone-400 uppercase tracking-wider">Rehearsal Track</span><span className="text-xs font-medium bg-stone-800 px-2 py-0.5 rounded text-rose-400">0:00 / 4:12</span></div>
-                <div className="w-full h-10 flex items-center gap-0.5 mb-4 opacity-70">
-                   {Array.from({length: 40}).map((_, i) => (<div key={i} className="flex-1 bg-rose-500 rounded-full" style={{ height: `${Math.max(10, Math.random() * 100)}%` }}></div>))}
+              
+              {selectedSong.youtube ? (
+                <div className="bg-stone-900 aspect-video w-full relative flex items-center justify-center border-b border-stone-100">
+                   <a href={selectedSong.youtube} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-2 group cursor-pointer">
+                     <div className="w-16 h-16 bg-rose-600 text-white rounded-full flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg"><Youtube size={32}/></div>
+                     <span className="text-white text-xs font-bold uppercase tracking-wider">Open YouTube Source</span>
+                   </a>
                 </div>
-                <div className="flex justify-center items-center gap-6">
-                  <button className="text-stone-300 hover:text-white"><SkipBack size={20}/></button>
-                  <button onClick={() => setIsPlaying(!isPlaying)} className="w-12 h-12 bg-white text-stone-900 rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg">{isPlaying ? <Pause size={20} className="fill-current"/> : <Play size={20} className="fill-current ml-1"/>}</button>
-                  <button className="text-stone-300 hover:text-white"><SkipForward size={20}/></button>
+              ) : (
+                <div className="p-5 border-b border-stone-100 bg-stone-900 text-white">
+                  <div className="flex justify-between items-center mb-3"><span className="text-xs font-bold text-stone-400 uppercase tracking-wider">Rehearsal Track</span><span className="text-xs font-medium bg-stone-800 px-2 py-0.5 rounded text-rose-400">0:00 / 4:12</span></div>
+                  <div className="w-full h-10 flex items-center gap-0.5 mb-4 opacity-70">
+                     {Array.from({length: 40}).map((_, i) => (<div key={i} className="flex-1 bg-rose-500 rounded-full" style={{ height: `${Math.max(10, Math.random() * 100)}%` }}></div>))}
+                  </div>
+                  <div className="flex justify-center items-center gap-6">
+                    <button className="text-stone-300 hover:text-white"><SkipBack size={20}/></button>
+                    <button onClick={() => setIsPlaying(!isPlaying)} className="w-12 h-12 bg-white text-stone-900 rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg">{isPlaying ? <Pause size={20} className="fill-current"/> : <Play size={20} className="fill-current ml-1"/>}</button>
+                    <button className="text-stone-300 hover:text-white"><SkipForward size={20}/></button>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-5 border-b border-stone-100 bg-stone-50 grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Arrangement Key</label>
+                  <select className="w-full p-2 border border-stone-200 rounded-md text-sm font-semibold text-stone-700 bg-white outline-none focus:border-rose-500"><option>{selectedSong.key} (Default)</option><option>C</option><option>D</option><option>E</option><option>F</option></select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Original Key</label>
+                  <div className="p-2 border border-stone-200 rounded-md text-sm font-medium text-stone-500 bg-stone-100">{selectedSong.originalKey || selectedSong.key}</div>
                 </div>
               </div>
               <div className="p-4 bg-white flex flex-col gap-2">
@@ -711,10 +811,13 @@ function MusicApp({ theme, isAdmin }) {
   );
 }
 
-function PeopleApp({ theme, people, setPeople, isAdmin }) {
+function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast }) {
   const [isAdding, setIsAdding] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [newPerson, setNewPerson] = useState({ name: '', email: '', phone: '', address: '', type: 'Guest', bgCheck: 'N/A' });
+
+  // Sync with global search from header
+  useEffect(() => { if (globalSearch) setSearchQuery(globalSearch); }, [globalSearch]);
 
   const filteredPeople = people.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -730,6 +833,7 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
         setPeople([{ id: Date.now(), ...newPerson }, ...people]);
       }
       setIsAdding(false);
+      showToast("Profile created successfully!");
       setNewPerson({ name: '', email: '', phone: '', address: '', type: 'Guest', bgCheck: 'N/A' });
     } catch(e) { console.error(e); }
   };
@@ -757,6 +861,7 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
               <input type="text" placeholder="Full Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.name} onChange={e => setNewPerson({...newPerson, name: e.target.value})} />
               <input type="email" placeholder="Email Address" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.email} onChange={e => setNewPerson({...newPerson, email: e.target.value})} />
               <input type="text" placeholder="Phone Number" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.phone} onChange={e => setNewPerson({...newPerson, phone: e.target.value})} />
+              <input type="text" placeholder="Mailing Address" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.address} onChange={e => setNewPerson({...newPerson, address: e.target.value})} />
               <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.type} onChange={e => setNewPerson({...newPerson, type: e.target.value})}>
                 <option value="Guest">Guest</option><option value="Member">Member</option><option value="Volunteer">Volunteer</option><option value="Staff">Staff</option>
               </select>
@@ -785,9 +890,9 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
              </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="border-b border-stone-100 text-stone-500 font-medium">
+        <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+          <table className="w-full text-sm text-left relative">
+            <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white">
               <tr><th className="px-5 py-3">Name</th><th className="px-5 py-3">Contact</th><th className="px-5 py-3">Address</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Background Check</th><th className="px-5 py-3 text-right"></th></tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
@@ -806,7 +911,7 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
                     {person.bgCheck === 'N/A' && <span className="text-stone-300 text-xs">Not Required</span>}
                   </td>
                   <td className="px-5 py-3 text-right text-stone-400">
-                    {isAdmin && <button onClick={() => { if(db) { deleteDoc(doc(db, 'people', person.id)); } else { setPeople(people.filter(p => p.id !== person.id)); } }} className="hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><AlertCircle size={18} className="ml-auto"/></button>}
+                    {isAdmin && <button onClick={() => { if(db) { deleteDoc(doc(db, 'people', person.id)); showToast("Profile deleted"); } else { setPeople(people.filter(p => p.id !== person.id)); showToast("Profile deleted"); } }} className="hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100" title="Delete Profile"><AlertCircle size={18} className="ml-auto"/></button>}
                   </td>
                 </tr>
               ))}
@@ -821,16 +926,17 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
   );
 }
 
-function GivingApp({ theme, donations, setDonations, isAdmin }) {
+function GivingApp({ theme, donations, setDonations, showToast }) {
   const [reportResult, setReportResult] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
-  const [newDonation, setNewDonation] = useState({ name: '', amount: '', fund: 'General Tithe', type: 'Zelle', date: 'Today' });
+  const [newDonation, setNewDonation] = useState({ name: '', amount: '', fund: 'General Tithe', type: 'Zelle', date: new Date().toISOString().split('T')[0] });
 
   const handleAddDonation = () => {
     if (!newDonation.name || !newDonation.amount) return;
     setDonations([{ id: Date.now(), ...newDonation }, ...donations]);
     setIsAdding(false);
-    setNewDonation({ name: '', amount: '', fund: 'General Tithe', type: 'Zelle', date: 'Today' });
+    showToast("Donation Recorded Successfully");
+    setNewDonation({ name: '', amount: '', fund: 'General Tithe', type: 'Zelle', date: new Date().toISOString().split('T')[0] });
   };
 
   return (
@@ -841,24 +947,25 @@ function GivingApp({ theme, donations, setDonations, isAdmin }) {
           <p className="text-stone-500 text-sm mt-1">Track donations, Zelle reconciliation, and generate insights.</p>
         </div>
         <div className="flex gap-2">
-          {isAdmin && <button onClick={() => setIsAdding(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><DollarSign size={16}/> Record Gift / Zelle Sync</button>}
+          <button onClick={() => setIsAdding(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><DollarSign size={16}/> Record Gift / Zelle Sync</button>
         </div>
       </div>
 
-      {isAdding && isAdmin && (
+      {isAdding && (
         <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
-            <h2 className="text-xl font-bold text-stone-900 mb-4">Record New Gift</h2>
+            <h2 className="text-xl font-bold text-stone-900 mb-4 flex items-center gap-2"><DollarSign className="text-teal-600"/> Record New Gift</h2>
             <div className="space-y-4">
               <input type="text" placeholder="Donor Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500" value={newDonation.name} onChange={e => setNewDonation({...newDonation, name: e.target.value})} />
               <input type="text" placeholder="Amount (e.g. $100.00)" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500" value={newDonation.amount} onChange={e => setNewDonation({...newDonation, amount: e.target.value})} />
+              <input type="date" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500 text-sm text-stone-600" value={newDonation.date} onChange={e => setNewDonation({...newDonation, date: e.target.value})} />
               <div className="grid grid-cols-2 gap-4">
-                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500" value={newDonation.fund} onChange={e => setNewDonation({...newDonation, fund: e.target.value})}>
+                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500 text-sm" value={newDonation.fund} onChange={e => setNewDonation({...newDonation, fund: e.target.value})}>
                   <option value="General Tithe">General Tithe</option>
                   <option value="Missions">Missions</option>
                   <option value="Building Fund">Building Fund</option>
                 </select>
-                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500" value={newDonation.type} onChange={e => setNewDonation({...newDonation, type: e.target.value})}>
+                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500 text-sm" value={newDonation.type} onChange={e => setNewDonation({...newDonation, type: e.target.value})}>
                   <option value="Zelle">Zelle</option>
                   <option value="Cash/Check">Cash/Check</option>
                   <option value="Online Card">Online Card</option>
@@ -881,9 +988,9 @@ function GivingApp({ theme, donations, setDonations, isAdmin }) {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center"><h3 className="font-semibold text-stone-800">Recent Transactions</h3></div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
             <table className="w-full text-sm text-left">
-              <thead className="border-b border-stone-100 text-stone-500 font-medium">
+              <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white">
                 <tr><th className="px-5 py-3">Donor</th><th className="px-5 py-3">Amount</th><th className="px-5 py-3">Fund</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Date</th></tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -918,12 +1025,19 @@ function GivingApp({ theme, donations, setDonations, isAdmin }) {
   );
 }
 
-function CalendarApp({ theme, events, setEvents, isAdmin }) {
+function CalendarApp({ theme, events, setEvents, isAdmin, showToast }) {
   const [isAdding, setIsAdding] = useState(false);
-  const [newEvent, setNewEvent] = useState({ title: '', date: 'Feb 20, 2026', time: '', type: 'Meeting' });
+  const [newEvent, setNewEvent] = useState({ title: '', date: new Date().toISOString().split('T')[0], time: '10:00', type: 'Meeting' });
 
+  // Generate dynamic calendar logic (Based on current system context month)
+  const today = new Date('2026-03-20T12:00:00'); // Seed date from context
+  const currentMonth = today.getMonth(); 
+  const currentYear = today.getFullYear();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+  
   const handleAddEvent = async () => {
-    if (!newEvent.title) return;
+    if (!newEvent.title || !newEvent.date) return;
     try {
       if (db) {
         await addDoc(collection(db, 'events'), newEvent);
@@ -931,7 +1045,8 @@ function CalendarApp({ theme, events, setEvents, isAdmin }) {
         setEvents([...events, { id: Date.now(), ...newEvent }]);
       }
       setIsAdding(false);
-      setNewEvent({ title: '', date: 'Feb 20, 2026', time: '', type: 'Meeting' });
+      showToast("Event Scheduled");
+      setNewEvent({ title: '', date: new Date().toISOString().split('T')[0], time: '10:00', type: 'Meeting' });
     } catch(e) { console.error(e); }
   };
 
@@ -940,7 +1055,7 @@ function CalendarApp({ theme, events, setEvents, isAdmin }) {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Master Calendar</h1>
-          <p className="text-stone-500 text-sm mt-1">February 2026</p>
+          <p className="text-stone-500 text-sm mt-1">March 2026</p>
         </div>
         <div className="flex gap-2">
           {isAdmin && <button onClick={() => setIsAdding(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><Plus size={16}/> New Event</button>}
@@ -950,12 +1065,12 @@ function CalendarApp({ theme, events, setEvents, isAdmin }) {
       {isAdding && isAdmin && (
         <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
-            <h2 className="text-xl font-bold text-stone-900 mb-4">Schedule Event</h2>
+            <h2 className="text-xl font-bold text-stone-900 mb-4 flex items-center gap-2"><CalendarIcon className="text-orange-500"/> Schedule Event</h2>
             <div className="space-y-4">
               <input type="text" placeholder="Event Title" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-orange-500" value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} />
               <div className="grid grid-cols-2 gap-4">
-                <input type="text" placeholder="Date (e.g. Feb 20, 2026)" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-orange-500" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} />
-                <input type="text" placeholder="Time (e.g. 6:30 PM)" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-orange-500" value={newEvent.time} onChange={e => setNewEvent({...newEvent, time: e.target.value})} />
+                <input type="date" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-orange-500 text-sm text-stone-600" value={newEvent.date} onChange={e => setNewEvent({...newEvent, date: e.target.value})} />
+                <input type="time" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-orange-500 text-sm text-stone-600" value={newEvent.time} onChange={e => setNewEvent({...newEvent, time: e.target.value})} />
               </div>
               <div className="flex justify-end gap-2 mt-6">
                 <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
@@ -972,13 +1087,22 @@ function CalendarApp({ theme, events, setEvents, isAdmin }) {
         </div>
         <div className="grid grid-cols-7 grid-rows-5 bg-stone-200 gap-px">
           {Array.from({ length: 35 }).map((_, i) => {
-            const dayNum = i - 0; const isCurrentMonth = dayNum > 0 && dayNum <= 28; const isAshWed = dayNum === 18; const isFirstSunday = dayNum === 22;
+            const dayNum = i - firstDayOfMonth + 1; 
+            const isCurrentMonth = dayNum > 0 && dayNum <= daysInMonth; 
+            
+            // Format to match event state YYYY-MM-DD
+            const formattedDate = isCurrentMonth ? `2026-03-${dayNum.toString().padStart(2, '0')}` : null;
+            const daysEvents = events.filter(e => e.date === formattedDate);
+
             return (
-              <div key={i} className={`min-h-[120px] p-2 ${isCurrentMonth ? 'bg-white hover:bg-stone-50' : 'bg-stone-50'} transition-colors`}>
-                <span className={`text-sm font-medium ${isCurrentMonth ? 'text-stone-700' : 'text-stone-400'}`}>{isCurrentMonth ? dayNum : ''}</span>
+              <div key={i} className={`min-h-[120px] p-2 ${isCurrentMonth ? 'bg-white hover:bg-stone-50' : 'bg-stone-50 text-transparent'} transition-colors`}>
+                <span className={`text-sm font-medium ${isCurrentMonth ? 'text-stone-700' : 'text-stone-300'}`}>{isCurrentMonth ? dayNum : ''}</span>
                 <div className="mt-1 space-y-1">
-                  {isAshWed && <div className={`text-xs px-2 py-1 rounded bg-stone-100 border-l-2 ${theme.border} truncate font-medium text-stone-700`}>Ash Wed Service</div>}
-                  {isFirstSunday && <div className="text-xs px-2 py-1 rounded bg-teal-50 border-l-2 border-teal-300 truncate font-medium text-teal-700">Sunday Service</div>}
+                  {daysEvents.map(event => (
+                     <div key={event.id} className={`text-[10px] px-2 py-1 rounded bg-orange-50 border-l-2 ${theme.border} truncate font-bold text-orange-700 shadow-sm`} title={`${event.time} - ${event.title}`}>
+                       {event.time} - {event.title}
+                     </div>
+                  ))}
                 </div>
               </div>
             );
@@ -989,9 +1113,28 @@ function CalendarApp({ theme, events, setEvents, isAdmin }) {
   );
 }
 
-function TeamsApp({ theme, setActiveApp, isAdmin }) {
+function TeamsApp({ theme, teamsList, setTeamsList, people, setActiveApp, isAdmin, showToast }) {
   const [activePortal, setActivePortal] = useState(null);
   const [activeTab, setActiveTab] = useState('roster');
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [memberToAdd, setMemberToAdd] = useState('');
+
+  const handleAddMember = () => {
+    if (!memberToAdd) return;
+    const person = people.find(p => p.id.toString() === memberToAdd);
+    if (!person) return;
+    
+    const updatedTeams = teamsList.map(t => {
+      if (t.id === activePortal.id) {
+        return { ...t, members: t.members + 1, roster: [...(t.roster||[]), person] };
+      }
+      return t;
+    });
+    setTeamsList(updatedTeams);
+    setActivePortal(updatedTeams.find(t => t.id === activePortal.id));
+    setIsAddingMember(false);
+    showToast(`${person.name} assigned to ${activePortal.name}`);
+  };
 
   if (activePortal) {
     return (
@@ -1014,7 +1157,7 @@ function TeamsApp({ theme, setActiveApp, isAdmin }) {
         </div>
         <div className="border-b border-stone-200 mb-6">
           <nav className="-mb-px flex space-x-8">
-            <button onClick={() => setActiveTab('roster')} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === 'roster' ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>Team Roster & Schedule</button>
+            <button onClick={() => setActiveTab('roster')} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === 'roster' ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>Team Roster</button>
             <button onClick={() => setActiveTab('files')} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === 'files' ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>Secure Files & Resources</button>
           </nav>
         </div>
@@ -1026,7 +1169,7 @@ function TeamsApp({ theme, setActiveApp, isAdmin }) {
             </div>
             <div className="divide-y divide-stone-100">
               <div className="p-4 flex items-center justify-between hover:bg-stone-50">
-                <div className="flex items-center gap-3"><File className="text-stone-400" size={20}/><div><p className="font-medium text-stone-900 text-sm">Q1 Volunteer Handbook 2026.pdf</p><p className="text-xs text-stone-500">Uploaded 2 days ago</p></div></div>
+                <div className="flex items-center gap-3"><File className="text-stone-400" size={20}/><div><p className="font-medium text-stone-900 text-sm">Q1 Volunteer Handbook.pdf</p><p className="text-xs text-stone-500">Uploaded 2 days ago</p></div></div>
                 {isAdmin && <button className="text-stone-400 hover:text-indigo-600"><MoreHorizontal size={18}/></button>}
               </div>
             </div>
@@ -1038,9 +1181,33 @@ function TeamsApp({ theme, setActiveApp, isAdmin }) {
           </div>
         )}
         {activeTab === 'roster' && (
-          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden p-8 text-center">
-            <Users className="mx-auto text-stone-300 mb-3" size={32}/><h3 className="font-medium text-stone-900">Roster View</h3>
-            <p className="text-sm text-stone-500 mt-1">Displaying schedules for {activePortal.members} active team members.</p>
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
+              <h3 className="font-semibold text-stone-800">Active Members ({activePortal.members})</h3>
+              {isAdmin && <button onClick={() => setIsAddingMember(true)} className={`text-sm font-medium ${theme.color} flex items-center gap-1`}><UserPlus size={14}/> Add Member</button>}
+            </div>
+            
+            {isAddingMember && isAdmin && (
+               <div className="p-4 border-b border-stone-200 bg-stone-100/50 flex gap-2 items-center">
+                 <select className="flex-1 p-2 border border-stone-300 rounded text-sm outline-none focus:border-indigo-500" value={memberToAdd} onChange={e => setMemberToAdd(e.target.value)}>
+                   <option value="">Select someone from database...</option>
+                   {people.map(p => <option key={p.id} value={p.id}>{p.name} ({p.email})</option>)}
+                 </select>
+                 <button onClick={handleAddMember} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-medium">Assign</button>
+                 <button onClick={() => setIsAddingMember(false)} className="px-4 py-2 bg-stone-200 text-stone-700 rounded text-sm font-medium">Cancel</button>
+               </div>
+            )}
+
+            <div className="divide-y divide-stone-100">
+               {activePortal.roster && activePortal.roster.length > 0 ? activePortal.roster.map(member => (
+                 <div key={member.id} className="p-4 flex items-center gap-3 hover:bg-stone-50">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">{member.name.charAt(0)}</div>
+                    <span className="font-medium text-stone-900">{member.name}</span>
+                 </div>
+               )) : (
+                 <div className="p-8 text-center"><Users className="mx-auto text-stone-300 mb-3" size={32}/><p className="text-sm text-stone-500">No members assigned to this roster yet.</p></div>
+               )}
+            </div>
           </div>
         )}
       </div>
@@ -1061,7 +1228,7 @@ function TeamsApp({ theme, setActiveApp, isAdmin }) {
         )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {MINISTRY_TEAMS.map(team => (
+        {teamsList.map(team => (
           <div key={team.id} className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col relative overflow-hidden group">
             {!isAdmin && team.status === 'locked' && (
               <div className="absolute inset-0 bg-stone-100/60 backdrop-blur-[1px] z-10 flex items-center justify-center flex-col">
@@ -1093,19 +1260,17 @@ function TeamsApp({ theme, setActiveApp, isAdmin }) {
   );
 }
 
-function WorkflowsApp({ theme }) {
+function WorkflowsApp({ theme, showToast }) {
   const [activeSubTab, setActiveSubTab] = useState('automations'); 
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isNewWorkflow, setIsNewWorkflow] = useState(false);
   
   const handleGenerateDraft = async () => {
     if (!prompt) return;
     setIsGenerating(true);
-    
     const context = `You are a church communications director writing a short, warm, and highly engaging SMS or email based on the prompt. Keep it under 2 sentences if it's a text.`;
     const responseText = await callGeminiAI(prompt, context);
-    
-    // Quick trick to simulate replacing the text area with the generated text
     setPrompt(responseText);
     setIsGenerating(false);
   };
@@ -1117,8 +1282,26 @@ function WorkflowsApp({ theme }) {
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Comms & Workflows</h1>
           <p className="text-stone-500 text-sm mt-1">Manage automations, 2-way texting, and keywords.</p>
         </div>
-        {activeSubTab === 'automations' && (<button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><Plus size={16}/> New Workflow</button>)}
+        {activeSubTab === 'automations' && (<button onClick={() => setIsNewWorkflow(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><Plus size={16}/> New Workflow</button>)}
       </div>
+
+      {isNewWorkflow && (
+        <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 animate-in zoom-in-95 duration-200">
+              <h2 className="text-xl font-bold text-stone-900 mb-4 flex items-center gap-2"><Workflow className={theme.color}/> Build Automation</h2>
+              <div className="space-y-4">
+                <input type="text" placeholder="Workflow Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-violet-500" />
+                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-violet-500 text-sm text-stone-600"><option>Trigger: When someone joins a list</option><option>Trigger: Date based (e.g. Birthday)</option></select>
+                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-violet-500 text-sm text-stone-600"><option>Action: Send SMS</option><option>Action: Send Email</option><option>Action: Alert Staff</option></select>
+              </div>
+              <div className="flex justify-end gap-2 mt-6">
+                <button onClick={() => setIsNewWorkflow(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
+                <button onClick={() => { setIsNewWorkflow(false); showToast("Workflow Created Successfully"); }} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Save & Activate</button>
+              </div>
+           </div>
+        </div>
+      )}
+
       <div className="border-b border-stone-200 mb-6">
         <nav className="-mb-px flex space-x-8">
           <button onClick={() => setActiveSubTab('automations')} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeSubTab === 'automations' ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>Automations</button>
@@ -1182,12 +1365,13 @@ function WorkflowsApp({ theme }) {
   );
 }
 
-function SecurityApp({ theme, isSeniorPastor }) {
+function SecurityApp({ theme, isSeniorPastor, showToast }) {
   const [is2FA, setIs2FA] = useState(true);
   const [isDLP, setIsDLP] = useState(true);
   const [isPII, setIsPII] = useState(true);
   const [isOptOut, setIsOptOut] = useState(true);
   const [isEndpoint, setIsEndpoint] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 text-left">
@@ -1198,12 +1382,41 @@ function SecurityApp({ theme, isSeniorPastor }) {
         </div>
         {isSeniorPastor && (
           <div className="flex gap-2">
-            <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
-              Save Security Settings
+            <button onClick={() => showToast("Enterprise Security Settings Secured and Applied")} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
+              <ShieldCheck size={16}/> Save Security Settings
             </button>
           </div>
         )}
       </div>
+
+      {showRoleModal && (
+         <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 animate-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-center mb-4 border-b border-stone-200 pb-3">
+                <h2 className="text-xl font-bold text-stone-900 flex items-center gap-2"><UserCog className="text-stone-700"/> Access Control Matrix</h2>
+                <button onClick={() => setShowRoleModal(false)} className="text-stone-400 hover:text-rose-500"><X size={20}/></button>
+              </div>
+              <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                 <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                   <div><p className="font-bold text-indigo-900 text-sm">Lead Pastor (Owner)</p><p className="text-xs text-indigo-700">{SENIOR_PASTOR_EMAIL}</p></div>
+                   <span className="text-xs font-bold uppercase tracking-wider bg-indigo-200 text-indigo-800 px-2 py-1 rounded">Super Admin</span>
+                 </div>
+                 <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-100 rounded-lg">
+                   <div><p className="font-bold text-emerald-900 text-sm">Campus Director</p><p className="text-xs text-emerald-700">{ADMIN_EMAILS[0]}</p></div>
+                   <select className="text-xs font-bold uppercase tracking-wider bg-white border border-emerald-200 text-emerald-800 px-2 py-1 rounded outline-none cursor-pointer"><option>Full Admin</option><option>Revoke</option></select>
+                 </div>
+                 
+                 <div className="pt-4 border-t border-stone-200 mt-4">
+                   <label className="block text-xs font-semibold text-stone-500 mb-1.5 uppercase">Promote User to Admin</label>
+                   <div className="flex gap-2">
+                     <input type="email" placeholder="staff@lifegate.ag" className="flex-1 p-2 text-sm border border-stone-300 rounded outline-none focus:border-stone-500" />
+                     <button onClick={() => { showToast("Invitation sent"); setShowRoleModal(false); }} className="px-4 py-2 bg-stone-800 text-white rounded text-sm font-medium hover:bg-stone-900">Grant Access</button>
+                   </div>
+                 </div>
+              </div>
+           </div>
+         </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
@@ -1326,7 +1539,7 @@ function SecurityApp({ theme, isSeniorPastor }) {
                 <span className="text-sm font-medium text-stone-700">Volunteers</span>
                 <span className="text-xs font-bold bg-stone-100 text-stone-700 px-2 py-1 rounded">View Only</span>
               </div>
-              {isSeniorPastor && <button className="w-full mt-2 py-2 border border-stone-200 rounded text-xs font-semibold text-stone-600 hover:bg-stone-50">Manage Roles</button>}
+              {isSeniorPastor && <button onClick={() => setShowRoleModal(true)} className="w-full mt-2 py-2 border border-stone-200 rounded text-xs font-semibold text-stone-600 hover:bg-stone-50 transition-colors">Manage Roles</button>}
             </div>
           </div>
         </div>
@@ -1337,6 +1550,16 @@ function SecurityApp({ theme, isSeniorPastor }) {
 }
 
 function ReportingApp({ theme }) {
+  const attendanceData = [
+    { label: 'Jan 18', value: 45 }, { label: 'Jan 25', value: 55 }, { label: 'Feb 1', value: 68 },
+    { label: 'Feb 8', value: 62 }, { label: 'Feb 15', value: 85 }, { label: 'Feb 22', value: 95 },
+  ];
+
+  const demographics = [
+    { label: '0-18 Years', percent: 25, color: 'bg-sky-500' }, { label: '19-35 Years', percent: 40, color: 'bg-fuchsia-500' },
+    { label: '36-55 Years', percent: 20, color: 'bg-amber-500' }, { label: '55+ Years', percent: 15, color: 'bg-emerald-500' },
+  ];
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
@@ -1344,11 +1567,150 @@ function ReportingApp({ theme }) {
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Insights & Reports</h1>
           <p className="text-stone-500 text-sm mt-1">Visualize church health, growth trends, and engagement metrics.</p>
         </div>
+        <div className="flex gap-2">
+          <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
+            <Download size={16}/> Export Report
+          </button>
+        </div>
       </div>
-      <div className="bg-white p-12 rounded-xl border border-stone-200 shadow-sm flex flex-col items-center justify-center text-center">
-        <PieChart size={48} className="text-stone-300 mb-4" />
-        <h2 className="text-xl font-bold text-stone-900">Executive Dashboard</h2>
-        <p className="text-stone-500 mt-2 max-w-md">This view is restricted to Lead Pastors and Administrators. Here you will see giving trends, full congregation demographics, and year-over-year attendance comparisons.</p>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
+          <div className="flex justify-between items-start">
+            <span className="text-sm font-medium text-stone-500">Total Attendance</span>
+            <div className={`p-1.5 rounded-md ${theme.light} ${theme.color}`}><Users size={16}/></div>
+          </div>
+          <div className="mt-4">
+            <span className="text-3xl font-bold tracking-tight text-stone-900">842</span>
+            <div className="flex items-center gap-1 mt-1 text-emerald-600 text-xs font-semibold">
+              <TrendingUp size={14}/> +12% vs last month
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
+          <div className="flex justify-between items-start">
+            <span className="text-sm font-medium text-stone-500">First-Time Guests</span>
+            <div className="p-1.5 rounded-md bg-sky-50 text-sky-600"><UserPlus size={16}/></div>
+          </div>
+          <div className="mt-4">
+            <span className="text-3xl font-bold tracking-tight text-stone-900">45</span>
+            <div className="flex items-center gap-1 mt-1 text-emerald-600 text-xs font-semibold">
+              <TrendingUp size={14}/> +4% vs last month
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
+          <div className="flex justify-between items-start">
+            <span className="text-sm font-medium text-stone-500">Volunteer Rate</span>
+            <div className="p-1.5 rounded-md bg-amber-50 text-amber-600"><Activity size={16}/></div>
+          </div>
+          <div className="mt-4">
+            <span className="text-3xl font-bold tracking-tight text-stone-900">38%</span>
+            <div className="flex items-center gap-1 mt-1 text-rose-600 text-xs font-semibold">
+              <TrendingDown size={14}/> -2% vs last month
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
+          <div className="flex justify-between items-start">
+            <span className="text-sm font-medium text-stone-500">Small Group Growth</span>
+            <div className="p-1.5 rounded-md bg-teal-50 text-teal-600"><PieChart size={16}/></div>
+          </div>
+          <div className="mt-4">
+            <span className="text-3xl font-bold tracking-tight text-stone-900">62%</span>
+            <div className="flex items-center gap-1 mt-1 text-stone-400 text-xs font-semibold">
+               Unchanged vs last month
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="font-semibold text-stone-800 flex items-center gap-2"><BarChart3 size={18} className={theme.color}/> Attendance Growth (6 Wks)</h3>
+            <span className="text-xs text-stone-500 font-medium">In-Person Only</span>
+          </div>
+          <div className="flex-1 flex items-end justify-between gap-2 h-48 relative">
+            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none border-b border-stone-200 pb-6">
+               <div className="border-b border-stone-100 border-dashed w-full h-0"></div>
+               <div className="border-b border-stone-100 border-dashed w-full h-0"></div>
+               <div className="border-b border-stone-100 border-dashed w-full h-0"></div>
+               <div className="border-b border-stone-100 border-dashed w-full h-0"></div>
+            </div>
+            {attendanceData.map((data, index) => (
+              <div key={index} className="flex flex-col items-center flex-1 z-10 group">
+                <div className="w-full max-w-[40px] bg-fuchsia-100 hover:bg-fuchsia-200 rounded-t-md relative transition-all duration-300 flex items-end justify-center" style={{ height: `${data.value}%` }}>
+                  <div className={`${theme.bg} w-full rounded-t-sm transition-all duration-500`} style={{ height: `${data.value - 20}%` }}></div>
+                  <div className="absolute -top-8 bg-stone-800 text-white text-xs font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    {Math.floor(data.value * 8.42)} 
+                  </div>
+                </div>
+                <span className="text-[10px] font-semibold text-stone-400 mt-2 uppercase tracking-wide">{data.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="font-semibold text-stone-800 flex items-center gap-2"><PieChart size={18} className="text-teal-500"/> Fund Designation</h3>
+            <span className="text-xs text-stone-500 font-medium">YTD 2026</span>
+          </div>
+          <div className="flex-1 flex items-center justify-center gap-8">
+            <div className="relative flex items-center justify-center w-48 h-48 rounded-full" style={{ background: 'conic-gradient(#14b8a6 0% 55%, #0ea5e9 55% 75%, #f59e0b 75% 90%, #e11d48 90% 100%)' }}>
+              <div className="w-32 h-32 bg-white rounded-full flex flex-col items-center justify-center shadow-inner">
+                <span className="text-xs text-stone-400 font-medium uppercase tracking-wider">Total</span>
+                <span className="text-xl font-bold text-stone-900">$142k</span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-teal-500"></div><span className="text-sm text-stone-600 font-medium">General Tithe (55%)</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-sky-500"></div><span className="text-sm text-stone-600 font-medium">Missions (20%)</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-amber-500"></div><span className="text-sm text-stone-600 font-medium">Building (15%)</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-rose-500"></div><span className="text-sm text-stone-600 font-medium">Benevolence (10%)</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold text-stone-800 flex items-center gap-2"><Activity size={18} className="text-violet-500"/> Online vs. In-Person Engagement</h3>
+          </div>
+          <div className="flex-1 relative w-full h-48 bg-stone-50 rounded-lg overflow-hidden border border-stone-100">
+             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full p-2 overflow-visible">
+               <line x1="0" y1="25" x2="100" y2="25" stroke="#f5f5f4" strokeWidth="1" />
+               <line x1="0" y1="50" x2="100" y2="50" stroke="#f5f5f4" strokeWidth="1" />
+               <line x1="0" y1="75" x2="100" y2="75" stroke="#f5f5f4" strokeWidth="1" />
+               <polyline fill="none" stroke="#d946ef" strokeWidth="3" vectorEffect="non-scaling-stroke" points="0,80 20,70 40,40 60,45 80,20 100,10" />
+               <polyline fill="none" stroke="#0ea5e9" strokeWidth="3" strokeDasharray="4" vectorEffect="non-scaling-stroke" points="0,60 20,65 40,70 60,60 80,75 100,65" />
+             </svg>
+             <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-2 rounded shadow border border-stone-100 flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-stone-600 uppercase"><div className="w-2 h-2 rounded-full bg-fuchsia-500"></div> In-Person</div>
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-stone-600 uppercase"><div className="w-2 h-2 rounded-full bg-sky-500"></div> Online</div>
+             </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="font-semibold text-stone-800 flex items-center gap-2"><Users size={18} className="text-sky-500"/> Congregation Demographics</h3>
+          </div>
+          <div className="flex-1 flex flex-col justify-center gap-5">
+            {demographics.map((demo, idx) => (
+              <div key={idx} className="w-full">
+                <div className="flex justify-between text-xs font-semibold text-stone-600 mb-1">
+                  <span>{demo.label}</span>
+                  <span>{demo.percent}%</span>
+                </div>
+                <div className="w-full bg-stone-100 rounded-full h-3">
+                  <div className={`${demo.color} h-3 rounded-full transition-all duration-1000`} style={{ width: `${demo.percent}%` }}></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );
@@ -1372,7 +1734,7 @@ function HomeMetricCard({ title, value, label, color }) {
 
 function QuickActionButton({ icon: Icon, label, color, onClick }) {
   return (
-    <button onClick={onClick} className={`p-4 rounded-lg border flex flex-col items-center justify-center gap-2 transition-colors ${color} w-full`}>
+    <button type="button" onClick={onClick} className={`p-4 rounded-lg border flex flex-col items-center justify-center gap-2 transition-colors ${color} w-full`}>
       <Icon size={24} />
       <span className="text-xs font-bold">{label}</span>
     </button>
