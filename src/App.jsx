@@ -14,7 +14,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
 
-// 👇 1. PASTE YOUR FIREBASE KEYS HERE 👇
+// 👇 1. YOUR FIREBASE KEYS 👇
 const firebaseConfig = {
   apiKey: "AIzaSyCrPxPLMS_pwryIRHoxYVUFiuxpKHyTk1M",
   authDomain: "lifegate-workspace-5dd48.firebaseapp.com",
@@ -34,10 +34,12 @@ try {
   console.warn("Firebase not fully initialized. Check your keys.");
 }
 
-// 👇 2. ADD YOUR ADMIN EMAILS HERE 👇
-// Anyone on this list gets full access. Everyone else gets limited Volunteer access.
+// 👇 2. ROLE-BASED ACCESS CONTROL (RBAC) 👇
+// The Senior Pastor has ultimate access and a unique badge.
+const SENIOR_PASTOR_EMAIL = 'bigjoe11221985@gmail.com';
+
+// Admins have full access to manage data. Everyone else gets limited Volunteer access.
 const ADMIN_EMAILS = [
-  'bigjoe11221985@gmail.com', 
   'jkasiedu1@gmail.com' 
 ];
 
@@ -46,12 +48,15 @@ const UPCOMING_EVENTS = [
   { id: 1, title: 'Ash Wednesday Gathering', date: 'Feb 18, 2026', time: '7:00 PM', type: 'Worship' },
   { id: 2, title: 'Sunday Worship Experience', date: 'Feb 22, 2026', time: '10:00 AM', type: 'Weekend Service' },
   { id: 3, title: 'Serve Team Rally', date: 'Feb 28, 2026', time: '9:00 AM', type: 'Equipping' },
+  { id: 4, title: 'Easter Creative Sync', date: 'Mar 5, 2026', time: '1:00 PM', type: 'Collaboration' },
 ];
 
 const PEOPLE_LIST = [
-  { id: 1, name: 'Sarah Jenkins', email: 'sarah.j@example.com', phone: '(555) 123-4567', address: '123 Meadow Ln, TX', type: 'Guest', bgCheck: 'N/A' },
-  { id: 2, name: 'The Martinez Family', email: 'martinez@example.com', phone: '(555) 987-6543', address: '456 Oak Dr, TX', type: 'Member', bgCheck: 'N/A' },
-  { id: 3, name: 'David Chen', email: 'dchen88@example.com', phone: '(555) 456-7890', address: '789 Pine St, TX', type: 'Volunteer', bgCheck: 'Clear' },
+  { id: 1, name: 'Sarah Jenkins', email: 'sarah.j@example.com', phone: '(555) 123-4567', address: '123 Meadow Ln, Heartland, TX', type: 'Guest', bgCheck: 'N/A' },
+  { id: 2, name: 'The Martinez Family', email: 'martinez@example.com', phone: '(555) 987-6543', address: '456 Oak Dr, Heartland, TX', type: 'Member', bgCheck: 'N/A' },
+  { id: 3, name: 'David Chen', email: 'dchen88@example.com', phone: '(555) 456-7890', address: '789 Pine St, Heartland, TX', type: 'Volunteer', bgCheck: 'Clear' },
+  { id: 4, name: 'Emily Thorne', email: 'emily.t@example.com', phone: '(555) 321-0987', address: '321 Elm Ct, Heartland, TX', type: 'Staff', bgCheck: 'Pending' },
+  { id: 5, name: 'Marcus Johnson', email: 'marcus.j@example.com', phone: '(555) 654-3210', address: '654 Maple Ave, Heartland, TX', type: 'Volunteer', bgCheck: 'Expired' },
 ];
 
 const PLAN_ITEMS = [
@@ -59,6 +64,7 @@ const PLAN_ITEMS = [
   { id: 2, time: '7:05 PM', length: '15:00', title: 'Worship Set (3 Songs)', type: 'Song', person: 'Worship Band' },
   { id: 3, time: '7:20 PM', length: '5:00', title: 'Guided Prayer Moment', type: 'Element', person: 'Elder Team' },
   { id: 4, time: '7:25 PM', length: '35:00', title: 'Message: Beauty from Ashes', type: 'Sermon', person: 'Pastor Joshua' },
+  { id: 5, time: '8:00 PM', length: '15:00', title: 'Imposition of Ashes / Response', type: 'Element', person: 'All Staff' },
 ];
 
 const SONG_LIBRARY = [
@@ -70,6 +76,7 @@ const SONG_LIBRARY = [
 const RECENT_DONATIONS = [
   { id: 1, name: 'Anonymous', amount: '$500.00', date: 'Feb 16, 2026', fund: 'General Tithe', type: 'Zelle' },
   { id: 2, name: 'David Chen', amount: '$150.00', date: 'Feb 15, 2026', fund: 'Missions', type: 'Online Recurring' },
+  { id: 3, name: 'Emily Thorne', amount: '$250.00', date: 'Feb 15, 2026', fund: 'Building Fund', type: 'Zelle' },
 ];
 
 const MINISTRY_TEAMS = [
@@ -79,6 +86,13 @@ const MINISTRY_TEAMS = [
   { id: 4, name: 'Lifegate Kids', lead: 'Emily Thorne', members: 35, access: 'View Only', status: 'restricted', desc: 'Children\'s curriculum, check-in data, and background checks.' },
   { id: 5, name: 'Lifegate Music', lead: 'Marcus Johnson', members: 24, access: 'Full Admin', status: 'unlocked', desc: 'Worship sets, band schedules, and rehearsal resources.' },
   { id: 6, name: 'Lifegate Media', lead: 'James Wilson', members: 12, access: 'No Access', status: 'locked', desc: 'A/V scheduling, stage plots, and livestream management.' },
+  { id: 7, name: 'Lifegate Ushers and Protocol', lead: 'Robert Hayes', members: 28, access: 'No Access', status: 'locked', desc: 'Service protocols, seating logistics, and offering collection.' },
+  { id: 8, name: 'Lifegate Hospitality', lead: 'Linda Gomez', members: 30, access: 'View Only', status: 'restricted', desc: 'Coffee bar, guest welcome packages, and event catering.' },
+  { id: 9, name: 'Lifegate Sunday Prayer Team', lead: 'Pastor Joshua', members: 15, access: 'Full Admin', status: 'unlocked', desc: 'Altar ministry schedules and confidential prayer requests.' },
+  { id: 10, name: 'Lifegate Friday Prayer Team', lead: 'Anna Roberts', members: 20, access: 'No Access', status: 'locked', desc: 'Intercessory prayer focus lists and Friday night watch schedules.' },
+  { id: 11, name: 'Lifegate Outreach and Follow-Up', lead: 'Tom Harris', members: 25, access: 'View Only', status: 'restricted', desc: 'Community service events, evangelism, and guest retention tracking.' },
+  { id: 12, name: 'Lifegate Board', lead: 'Elder Council', members: 7, access: 'Full Admin', status: 'unlocked', desc: 'Financial reports, strategic planning, and governance documents.' },
+  { id: 13, name: 'Lifegate Communications', lead: 'Jessica Lee', members: 8, access: 'No Access', status: 'locked', desc: 'Social media planning, website updates, and bulletin announcements.' },
 ];
 
 const APPS = {
@@ -97,7 +111,10 @@ const APPS = {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false); // NEW: Tracks Role-Based Access
+  
+  // ROLE STATE
+  const [isSeniorPastor, setIsSeniorPastor] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false); 
   
   const [activeApp, setActiveApp] = useState('home');
   const [isAppSwitcherOpen, setIsAppSwitcherOpen] = useState(false);
@@ -107,15 +124,20 @@ export default function App() {
   const [people, setPeople] = useState(PEOPLE_LIST);
   const [planItems, setPlanItems] = useState(PLAN_ITEMS);
   
-  // LIVE FIREBASE AUTH STATE
+  // LIVE FIREBASE AUTH STATE & ROLE ASSIGNMENT
   useEffect(() => {
     if (auth) {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         setIsAuthenticated(!!user);
-        if (user) {
-          // Check if the logged-in user's email is on the Admin List
-          setIsAdmin(ADMIN_EMAILS.includes(user.email.toLowerCase()));
+        if (user && user.email) {
+          const userEmail = user.email.toLowerCase();
+          const seniorPastor = userEmail === SENIOR_PASTOR_EMAIL.toLowerCase();
+          const admin = seniorPastor || ADMIN_EMAILS.map(e=>e.toLowerCase()).includes(userEmail);
+          
+          setIsSeniorPastor(seniorPastor);
+          setIsAdmin(admin);
         } else {
+          setIsSeniorPastor(false);
           setIsAdmin(false);
         }
         setAuthCheckComplete(true);
@@ -125,6 +147,36 @@ export default function App() {
       setAuthCheckComplete(true);
     }
   }, []);
+
+  // INACTIVITY AUTO-LOGOUT (15 Minutes)
+  useEffect(() => {
+    let timeoutId;
+    const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 minutes in milliseconds
+
+    const resetTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (auth && auth.currentUser) {
+          console.log("Logged out due to inactivity.");
+          signOut(auth);
+        }
+      }, INACTIVITY_LIMIT);
+    };
+
+    if (isAuthenticated) {
+      resetTimer(); // Start timer on login
+      
+      // Watch for any interactions
+      const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+      events.forEach(event => window.addEventListener(event, resetTimer));
+
+      // Cleanup
+      return () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        events.forEach(event => window.removeEventListener(event, resetTimer));
+      };
+    }
+  }, [isAuthenticated]);
 
   // Sync with Firestore (if available)
   useEffect(() => {
@@ -144,36 +196,6 @@ export default function App() {
       if (unsubEvents) unsubEvents();
       if (unsubPeople) unsubPeople();
     };
-  }, [isAuthenticated]);
-
-  // INACTIVITY AUTO-LOGOUT (15 Minutes)
-  useEffect(() => {
-    let timeoutId;
-    const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 minutes in milliseconds
-
-    const resetTimer = () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        if (auth && isAuthenticated) {
-          signOut(auth);
-        }
-      }, INACTIVITY_LIMIT);
-    };
-
-    if (isAuthenticated) {
-      // Start the timer when they log in
-      resetTimer();
-      
-      // Watch for any of these activities
-      const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
-      events.forEach(event => window.addEventListener(event, resetTimer));
-
-      // Cleanup when they log out or leave
-      return () => {
-        if (timeoutId) clearTimeout(timeoutId);
-        events.forEach(event => window.removeEventListener(event, resetTimer));
-      };
-    }
   }, [isAuthenticated]);
 
   // Inject Custom Fonts
@@ -217,9 +239,13 @@ export default function App() {
                 <div className="flex flex-col items-start leading-none mt-1">
                   <div className="flex items-center gap-1.5">
                     <span className="text-stone-900 font-serif font-bold text-lg leading-none">Lifegate AG</span>
-                    <div className="hidden sm:flex items-center gap-1 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200 ml-1">
-                      <ShieldCheck size={10} className="text-emerald-500" />
-                      <span className="text-[8px] text-emerald-700 font-bold uppercase tracking-wider">{isAdmin ? 'Admin' : 'Volunteer'}</span>
+                    
+                    {/* DYNAMIC ROLE BADGE */}
+                    <div className={`hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded-full border ml-1 ${isSeniorPastor ? 'bg-indigo-50 border-indigo-200' : isAdmin ? 'bg-emerald-50 border-emerald-200' : 'bg-stone-100 border-stone-200'}`}>
+                      {isSeniorPastor ? <Sparkles size={10} className="text-indigo-500" /> : isAdmin ? <ShieldCheck size={10} className="text-emerald-500" /> : <Users size={10} className="text-stone-500" />}
+                      <span className={`text-[8px] font-bold uppercase tracking-wider ${isSeniorPastor ? 'text-indigo-700' : isAdmin ? 'text-emerald-700' : 'text-stone-600'}`}>
+                        {isSeniorPastor ? 'Lead Pastor' : isAdmin ? 'Admin' : 'Volunteer'}
+                      </span>
                     </div>
                   </div>
                   <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-stone-400 mt-0.5">{theme.name}</span>
@@ -261,8 +287,8 @@ export default function App() {
                 <Settings className="h-5 w-5" />
               </button>
             )}
-            <div className="h-8 w-8 rounded-full bg-stone-900 text-white flex items-center justify-center text-xs font-bold shadow-sm cursor-pointer hover:ring-2 ring-stone-300 ring-offset-2 transition-all">
-              {isAdmin ? 'AD' : 'VU'}
+            <div className={`h-8 w-8 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-sm cursor-pointer hover:ring-2 ring-stone-300 ring-offset-2 transition-all ${isSeniorPastor ? 'bg-indigo-600' : 'bg-stone-900'}`}>
+              {isSeniorPastor ? 'SP' : isAdmin ? 'AD' : 'VU'}
             </div>
             <button onClick={() => auth && signOut(auth)} className="text-stone-400 hover:text-rose-600 transition-colors ml-2" title="Logout">
               <LogOut className="h-5 w-5" />
@@ -272,7 +298,7 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
-        {activeApp === 'home' && <HomeApp events={events} people={people} isAdmin={isAdmin} />}
+        {activeApp === 'home' && <HomeApp events={events} people={people} isAdmin={isAdmin} isSeniorPastor={isSeniorPastor} />}
         {activeApp === 'services' && <ServicesApp theme={theme} planItems={planItems} setPlanItems={setPlanItems} isAdmin={isAdmin} />}
         {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} />}
         {activeApp === 'teams' && <TeamsApp theme={theme} setActiveApp={setActiveApp} isAdmin={isAdmin} />}
@@ -280,7 +306,7 @@ export default function App() {
         {activeApp === 'giving' && isAdmin && <GivingApp theme={theme} />}
         {activeApp === 'calendar' && <CalendarApp theme={theme} events={events} setEvents={setEvents} isAdmin={isAdmin} />}
         {activeApp === 'workflows' && isAdmin && <WorkflowsApp theme={theme} />}
-        {activeApp === 'security' && isAdmin && <SecurityApp theme={theme} />}
+        {activeApp === 'security' && isAdmin && <SecurityApp theme={theme} isSeniorPastor={isSeniorPastor} />}
         {activeApp === 'reporting' && isAdmin && <ReportingApp theme={theme} />}
       </main>
     </div>
@@ -368,12 +394,14 @@ function LoginScreen() {
   );
 }
 
-function HomeApp({ events, people, isAdmin }) {
+function HomeApp({ events, people, isAdmin, isSeniorPastor }) {
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">{isAdmin ? 'Good Morning, Admin' : 'Welcome back, Volunteer'}</h1>
+          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">
+            {isSeniorPastor ? 'Good Morning, Pastor' : isAdmin ? 'Good Morning, Admin' : 'Welcome back, Volunteer'}
+          </h1>
           <p className="text-stone-500 text-sm mt-1">Here is your ministry pulse for the week of Feb 16, 2026.</p>
         </div>
       </div>
@@ -619,7 +647,12 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
   const handleAdd = async () => {
     if (!newPerson.name) return;
     try {
-      if (db) await addDoc(collection(db, 'people'), newPerson);
+      if (db) {
+        await addDoc(collection(db, 'people'), newPerson);
+      } else {
+        // Fallback if db isn't connected
+        setPeople([{ id: Date.now(), ...newPerson }, ...people]);
+      }
       setIsAdding(false);
       setNewPerson({ name: '', email: '', phone: '', address: '', type: 'Guest', bgCheck: 'N/A' });
     } catch(e) { console.error(e); }
@@ -660,6 +693,12 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
         </div>
       )}
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between"><div><p className="text-sm font-medium text-stone-500">Total Profiles</p><h3 className="text-2xl font-bold text-stone-900">{people.length}</h3></div><div className={`p-3 rounded-lg ${theme.light} ${theme.color}`}><Users size={20}/></div></div>
+        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between"><div><p className="text-sm font-medium text-stone-500">New Guests (30d)</p><h3 className="text-2xl font-bold text-stone-900">24</h3></div><div className="p-3 rounded-lg bg-sky-50 text-sky-600"><UserPlus size={20}/></div></div>
+        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between"><div><p className="text-sm font-medium text-stone-500">Scheduled This Week</p><h3 className="text-2xl font-bold text-stone-900">86</h3></div><div className="p-3 rounded-lg bg-orange-50 text-orange-600"><CalendarDays size={20}/></div></div>
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
           <h3 className="font-semibold text-stone-800">Directory & Screening</h3>
@@ -670,7 +709,7 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="border-b border-stone-100 text-stone-500 font-medium">
-              <tr><th className="px-5 py-3">Name</th><th className="px-5 py-3">Contact</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Background Check</th><th className="px-5 py-3 text-right"></th></tr>
+              <tr><th className="px-5 py-3">Name</th><th className="px-5 py-3">Contact</th><th className="px-5 py-3">Address</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Background Check</th><th className="px-5 py-3 text-right"></th></tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
               {people.map((person) => (
@@ -679,6 +718,7 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${theme.light} ${theme.color}`}>{person.name.charAt(0)}</div>{person.name}
                   </td>
                   <td className="px-5 py-3 text-stone-500"><div className="flex flex-col"><span className="truncate">{person.email}</span><span className="text-xs">{person.phone}</span></div></td>
+                  <td className="px-5 py-3 text-stone-500 text-xs">{person.address}</td>
                   <td className="px-5 py-3"><span className="text-stone-600">{person.type}</span></td>
                   <td className="px-5 py-3">
                     {person.bgCheck === 'Clear' && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800"><ShieldCheck size={12} className="mr-1"/> Clear</span>}
@@ -687,7 +727,7 @@ function PeopleApp({ theme, people, setPeople, isAdmin }) {
                     {person.bgCheck === 'N/A' && <span className="text-stone-300 text-xs">Not Required</span>}
                   </td>
                   <td className="px-5 py-3 text-right text-stone-400">
-                    {isAdmin && <button onClick={() => db && deleteDoc(doc(db, 'people', person.id))} className="hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><AlertCircle size={18} className="ml-auto"/></button>}
+                    {isAdmin && <button onClick={() => { if(db) { deleteDoc(doc(db, 'people', person.id)); } else { setPeople(people.filter(p => p.id !== person.id)); } }} className="hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><AlertCircle size={18} className="ml-auto"/></button>}
                   </td>
                 </tr>
               ))}
@@ -819,6 +859,7 @@ function GivingApp({ theme }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between"><div><p className="text-sm font-medium text-stone-500">YTD Giving</p><h3 className="text-2xl font-bold text-stone-900">$142,500</h3></div><div className={`p-3 rounded-lg ${theme.light} ${theme.color}`}><TrendingUp size={20}/></div></div>
         <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between"><div><p className="text-sm font-medium text-stone-500">Recurring Donors</p><h3 className="text-2xl font-bold text-stone-900">184</h3></div><div className="p-3 rounded-lg bg-teal-50 text-teal-600"><Users size={20}/></div></div>
+        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between"><div><p className="text-sm font-medium text-stone-500">Average Gift</p><h3 className="text-2xl font-bold text-stone-900">$185</h3></div><div className="p-3 rounded-lg bg-orange-50 text-orange-600"><CreditCard size={20}/></div></div>
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
@@ -842,6 +883,19 @@ function GivingApp({ theme }) {
             </table>
           </div>
         </div>
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit">
+          <div className={`${theme.bg} p-4 text-white flex justify-between items-center`}><div className="flex items-center gap-2"><Sparkles size={18} className="text-white/80" /><h3 className="font-semibold">AI Data Analyst</h3></div><span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded uppercase tracking-wider">Gemini</span></div>
+          <div className="p-4 flex flex-col gap-4">
+            <p className="text-xs text-stone-500">Ask Gemini to analyze giving trends, forecast budgets, or reconcile your Zelle transaction logs.</p>
+            <textarea className="w-full p-3 border border-stone-200 rounded-lg text-sm focus:ring-1 focus:ring-teal-500 outline-none resize-none bg-stone-50" placeholder="e.g., Match the uploaded Zelle CSV with our internal donor records..." rows="3"></textarea>
+            <button onClick={() => setReportResult(true)} className={`w-full py-2.5 ${theme.bg} text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex justify-center items-center gap-2`}>Generate Report</button>
+            {reportResult && (
+               <div className="mt-2 p-4 bg-stone-50 border border-stone-100 rounded-lg text-xs text-stone-700 whitespace-pre-wrap leading-relaxed">
+                 <strong className="text-teal-700">Reconciliation Complete:</strong><br/>Successfully matched 42 Zelle transactions to existing donor profiles. 3 records require manual review.
+               </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -854,7 +908,11 @@ function CalendarApp({ theme, events, setEvents, isAdmin }) {
   const handleAddEvent = async () => {
     if (!newEvent.title) return;
     try {
-      if (db) await addDoc(collection(db, 'events'), newEvent);
+      if (db) {
+        await addDoc(collection(db, 'events'), newEvent);
+      } else {
+        setEvents([...events, { id: Date.now(), ...newEvent }]);
+      }
       setIsAdding(false);
       setNewEvent({ title: '', date: 'Feb 20, 2026', time: '', type: 'Meeting' });
     } catch(e) { console.error(e); }
@@ -957,19 +1015,78 @@ function WorkflowsApp({ theme }) {
   );
 }
 
-function SecurityApp({ theme }) {
+function SecurityApp({ theme, isSeniorPastor }) {
+  const [is2FA, setIs2FA] = useState(true);
+  const [isDLP, setIsDLP] = useState(true);
+  const [isEndpoint, setIsEndpoint] = useState(false);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Workspace Security</h1>
-          <p className="text-stone-500 text-sm mt-1">Manage authentication, data loss prevention (DLP), and AI governance.</p>
+          <p className="text-stone-500 text-sm mt-1">Manage authentication, data loss prevention (DLP), and roles.</p>
         </div>
+        {isSeniorPastor && (
+          <div className="flex gap-2">
+            <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
+              Save Security Settings
+            </button>
+          </div>
+        )}
       </div>
-      <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-        <div className="p-5 border-b border-stone-200 bg-stone-50 flex items-center gap-2"><ShieldCheck size={18} className="text-stone-600"/><h3 className="font-semibold text-stone-800">Role-Based Access Control Active</h3></div>
-        <div className="p-5">
-           <p className="text-sm text-stone-600">This module is restricted to system administrators only. Your current session has verified Admin privileges.</p>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+            <div className="p-5 border-b border-stone-200 bg-stone-50 flex items-center gap-2">
+              <ShieldCheck size={18} className="text-stone-600"/>
+              <h3 className="font-semibold text-stone-800">Authentication & Access</h3>
+            </div>
+            <div className="divide-y divide-stone-100">
+              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
+                <div>
+                  <h4 className="font-bold text-stone-900 text-sm">Enforce 2-Step Verification (2FA)</h4>
+                  <p className="text-xs text-stone-500 mt-1 max-w-md">Require all staff and team leaders to use a secondary authentication method when logging in.</p>
+                </div>
+                <div onClick={() => isSeniorPastor && setIs2FA(!is2FA)} className={isSeniorPastor ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}>
+                  {is2FA ? <ToggleRight size={36} className="text-emerald-500"/> : <ToggleLeft size={36} className="text-stone-300"/>}
+                </div>
+              </div>
+              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
+                <div>
+                  <h4 className="font-bold text-stone-900 text-sm">Advanced Endpoint Management</h4>
+                  <p className="text-xs text-stone-500 mt-1 max-w-md">Allow admins to remotely wipe church data from personal mobile devices.</p>
+                </div>
+                <div onClick={() => isSeniorPastor && setIsEndpoint(!isEndpoint)} className={isSeniorPastor ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}>
+                  {isEndpoint ? <ToggleRight size={36} className="text-emerald-500"/> : <ToggleLeft size={36} className="text-stone-300"/>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit">
+            <div className="p-5 border-b border-stone-200 bg-stone-50">
+              <h3 className="font-semibold text-stone-800">Role-Based Access</h3>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-stone-700">Senior Pastor</span>
+                <span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-2 py-1 rounded">Super Admin</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-stone-700">Staff / Directors</span>
+                <span className="text-xs font-bold bg-emerald-50 text-emerald-700 px-2 py-1 rounded">Full Admin</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-stone-700">Volunteers</span>
+                <span className="text-xs font-bold bg-stone-100 text-stone-700 px-2 py-1 rounded">View Only</span>
+              </div>
+              {isSeniorPastor && <button className="w-full mt-2 py-2 border border-stone-200 rounded text-xs font-semibold text-stone-600 hover:bg-stone-50">Manage Roles</button>}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1021,11 +1138,18 @@ function QuickActionButton({ icon: Icon, label, color }) {
 function WorkflowCard({ title, trigger, actions, icon: Icon }) {
   return (
     <div className="p-5 flex items-start gap-4 hover:bg-stone-50 transition-colors cursor-pointer group">
-      <div className="p-2.5 bg-stone-100 rounded-lg text-stone-500 group-hover:bg-violet-100 group-hover:text-violet-600 transition-colors"><Icon size={20} /></div>
+      <div className="p-2.5 bg-stone-100 rounded-lg text-stone-500 group-hover:bg-violet-100 group-hover:text-violet-600 transition-colors">
+        <Icon size={20} />
+      </div>
       <div className="flex-1">
-        <div className="flex justify-between items-start"><h4 className="font-semibold text-stone-900">{title}</h4><span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-700 uppercase tracking-wider">Active</span></div>
+        <div className="flex justify-between items-start">
+          <h4 className="font-semibold text-stone-900">{title}</h4>
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-700 uppercase tracking-wider">Active</span>
+        </div>
         <div className="mt-1 text-sm text-stone-500 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-          <span><strong className="font-medium text-stone-700">When:</strong> {trigger}</span><span className="hidden sm:inline text-stone-300">•</span><span><strong className="font-medium text-stone-700">Then:</strong> {actions}</span>
+          <span><strong className="font-medium text-stone-700">When:</strong> {trigger}</span>
+          <span className="hidden sm:inline text-stone-300">•</span>
+          <span><strong className="font-medium text-stone-700">Then:</strong> {actions}</span>
         </div>
       </div>
     </div>
