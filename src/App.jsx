@@ -102,15 +102,25 @@ const SONG_LIBRARY = [
 ];
 
 const RECENT_DONATIONS = [
-  { id: 1, name: 'Anonymous', amount: '$500.00', date: 'Feb 16, 2026', fund: 'General Tithe', type: 'Zelle' },
-  { id: 2, name: 'David Chen', amount: '$150.00', date: 'Feb 15, 2026', fund: 'Missions', type: 'Online Recurring' },
+  { id: 1, name: 'Anonymous', amount: '$500.00', date: '2026-02-16', fund: 'General Tithe', type: 'Zelle' },
+  { id: 2, name: 'David Chen', amount: '$150.00', date: '2026-02-15', fund: 'Missions', type: 'Online Recurring' },
 ];
 
+// Fully Restored Ministry Teams
 const MINISTRY_TEAMS = [
   { id: 1, name: 'Men\'s Ministry', lead: 'Michael Carter', members: 42, access: 'Full Admin', status: 'unlocked', desc: 'Manage men\'s breakfasts, retreats, and mentorship groups.', roster: [{id: 3, name: 'David Chen'}] },
   { id: 2, name: 'Women\'s Ministry', lead: 'Sarah Jenkins', members: 56, access: 'View Only', status: 'restricted', desc: 'Coordinate Bible studies, women\'s events, and support groups.', roster: [{id: 1, name: 'Sarah Jenkins'}] },
   { id: 3, name: 'Lifegate Youth', lead: 'David Chen', members: 18, access: 'Full Admin', status: 'unlocked', desc: 'Youth group scheduling, parent communications, and camp planning.', roster: [] },
-  { id: 4, name: 'Lifegate Music', lead: 'Marcus Johnson', members: 24, access: 'Full Admin', status: 'unlocked', desc: 'Worship sets, band schedules, and rehearsal resources.', roster: [] },
+  { id: 4, name: 'Lifegate Kids', lead: 'Emily Thorne', members: 35, access: 'View Only', status: 'restricted', desc: 'Children\'s curriculum, check-in data, and background checks.', roster: [] },
+  { id: 5, name: 'Lifegate Music', lead: 'Marcus Johnson', members: 24, access: 'Full Admin', status: 'unlocked', desc: 'Worship sets, band schedules, and rehearsal resources.', roster: [] },
+  { id: 6, name: 'Lifegate Media', lead: 'James Wilson', members: 12, access: 'No Access', status: 'locked', desc: 'A/V scheduling, stage plots, and livestream management.', roster: [] },
+  { id: 7, name: 'Lifegate Ushers and Protocol', lead: 'Robert Hayes', members: 28, access: 'No Access', status: 'locked', desc: 'Service protocols, seating logistics, and offering collection.', roster: [] },
+  { id: 8, name: 'Lifegate Hospitality', lead: 'Linda Gomez', members: 30, access: 'View Only', status: 'restricted', desc: 'Coffee bar, guest welcome packages, and event catering.', roster: [] },
+  { id: 9, name: 'Lifegate Sunday Prayer Team', lead: 'Pastor Joshua', members: 15, access: 'Full Admin', status: 'unlocked', desc: 'Altar ministry schedules and confidential prayer requests.', roster: [] },
+  { id: 10, name: 'Lifegate Friday Prayer Team', lead: 'Anna Roberts', members: 20, access: 'No Access', status: 'locked', desc: 'Intercessory prayer focus lists and Friday night watch schedules.', roster: [] },
+  { id: 11, name: 'Lifegate Outreach and Follow-Up', lead: 'Tom Harris', members: 25, access: 'View Only', status: 'restricted', desc: 'Community service events, evangelism, and guest retention tracking.', roster: [] },
+  { id: 12, name: 'Lifegate Board', lead: 'Elder Council', members: 7, access: 'Full Admin', status: 'unlocked', desc: 'Financial reports, strategic planning, and governance documents.', roster: [] },
+  { id: 13, name: 'Lifegate Communications', lead: 'Jessica Lee', members: 8, access: 'No Access', status: 'locked', desc: 'Social media planning, website updates, and bulletin announcements.', roster: [] },
 ];
 
 const APPS = {
@@ -138,7 +148,7 @@ export default function App() {
   const [isAppSwitcherOpen, setIsAppSwitcherOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
   
-  // LIVE & LOCAL STATE (LIFTED TO APP LEVEL FOR CROSS-MODULE USE)
+  // LIVE & LOCAL STATE (LIFTED TO APP LEVEL)
   const [events, setEvents] = useState(UPCOMING_EVENTS);
   const [people, setPeople] = useState(PEOPLE_LIST);
   const [planItems, setPlanItems] = useState(PLAN_ITEMS);
@@ -220,7 +230,7 @@ export default function App() {
     };
   }, [isAuthenticated]);
 
-  // Inject Custom Fonts
+  // Inject Custom Fonts & Scrollbars
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
@@ -229,8 +239,6 @@ export default function App() {
       ::selection { background-color: #99f6e4 !important; }
       .font-sans { font-family: 'Inter', sans-serif !important; }
       .font-serif { font-family: 'Playfair Display', serif !important; }
-      
-      /* Hide standard scrollbar for cleaner look */
       ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: #e7e5e4; border-radius: 4px; }
@@ -310,11 +318,16 @@ export default function App() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 h-4 w-4 group-focus-within:text-teal-600 transition-colors" />
               <input 
                 type="text" 
-                placeholder={`Search ${theme.name}...`} 
+                placeholder={`Search across apps...`} 
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 bg-stone-100 border border-transparent rounded-md text-sm focus:bg-white focus:border-teal-300 focus:ring-2 focus:ring-teal-100 transition-all outline-none" 
+                className="w-full pl-9 pr-8 py-1.5 bg-stone-100 border border-transparent rounded-md text-sm focus:bg-white focus:border-teal-300 focus:ring-2 focus:ring-teal-100 transition-all outline-none" 
               />
+              {globalSearch && (
+                <button onClick={() => setGlobalSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
+                  <X size={14} />
+                </button>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -341,7 +354,7 @@ export default function App() {
         {activeApp === 'home' && <HomeApp events={events} people={people} isAdmin={isAdmin} isSeniorPastor={isSeniorPastor} setActiveApp={setActiveApp} />}
         {activeApp === 'services' && <ServicesApp theme={theme} planItems={planItems} setPlanItems={setPlanItems} isAdmin={isAdmin} showToast={showToast} />}
         {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} songs={songs} setSongs={setSongs} globalSearch={globalSearch} showToast={showToast} />}
-        {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={teamsList} setTeamsList={setTeamsList} people={people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} />}
+        {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={teamsList} setTeamsList={setTeamsList} people={people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} globalSearch={globalSearch} />}
         {activeApp === 'people' && <PeopleApp theme={theme} people={people} setPeople={setPeople} isAdmin={isAdmin} globalSearch={globalSearch} showToast={showToast} />}
         {activeApp === 'giving' && isAdmin && <GivingApp theme={theme} donations={donations} setDonations={setDonations} showToast={showToast} />}
         {activeApp === 'calendar' && <CalendarApp theme={theme} events={events} setEvents={setEvents} isAdmin={isAdmin} showToast={showToast} />}
@@ -435,6 +448,16 @@ function LoginScreen() {
 }
 
 function HomeApp({ events, people, isAdmin, isSeniorPastor, setActiveApp }) {
+  // Utility for formatting dates for the dashboard
+  const formatEventDate = (dateStr, timeStr) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr + 'T00:00:00');
+      const formattedDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return `${formattedDate} • ${timeStr || ''}`;
+    } catch { return dateStr; }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-end">
@@ -462,7 +485,9 @@ function HomeApp({ events, people, isAdmin, isSeniorPastor, setActiveApp }) {
               <div key={event.id} className="p-4 hover:bg-stone-50 transition-colors flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-stone-900 text-sm">{event.title}</h3>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-stone-500"><span>{event.date}</span><span>•</span><span>{event.time}</span></div>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-stone-500">
+                    <span>{formatEventDate(event.date, event.time)}</span>
+                  </div>
                 </div>
                 <ChevronRight size={16} className="text-stone-400" />
               </div>
@@ -492,9 +517,18 @@ function ServicesApp({ theme, planItems, setPlanItems, isAdmin, showToast }) {
   const [isAdding, setIsAdding] = useState(false);
   const [newItem, setNewItem] = useState({ time: '', length: '', title: '', type: 'Element', person: '' });
 
-  // Editable Service Header
+  // Editable Service Header with Standard Date formatting
   const [isEditingHeader, setIsEditingHeader] = useState(false);
-  const [headerData, setHeaderData] = useState({ title: 'Ash Wednesday Gathering', date: 'Feb 18, 2026', time: '7:00 PM', location: 'Main Auditorium' });
+  const [headerData, setHeaderData] = useState({ title: 'Ash Wednesday Gathering', date: '2026-02-18', time: '19:00', location: 'Main Auditorium' });
+
+  const displayDate = headerData.date ? new Date(headerData.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const displayTime = headerData.time ? (() => {
+    const [h, m] = headerData.time.split(':');
+    let hours = parseInt(h);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${hours}:${m} ${ampm}`;
+  })() : '';
 
   const handleGenerate = async () => {
     if (!prompt) return;
@@ -517,9 +551,9 @@ function ServicesApp({ theme, planItems, setPlanItems, isAdmin, showToast }) {
             <div className="space-y-3 bg-white p-4 rounded-xl shadow-sm border border-stone-200 max-w-lg animate-in slide-in-from-top-2">
               <input type="text" className="w-full font-serif text-2xl font-bold text-stone-900 border-b border-stone-200 focus:border-amber-500 outline-none pb-1" value={headerData.title} onChange={e => setHeaderData({...headerData, title: e.target.value})} />
               <div className="grid grid-cols-3 gap-2">
-                 <input type="text" className="w-full text-sm border border-stone-200 p-1.5 rounded outline-none" value={headerData.date} onChange={e => setHeaderData({...headerData, date: e.target.value})} />
-                 <input type="text" className="w-full text-sm border border-stone-200 p-1.5 rounded outline-none" value={headerData.time} onChange={e => setHeaderData({...headerData, time: e.target.value})} />
-                 <input type="text" className="w-full text-sm border border-stone-200 p-1.5 rounded outline-none" value={headerData.location} onChange={e => setHeaderData({...headerData, location: e.target.value})} />
+                 <input type="date" className="w-full text-sm border border-stone-200 p-1.5 rounded outline-none text-stone-600" value={headerData.date} onChange={e => setHeaderData({...headerData, date: e.target.value})} />
+                 <input type="time" className="w-full text-sm border border-stone-200 p-1.5 rounded outline-none text-stone-600" value={headerData.time} onChange={e => setHeaderData({...headerData, time: e.target.value})} />
+                 <input type="text" className="w-full text-sm border border-stone-200 p-1.5 rounded outline-none text-stone-600" value={headerData.location} onChange={e => setHeaderData({...headerData, location: e.target.value})} />
               </div>
               <div className="flex justify-end gap-2 pt-2">
                  <button onClick={() => setIsEditingHeader(false)} className="px-3 py-1.5 text-xs font-semibold text-white bg-stone-900 rounded-md flex items-center gap-1 hover:bg-stone-800"><Save size={14}/> Save Details</button>
@@ -529,7 +563,7 @@ function ServicesApp({ theme, planItems, setPlanItems, isAdmin, showToast }) {
             <div className="group flex items-start gap-3">
               <div>
                 <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">{headerData.title}</h1>
-                <p className="text-stone-500 text-sm mt-1">{headerData.date} • {headerData.time} • {headerData.location}</p>
+                <p className="text-stone-500 text-sm mt-1">{displayDate} • {displayTime} • {headerData.location}</p>
               </div>
               {isAdmin && (
                 <button onClick={() => setIsEditingHeader(true)} className="mt-1 text-stone-300 hover:text-amber-600 transition-colors opacity-0 group-hover:opacity-100" title="Edit Service Details">
@@ -579,13 +613,13 @@ function ServicesApp({ theme, planItems, setPlanItems, isAdmin, showToast }) {
             isAdding ? (
               <div className="p-4 border-t border-stone-100 bg-stone-50">
                 <div className="grid grid-cols-5 gap-2 mb-3">
-                  <input type="text" placeholder="Time" className="p-2 text-sm border border-stone-200 rounded outline-none" value={newItem.time} onChange={e => setNewItem({...newItem, time: e.target.value})} />
-                  <input type="text" placeholder="Length" className="p-2 text-sm border border-stone-200 rounded outline-none" value={newItem.length} onChange={e => setNewItem({...newItem, length: e.target.value})} />
-                  <input type="text" placeholder="Title" className="p-2 text-sm border border-stone-200 rounded outline-none" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} />
-                  <select className="p-2 text-sm border border-stone-200 rounded outline-none" value={newItem.type} onChange={e => setNewItem({...newItem, type: e.target.value})}>
+                  <input type="text" placeholder="Time" className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.time} onChange={e => setNewItem({...newItem, time: e.target.value})} />
+                  <input type="text" placeholder="Length" className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.length} onChange={e => setNewItem({...newItem, length: e.target.value})} />
+                  <input type="text" placeholder="Title" className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} />
+                  <select className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.type} onChange={e => setNewItem({...newItem, type: e.target.value})}>
                     <option value="Element">Element</option><option value="Song">Song</option><option value="Sermon">Sermon</option>
                   </select>
-                  <input type="text" placeholder="Person" className="p-2 text-sm border border-stone-200 rounded outline-none" value={newItem.person} onChange={e => setNewItem({...newItem, person: e.target.value})} />
+                  <input type="text" placeholder="Person" className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.person} onChange={e => setNewItem({...newItem, person: e.target.value})} />
                 </div>
                 <div className="flex justify-end gap-2">
                   <button onClick={() => setIsAdding(false)} className="px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-200 rounded">Cancel</button>
@@ -630,7 +664,7 @@ function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch, showToast }) 
   const [newSong, setNewSong] = useState({ title: '', artist: '', key: 'C', bpm: 70, ccli: '', hasLyrics: true, hasChords: true, hasAudio: true, youtube: '' });
 
   // Sync with global header search if provided
-  useEffect(() => { if (globalSearch) setSearchQuery(globalSearch); }, [globalSearch]);
+  useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);
 
   const filteredSongs = songs.filter(song => 
     song.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -800,7 +834,7 @@ function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch, showToast }) 
                   <button onClick={handleMusicAnalysis} disabled={isAnalyzingMusic || !musicPrompt} className={`w-full py-2.5 ${theme.bg} text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex justify-center items-center gap-2 disabled:opacity-50`}>
                     {isAnalyzingMusic ? <Loader2 size={16} className="animate-spin" /> : 'Analyze Track'}
                   </button>
-                  {musicAnalysisResult && (<div className="mt-2 p-4 bg-stone-50 border border-stone-100 rounded-lg text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">{musicAnalysisResult.split('**').map((text, i) => i % 2 === 1 ? <strong key={i} className="text-stone-900">{text}</strong> : text)}</div>)}
+                  {musicAnalysisResult && (<div className="mt-2 p-4 bg-stone-50 border border-stone-100 rounded-lg text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">{musicAnalysisResult}</div>)}
                 </div>
               </div>
             )
@@ -817,7 +851,7 @@ function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast 
   const [newPerson, setNewPerson] = useState({ name: '', email: '', phone: '', address: '', type: 'Guest', bgCheck: 'N/A' });
 
   // Sync with global search from header
-  useEffect(() => { if (globalSearch) setSearchQuery(globalSearch); }, [globalSearch]);
+  useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);
 
   const filteredPeople = people.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -1030,7 +1064,7 @@ function CalendarApp({ theme, events, setEvents, isAdmin, showToast }) {
   const [newEvent, setNewEvent] = useState({ title: '', date: new Date().toISOString().split('T')[0], time: '10:00', type: 'Meeting' });
 
   // Generate dynamic calendar logic (Based on current system context month)
-  const today = new Date('2026-03-20T12:00:00'); // Seed date from context
+  const today = new Date('2026-02-20T12:00:00'); // Seed date from context
   const currentMonth = today.getMonth(); 
   const currentYear = today.getFullYear();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -1055,7 +1089,7 @@ function CalendarApp({ theme, events, setEvents, isAdmin, showToast }) {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Master Calendar</h1>
-          <p className="text-stone-500 text-sm mt-1">March 2026</p>
+          <p className="text-stone-500 text-sm mt-1">February 2026</p>
         </div>
         <div className="flex gap-2">
           {isAdmin && <button onClick={() => setIsAdding(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><Plus size={16}/> New Event</button>}
@@ -1091,7 +1125,7 @@ function CalendarApp({ theme, events, setEvents, isAdmin, showToast }) {
             const isCurrentMonth = dayNum > 0 && dayNum <= daysInMonth; 
             
             // Format to match event state YYYY-MM-DD
-            const formattedDate = isCurrentMonth ? `2026-03-${dayNum.toString().padStart(2, '0')}` : null;
+            const formattedDate = isCurrentMonth ? `2026-02-${dayNum.toString().padStart(2, '0')}` : null;
             const daysEvents = events.filter(e => e.date === formattedDate);
 
             return (
@@ -1113,11 +1147,19 @@ function CalendarApp({ theme, events, setEvents, isAdmin, showToast }) {
   );
 }
 
-function TeamsApp({ theme, teamsList, setTeamsList, people, setActiveApp, isAdmin, showToast }) {
+function TeamsApp({ theme, teamsList, setTeamsList, people, setActiveApp, isAdmin, showToast, globalSearch }) {
   const [activePortal, setActivePortal] = useState(null);
   const [activeTab, setActiveTab] = useState('roster');
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [memberToAdd, setMemberToAdd] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);
+  
+  const filteredTeams = teamsList.filter(team => 
+    team.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    team.desc.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleAddMember = () => {
     if (!memberToAdd) return;
@@ -1153,6 +1195,11 @@ function TeamsApp({ theme, teamsList, setTeamsList, people, setActiveApp, isAdmi
           </div>
           <div className="flex gap-2">
             <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}><MessageSquare size={16}/> Team Chat</button>
+            {activePortal.name === 'Lifegate Music' && (
+               <button onClick={() => setActiveApp('music')} className="px-4 py-2 bg-rose-600 text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2 ml-2">
+                 <Music size={16}/> Open Music App
+               </button>
+            )}
           </div>
         </div>
         <div className="border-b border-stone-200 mb-6">
@@ -1184,7 +1231,7 @@ function TeamsApp({ theme, teamsList, setTeamsList, people, setActiveApp, isAdmi
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
               <h3 className="font-semibold text-stone-800">Active Members ({activePortal.members})</h3>
-              {isAdmin && <button onClick={() => setIsAddingMember(true)} className={`text-sm font-medium ${theme.color} flex items-center gap-1`}><UserPlus size={14}/> Add Member</button>}
+              {isAdmin && <button onClick={() => setIsAddingMember(!isAddingMember)} className={`text-sm font-medium ${theme.color} flex items-center gap-1`}><UserPlus size={14}/> Add Member</button>}
             </div>
             
             {isAddingMember && isAdmin && (
@@ -1228,7 +1275,7 @@ function TeamsApp({ theme, teamsList, setTeamsList, people, setActiveApp, isAdmi
         )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {teamsList.map(team => (
+        {filteredTeams.map(team => (
           <div key={team.id} className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col relative overflow-hidden group">
             {!isAdmin && team.status === 'locked' && (
               <div className="absolute inset-0 bg-stone-100/60 backdrop-blur-[1px] z-10 flex items-center justify-center flex-col">
@@ -1247,7 +1294,7 @@ function TeamsApp({ theme, teamsList, setTeamsList, people, setActiveApp, isAdmi
                 {team.members > 3 && (<div className="w-6 h-6 rounded-full bg-stone-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-stone-500">+{team.members - 3}</div>)}
               </div>
               <button 
-                onClick={() => { if (isAdmin || team.status !== 'locked') { team.name === 'Lifegate Music' ? setActiveApp('music') : setActivePortal(team); } }}
+                onClick={() => { if (isAdmin || team.status !== 'locked') { setActivePortal(team); } }}
                 className={`text-sm font-semibold flex items-center gap-1 transition-colors ${!isAdmin && team.status === 'locked' ? 'text-stone-300 cursor-not-allowed' : `${theme.color} hover:opacity-80`}`}
               >
                 Enter Portal <ChevronRight size={16}/>
