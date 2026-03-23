@@ -9,7 +9,7 @@ import {
   ToggleLeft, ShieldAlert, Play, Pause, SkipBack, SkipForward, MonitorPlay, 
   FolderLock, Lock, Unlock, File, SmartphoneNfc, EyeOff, History, PieChart, 
   BarChart3, Download, TrendingDown, Activity, LogOut, Youtube, Edit2, Save, X, UserCog,
-  QrCode, Printer, CheckSquare
+  QrCode, Printer, CheckSquare, Globe, ThumbsUp, Image as ImageIcon, MessageCircle
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
@@ -113,6 +113,12 @@ const RECENT_DONATIONS = [
   { id: 2, name: 'David Chen', amount: '$150.00', date: '2026-02-15', fund: 'Missions', type: 'Online Recurring' },
 ];
 
+const COMMUNITY_POSTS = [
+  { id: 1, author: 'Pastor Joshua', role: 'Lead Pastor', time: '2 hours ago', content: 'So excited for our Serve Team Rally this weekend! God is doing amazing things at Lifegate. Who is joining us?', likes: 24, comments: 5 },
+  { id: 2, author: 'Sarah Jenkins', role: 'Women\'s Ministry', time: '5 hours ago', content: 'Ladies! Don\'t forget our Saturday morning coffee and devotional at 9 AM. Bring a friend! ☕️📖', likes: 12, comments: 2 },
+  { id: 3, author: 'David Martinez', role: 'Member', time: 'Yesterday', content: 'Does anyone know if the youth group is meeting at the main campus or the park this Wednesday? Thanks!', likes: 3, comments: 4 }
+];
+
 // All 13 Ministry Teams Restored
 const MINISTRY_TEAMS = [
   { id: 1, name: 'Men\'s Ministry', lead: 'Michael Carter', members: 42, access: 'Full Admin', status: 'unlocked', desc: 'Manage men\'s breakfasts, retreats, and mentorship groups.', roster: [{id: 3, name: 'David Chen'}] },
@@ -132,6 +138,7 @@ const MINISTRY_TEAMS = [
 
 const APPS = {
   home: { id: 'home', name: 'Home', color: 'text-stone-700', bg: 'bg-stone-800', light: 'bg-stone-100', border: 'border-stone-200', icon: LayoutDashboard },
+  community: { id: 'community', name: 'Community', color: 'text-blue-600', bg: 'bg-blue-600', light: 'bg-blue-50', border: 'border-blue-200', icon: Globe },
   services: { id: 'services', name: 'Services', color: 'text-amber-600', bg: 'bg-amber-600', light: 'bg-amber-50', border: 'border-amber-200', icon: BookOpen },
   music: { id: 'music', name: 'Music', color: 'text-rose-600', bg: 'bg-rose-600', light: 'bg-rose-50', border: 'border-rose-200', icon: Music },
   teams: { id: 'teams', name: 'Team Portals', color: 'text-indigo-600', bg: 'bg-indigo-600', light: 'bg-indigo-50', border: 'border-indigo-200', icon: FolderLock },
@@ -371,6 +378,7 @@ export default function App() {
 
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
         {activeApp === 'home' && <HomeApp events={events} people={people} isAdmin={isAdmin} isSeniorPastor={isSeniorPastor} setActiveApp={setActiveApp} />}
+        {activeApp === 'community' && <CommunityApp theme={theme} people={people} showToast={showToast} />}
         {activeApp === 'services' && <ServicesApp theme={theme} planItems={planItems} setPlanItems={setPlanItems} isAdmin={isAdmin} showToast={showToast} />}
         {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} songs={songs} setSongs={setSongs} globalSearch={globalSearchQuery} showToast={showToast} />}
         {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={teamsList} setTeamsList={setTeamsList} people={people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} globalSearch={globalSearchQuery} />}
@@ -507,6 +515,227 @@ function HomeApp({ events, people, isAdmin, isSeniorPastor, setActiveApp }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CommunityApp({ theme, people, showToast }) {
+  const [posts, setPosts] = useState(COMMUNITY_POSTS);
+  const [newPostContent, setNewPostContent] = useState('');
+  const [activeChat, setActiveChat] = useState(null);
+  const [chatInput, setChatInput] = useState('');
+
+  // Extract phone numbers for WhatsApp style contacts
+  const contacts = people.filter(p => p.phone && p.type !== 'Child');
+
+  const handlePost = () => {
+    if (!newPostContent.trim()) return;
+    const post = {
+      id: Date.now(),
+      author: 'You',
+      role: 'Staff',
+      time: 'Just now',
+      content: newPostContent,
+      likes: 0,
+      comments: 0
+    };
+    setPosts([post, ...posts]);
+    setNewPostContent('');
+    showToast("Posted to Community Feed");
+  };
+
+  const handleSendChat = (e) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+    setChatInput('');
+    showToast("Message sent securely.");
+  };
+
+  return (
+    <div className="animate-in fade-in duration-500 text-left h-full">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Church Community</h1>
+          <p className="text-stone-500 text-sm mt-1">Connect, share updates, and message members directly via their linked phone numbers.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* LEFT NAV (FACEBOOK STYLE) */}
+        <div className="hidden lg:flex flex-col gap-2">
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-4 mb-4 flex items-center gap-3">
+             <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${theme.bg} text-white`}>
+               YO
+             </div>
+             <div>
+               <h3 className="font-bold text-stone-900 text-sm">Your Profile</h3>
+               <p className="text-xs text-stone-500">View timeline</p>
+             </div>
+          </div>
+          <button className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${theme.light} ${theme.color} flex items-center gap-3`}>
+            <Globe size={18}/> News Feed
+          </button>
+          <button className="w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium text-stone-600 hover:bg-stone-100 transition-colors flex items-center gap-3">
+            <Users size={18}/> Groups & Ministries
+          </button>
+          <button className="w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium text-stone-600 hover:bg-stone-100 transition-colors flex items-center gap-3">
+            <CalendarIcon size={18}/> Events
+          </button>
+        </div>
+
+        {/* CENTER FEED (FACEBOOK STYLE) */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Create Post */}
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-4">
+             <div className="flex gap-3">
+               <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-bold ${theme.bg} text-white`}>
+                 YO
+               </div>
+               <textarea 
+                 placeholder="Share an update, praise report, or prayer request..." 
+                 className="w-full resize-none outline-none text-stone-700 placeholder:text-stone-400 pt-2 text-sm"
+                 rows="2"
+                 value={newPostContent}
+                 onChange={(e) => setNewPostContent(e.target.value)}
+               ></textarea>
+             </div>
+             <div className="flex justify-between items-center pt-3 mt-3 border-t border-stone-100">
+               <button className="text-stone-500 hover:bg-stone-100 px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs font-semibold transition-colors">
+                 <ImageIcon size={16} className="text-emerald-500"/> Photo/Video
+               </button>
+               <button 
+                 onClick={handlePost}
+                 disabled={!newPostContent.trim()}
+                 className={`px-4 py-1.5 rounded-md text-sm font-semibold text-white transition-opacity disabled:opacity-50 ${theme.bg}`}
+               >
+                 Post
+               </button>
+             </div>
+          </div>
+
+          {/* Posts Feed */}
+          {posts.map(post => (
+            <div key={post.id} className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+              <div className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                   <div className="w-10 h-10 rounded-full bg-stone-200 flex items-center justify-center text-stone-500 font-bold text-sm">
+                     {post.author.charAt(0)}
+                   </div>
+                   <div>
+                     <h3 className="font-bold text-stone-900 text-sm leading-tight">{post.author}</h3>
+                     <div className="flex items-center gap-1.5 text-xs text-stone-500">
+                       <span className="bg-stone-100 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider text-stone-600">{post.role}</span>
+                       <span>•</span>
+                       <span>{post.time}</span>
+                     </div>
+                   </div>
+                </div>
+                <button className="text-stone-400 hover:text-stone-600"><MoreHorizontal size={18}/></button>
+              </div>
+              <div className="px-4 pb-4 text-sm text-stone-800 leading-relaxed whitespace-pre-wrap">
+                {post.content}
+              </div>
+              <div className="px-4 py-2 border-t border-stone-100 flex justify-between text-xs text-stone-500">
+                 <span>{post.likes} Likes</span>
+                 <span>{post.comments} Comments</span>
+              </div>
+              <div className="px-2 py-1.5 border-t border-stone-100 flex justify-between">
+                 <button className="flex-1 flex justify-center items-center gap-2 py-2 text-stone-500 hover:bg-stone-50 rounded-md font-semibold text-xs transition-colors">
+                   <ThumbsUp size={16}/> Like
+                 </button>
+                 <button className="flex-1 flex justify-center items-center gap-2 py-2 text-stone-500 hover:bg-stone-50 rounded-md font-semibold text-xs transition-colors">
+                   <MessageCircle size={16}/> Comment
+                 </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* RIGHT SIDEBAR (WHATSAPP STYLE MESSAGES) */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden flex flex-col h-[600px] sticky top-20">
+             <div className="p-4 bg-teal-600 text-white flex justify-between items-center">
+                <h2 className="font-bold text-sm flex items-center gap-2"><MessageCircle size={18}/> Direct Messages</h2>
+                <button className="text-white/80 hover:text-white"><Plus size={18}/></button>
+             </div>
+             <div className="p-3 bg-stone-50 border-b border-stone-200">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 h-3.5 w-3.5" />
+                  <input type="text" placeholder="Search a number or name..." className="w-full pl-8 pr-3 py-1.5 bg-white border border-stone-200 rounded-md text-xs outline-none focus:border-teal-500" />
+                </div>
+             </div>
+             <div className="flex-1 overflow-y-auto divide-y divide-stone-100">
+                {contacts.map(contact => (
+                  <div 
+                    key={contact.id} 
+                    onClick={() => setActiveChat(contact)}
+                    className={`p-3 flex items-center gap-3 cursor-pointer transition-colors ${activeChat?.id === contact.id ? 'bg-teal-50' : 'hover:bg-stone-50'}`}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-stone-200 flex items-center justify-center shrink-0 text-stone-500 font-bold text-sm relative">
+                       {contact.name.charAt(0)}
+                       <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                       <div className="flex justify-between items-baseline mb-0.5">
+                         <h4 className="text-sm font-bold text-stone-900 truncate">{contact.name}</h4>
+                       </div>
+                       <p className="text-[11px] text-stone-500 truncate font-mono tracking-tight">{contact.phone}</p>
+                    </div>
+                  </div>
+                ))}
+             </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* WHATSAPP CHAT POPUP (Active Window) */}
+      {activeChat && (
+        <div className="fixed bottom-4 right-4 sm:right-8 w-[340px] bg-white rounded-xl shadow-2xl border border-stone-200 z-50 flex flex-col overflow-hidden animate-in slide-in-from-bottom-8">
+           <div className="bg-teal-600 p-3 text-white flex justify-between items-center shadow-sm z-10">
+              <div className="flex items-center gap-2">
+                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold">
+                    {activeChat.name.charAt(0)}
+                 </div>
+                 <div>
+                   <div className="font-bold text-sm leading-tight">{activeChat.name}</div>
+                   <div className="text-[10px] opacity-90 font-mono mt-0.5">{activeChat.phone}</div>
+                 </div>
+              </div>
+              <button onClick={() => setActiveChat(null)} className="text-white/80 hover:text-white p-1 rounded-md hover:bg-white/20 transition-colors">
+                <X size={18}/>
+              </button>
+           </div>
+           
+           <div className="h-72 bg-[#efeae2] p-4 overflow-y-auto flex flex-col gap-3">
+              <div className="bg-emerald-100 text-emerald-800 text-[10px] text-center py-1 px-3 rounded-full mx-auto shadow-sm mb-2 uppercase font-bold tracking-wider">
+                 Messages are end-to-end encrypted
+              </div>
+              <div className="self-start bg-white text-stone-800 p-2.5 rounded-lg rounded-tl-none max-w-[85%] text-sm shadow-sm border border-stone-100">
+                 Hi! Checking in about the upcoming service.
+                 <div className="text-[9px] text-stone-400 mt-1 text-right">10:42 AM</div>
+              </div>
+           </div>
+           
+           <form onSubmit={handleSendChat} className="p-2.5 bg-stone-50 border-t border-stone-200 flex gap-2 items-center">
+              <button type="button" className="text-stone-400 hover:text-teal-600 p-1"><Plus size={20}/></button>
+              <input 
+                type="text" 
+                className="flex-1 px-3 py-2 border border-stone-200 rounded-full text-sm outline-none focus:border-teal-500 shadow-inner" 
+                placeholder="Message" 
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+              />
+              <button 
+                type="submit" 
+                disabled={!chatInput.trim()}
+                className="bg-teal-600 text-white p-2 rounded-full hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                <Send size={16} className="ml-0.5"/>
+              </button>
+           </form>
+        </div>
+      )}
     </div>
   );
 }
@@ -1756,173 +1985,6 @@ function SecurityApp({ theme, isSeniorPastor, showToast }) {
               </div>
               {isSeniorPastor && <button onClick={() => setShowRoleModal(true)} className="w-full mt-2 py-2 border border-stone-200 rounded text-xs font-semibold text-stone-600 hover:bg-stone-50 transition-colors">Manage Roles</button>}
             </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  );
-}
-
-function ReportingApp({ theme }) {
-  const attendanceData = [
-    { label: 'Jan 18', value: 45 }, { label: 'Jan 25', value: 55 }, { label: 'Feb 1', value: 68 },
-    { label: 'Feb 8', value: 62 }, { label: 'Feb 15', value: 85 }, { label: 'Feb 22', value: 95 },
-  ];
-
-  const demographics = [
-    { label: '0-18 Years', percent: 25, color: 'bg-sky-500' }, { label: '19-35 Years', percent: 40, color: 'bg-fuchsia-500' },
-    { label: '36-55 Years', percent: 20, color: 'bg-amber-500' }, { label: '55+ Years', percent: 15, color: 'bg-emerald-500' },
-  ];
-
-  return (
-    <div className="space-y-6 animate-in fade-in duration-500 text-left">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Insights & Reports</h1>
-          <p className="text-stone-500 text-sm mt-1">Visualize church health, growth trends, and engagement metrics.</p>
-        </div>
-        <div className="flex gap-2">
-          <button className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
-            <Download size={16}/> Export Report
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <span className="text-sm font-medium text-stone-500">Total Attendance</span>
-            <div className={`p-1.5 rounded-md ${theme.light} ${theme.color}`}><Users size={16}/></div>
-          </div>
-          <div className="mt-4">
-            <span className="text-3xl font-bold tracking-tight text-stone-900">842</span>
-            <div className="flex items-center gap-1 mt-1 text-emerald-600 text-xs font-semibold">
-              <TrendingUp size={14}/> +12% vs last month
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <span className="text-sm font-medium text-stone-500">First-Time Guests</span>
-            <div className="p-1.5 rounded-md bg-sky-50 text-sky-600"><UserPlus size={16}/></div>
-          </div>
-          <div className="mt-4">
-            <span className="text-3xl font-bold tracking-tight text-stone-900">45</span>
-            <div className="flex items-center gap-1 mt-1 text-emerald-600 text-xs font-semibold">
-              <TrendingUp size={14}/> +4% vs last month
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <span className="text-sm font-medium text-stone-500">Volunteer Rate</span>
-            <div className="p-1.5 rounded-md bg-amber-50 text-amber-600"><Activity size={16}/></div>
-          </div>
-          <div className="mt-4">
-            <span className="text-3xl font-bold tracking-tight text-stone-900">38%</span>
-            <div className="flex items-center gap-1 mt-1 text-rose-600 text-xs font-semibold">
-              <TrendingDown size={14}/> -2% vs last month
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <span className="text-sm font-medium text-stone-500">Small Group Growth</span>
-            <div className="p-1.5 rounded-md bg-teal-50 text-teal-600"><PieChart size={16}/></div>
-          </div>
-          <div className="mt-4">
-            <span className="text-3xl font-bold tracking-tight text-stone-900">62%</span>
-            <div className="flex items-center gap-1 mt-1 text-stone-400 text-xs font-semibold">
-               Unchanged vs last month
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-semibold text-stone-800 flex items-center gap-2"><BarChart3 size={18} className={theme.color}/> Attendance Growth (6 Wks)</h3>
-            <span className="text-xs text-stone-500 font-medium">In-Person Only</span>
-          </div>
-          <div className="flex-1 flex items-end justify-between gap-2 h-48 relative">
-            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none border-b border-stone-200 pb-6">
-               <div className="border-b border-stone-100 border-dashed w-full h-0"></div>
-               <div className="border-b border-stone-100 border-dashed w-full h-0"></div>
-               <div className="border-b border-stone-100 border-dashed w-full h-0"></div>
-               <div className="border-b border-stone-100 border-dashed w-full h-0"></div>
-            </div>
-            {attendanceData.map((data, index) => (
-              <div key={index} className="flex flex-col items-center flex-1 z-10 group">
-                <div className="w-full max-w-[40px] bg-fuchsia-100 hover:bg-fuchsia-200 rounded-t-md relative transition-all duration-300 flex items-end justify-center" style={{ height: `${data.value}%` }}>
-                  <div className={`${theme.bg} w-full rounded-t-sm transition-all duration-500`} style={{ height: `${data.value - 20}%` }}></div>
-                  <div className="absolute -top-8 bg-stone-800 text-white text-xs font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                    {Math.floor(data.value * 8.42)} 
-                  </div>
-                </div>
-                <span className="text-[10px] font-semibold text-stone-400 mt-2 uppercase tracking-wide">{data.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-semibold text-stone-800 flex items-center gap-2"><PieChart size={18} className="text-teal-500"/> Fund Designation</h3>
-            <span className="text-xs text-stone-500 font-medium">YTD 2026</span>
-          </div>
-          <div className="flex-1 flex items-center justify-center gap-8">
-            <div className="relative flex items-center justify-center w-48 h-48 rounded-full" style={{ background: 'conic-gradient(#14b8a6 0% 55%, #0ea5e9 55% 75%, #f59e0b 75% 90%, #e11d48 90% 100%)' }}>
-              <div className="w-32 h-32 bg-white rounded-full flex flex-col items-center justify-center shadow-inner">
-                <span className="text-xs text-stone-400 font-medium uppercase tracking-wider">Total</span>
-                <span className="text-xl font-bold text-stone-900">$142k</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-teal-500"></div><span className="text-sm text-stone-600 font-medium">General Tithe (55%)</span></div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-sky-500"></div><span className="text-sm text-stone-600 font-medium">Missions (20%)</span></div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-amber-500"></div><span className="text-sm text-stone-600 font-medium">Building (15%)</span></div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-rose-500"></div><span className="text-sm text-stone-600 font-medium">Benevolence (10%)</span></div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold text-stone-800 flex items-center gap-2"><Activity size={18} className="text-violet-500"/> Online vs. In-Person Engagement</h3>
-          </div>
-          <div className="flex-1 relative w-full h-48 bg-stone-50 rounded-lg overflow-hidden border border-stone-100">
-             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full p-2 overflow-visible">
-               <line x1="0" y1="25" x2="100" y2="25" stroke="#f5f5f4" strokeWidth="1" />
-               <line x1="0" y1="50" x2="100" y2="50" stroke="#f5f5f4" strokeWidth="1" />
-               <line x1="0" y1="75" x2="100" y2="75" stroke="#f5f5f4" strokeWidth="1" />
-               <polyline fill="none" stroke="#d946ef" strokeWidth="3" vectorEffect="non-scaling-stroke" points="0,80 20,70 40,40 60,45 80,20 100,10" />
-               <polyline fill="none" stroke="#0ea5e9" strokeWidth="3" strokeDasharray="4" vectorEffect="non-scaling-stroke" points="0,60 20,65 40,70 60,60 80,75 100,65" />
-             </svg>
-             <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-2 rounded shadow border border-stone-100 flex flex-col gap-1">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-stone-600 uppercase"><div className="w-2 h-2 rounded-full bg-fuchsia-500"></div> In-Person</div>
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-stone-600 uppercase"><div className="w-2 h-2 rounded-full bg-sky-500"></div> Online</div>
-             </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6 flex flex-col">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-semibold text-stone-800 flex items-center gap-2"><Users size={18} className="text-sky-500"/> Congregation Demographics</h3>
-          </div>
-          <div className="flex-1 flex flex-col justify-center gap-5">
-            {demographics.map((demo, idx) => (
-              <div key={idx} className="w-full">
-                <div className="flex justify-between text-xs font-semibold text-stone-600 mb-1">
-                  <span>{demo.label}</span>
-                  <span>{demo.percent}%</span>
-                </div>
-                <div className="w-full bg-stone-100 rounded-full h-3">
-                  <div className={`${demo.color} h-3 rounded-full transition-all duration-1000`} style={{ width: `${demo.percent}%` }}></div>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
 
