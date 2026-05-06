@@ -441,9 +441,9 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
             <button onClick={() => setActiveChat(null)} className="text-white/80 hover:text-white p-1 rounded-md hover:bg-white/20 transition-colors"><X size={18}/></button>
           </div>
           <div className="h-72 sm:h-72 bg-[#efeae2] p-4 overflow-y-auto flex flex-col gap-3">
-            <div className="bg-emerald-100 text-emerald-800 text-[10px] text-center py-1 px-3 rounded-full mx-auto shadow-sm mb-2 uppercase font-bold tracking-wider">Messages are end-to-end encrypted</div>
+            <div className="bg-emerald-100 text-emerald-700 text-[10px] text-center py-1 px-3 rounded-full mx-auto shadow-sm mb-2 uppercase font-bold tracking-wider">Messages are end-to-end encrypted</div>
             {(chatMessagesByContact[String(activeChat.id)] || []).map(msg => (
-              <div key={msg.id} className={`${msg.fromUs ? 'self-end bg-emerald-100 text-emerald-900' : 'self-start bg-white text-stone-800'} p-2.5 rounded-lg ${msg.fromUs ? 'rounded-tr-none' : 'rounded-tl-none'} max-w-[85%] text-sm shadow-sm border border-stone-100`}>
+              <div key={msg.id} className={`${msg.fromUs ? 'self-end bg-emerald-100 text-emerald-700' : 'self-start bg-white text-stone-800'} p-2.5 rounded-lg ${msg.fromUs ? 'rounded-tr-none' : 'rounded-tl-none'} max-w-[85%] text-sm shadow-sm border border-stone-100`}>
                 {msg.text}
                 <div className="text-[9px] text-stone-400 mt-1 text-right">{msg.time}</div>
               </div>
