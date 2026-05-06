@@ -28,6 +28,7 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
   const [isEditing, setIsEditing] = useState(false);
   const [editingPersonId, setEditingPersonId] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [selectedDetail, setSelectedDetail] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [newPerson, setNewPerson] = useState({
     firstName: '', lastName: '', email: '', phone: '', address: '',
@@ -57,6 +58,35 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
     securityCode: person.type === 'Child' ? (person.securityCode || generateSecurityCode()) : '',
     checkInStatus: person.type === 'Child' ? (person.checkInStatus || 'Signed Out') : '',
   });
+
+  const getDisplayName = (person) => {
+    const firstName = person.firstName || person.name?.split(' ')[0] || '';
+    const lastName = person.lastName || person.name?.split(' ').slice(1).join(' ') || '';
+    return `${firstName} ${lastName}`.trim();
+  };
+
+  const getInitial = (person) => {
+    return (person.firstName || person.name || '?').charAt(0).toUpperCase();
+  };
+
+  const openDetail = (label, value) => {
+    if (!value) return;
+    setSelectedDetail({ label, value });
+  };
+
+  const renderDetailTrigger = (label, value, className = '') => {
+    if (!value) return null;
+
+    return (
+      <button
+        type="button"
+        onClick={() => openDetail(label, value)}
+        className={`truncate text-left hover:text-sky-700 hover:underline underline-offset-2 ${className}`}
+      >
+        {value}
+      </button>
+    );
+  };
 
   const filteredPeople = people.filter(p => {
     const matchesSearch = (p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.email?.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -442,6 +472,26 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
         </div>
       )}
 
+      {selectedDetail && (
+        <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-start gap-4 mb-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-stone-500">Full Details</p>
+                <h2 className="text-xl font-bold text-stone-900 mt-1">{selectedDetail.label}</h2>
+              </div>
+              <button onClick={() => setSelectedDetail(null)} className="text-stone-400 hover:text-rose-500"><X size={20}/></button>
+            </div>
+            <div className="rounded-lg border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm leading-relaxed text-stone-800 break-words whitespace-pre-wrap">{selectedDetail.value}</p>
+            </div>
+            <div className="flex justify-end mt-5">
+              <button onClick={() => setSelectedDetail(null)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium hover:opacity-90`}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
           <h3 className="font-semibold text-stone-800">
@@ -462,11 +512,15 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold text-stone-900 text-sm">{person.firstName || person.name?.split(' ')[0]} {person.lastName || person.name?.split(' ')[1] || ''}</p>
-                  <p className="text-xs text-stone-500 mt-1">{person.email || 'No email'} • {person.phone || 'No phone'}</p>
+                  <div className="text-xs text-stone-500 mt-1 flex items-center gap-1 flex-wrap">
+                    {person.email ? renderDetailTrigger('Email Address', person.email, 'max-w-[180px]') : <span>No email</span>}
+                    <span>•</span>
+                    {person.phone ? renderDetailTrigger('Phone Number', person.phone, 'max-w-[140px]') : <span>No phone</span>}
+                  </div>
                 </div>
                 <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === 'visitors' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>{person.type}</span>
               </div>
-              {person.address && <p className="text-xs text-stone-500 mt-2">{person.address}</p>}
+              {person.address && <div className="mt-2">{renderDetailTrigger('Address', person.address, 'text-xs text-stone-500 max-w-full')}</div>}
               {isAdmin && (
                 <div className="mt-3 flex justify-end gap-2">
                   <button onClick={() => handleStartEdit(person)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100">Edit</button>
@@ -479,9 +533,9 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
           {activeTab === 'kids' && filteredPeople.map((child) => (
             <div key={`mk-${child.id}`} className="rounded-xl border border-stone-200 p-3 bg-white">
               <p className="font-semibold text-stone-900 text-sm">{child.firstName} {child.lastName}</p>
-              <p className="text-xs text-stone-500 mt-1">Parents: {child.parents || 'N/A'}</p>
-              <p className="text-xs text-stone-500">Phone: {child.parentPhone || 'N/A'}</p>
-              {child.allergies && child.allergies !== 'None' && <p className="text-xs text-rose-600 font-semibold mt-1">Allergies: {child.allergies}</p>}
+              <p className="text-xs text-stone-500 mt-1">Parents: {child.parents ? renderDetailTrigger('Parents / Guardians', child.parents, 'inline-block max-w-[220px] align-bottom') : 'N/A'}</p>
+              <p className="text-xs text-stone-500">Phone: {child.parentPhone ? renderDetailTrigger('Parent Phone', child.parentPhone, 'inline-block max-w-[160px] align-bottom') : 'N/A'}</p>
+              {child.allergies && child.allergies !== 'None' && <p className="text-xs text-rose-600 font-semibold mt-1">Allergies: {renderDetailTrigger('Allergies / Medical Notes', child.allergies, 'inline-block max-w-[220px] align-bottom')}</p>}
               {isAdmin && (
                 <div className="mt-3 flex justify-end gap-2">
                   <button onClick={() => handleStartEdit(child)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100">Edit</button>
@@ -518,95 +572,104 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
 
         <div className="hidden lg:block overflow-x-auto max-h-[600px] overflow-y-auto">
           {(activeTab === 'directory' || activeTab === 'visitors') && (
-            <table className="w-full text-sm text-left relative">
-              <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white z-10">
-                <tr>
-                  <th className="px-5 py-3">First Name</th>
-                  <th className="px-5 py-3">Last Name</th>
-                  <th className="px-5 py-3">Address</th>
-                  <th className="px-5 py-3">Email</th>
-                  <th className="px-5 py-3">Phone</th>
-                  <th className="px-5 py-3">Type</th>
-                  <th className="px-5 py-3">Gender</th>
-                  {isAdmin && <th className="px-5 py-3 text-right">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {filteredPeople.map((person) => (
-                  <tr key={person.id} className="hover:bg-stone-50">
-                    <td className="px-5 py-3 font-medium text-stone-900 flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
-                        {person.firstName ? person.firstName.charAt(0) : person.name.charAt(0)}
+            <div className="divide-y divide-stone-100">
+              <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto] gap-4 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-stone-500 bg-white sticky top-0 z-10 border-b border-stone-100">
+                <div>Person</div>
+                <div>Contact</div>
+                <div>Details</div>
+                {isAdmin && <div className="text-right">Actions</div>}
+                {!isAdmin && <div className="text-right">Profile</div>}
+              </div>
+              {filteredPeople.map((person) => (
+                <div key={person.id} className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto] gap-4 px-5 py-4 items-center hover:bg-stone-50/70 transition-colors">
+                  <div className="min-w-0 flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
+                      {getInitial(person)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-stone-900 truncate">{getDisplayName(person)}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === 'visitors' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>{person.type}</span>
+                        <span className="text-xs text-stone-500">{person.gender || 'N/A'}</span>
                       </div>
-                      {person.firstName || person.name.split(' ')[0]}
-                    </td>
-                    <td className="px-5 py-3 font-medium text-stone-900">{person.lastName || person.name.split(' ')[1] || ''}</td>
-                    <td className="px-5 py-3 text-stone-500 text-xs max-w-[150px] truncate" title={person.address}>{person.address}</td>
-                    <td className="px-5 py-3 text-stone-500 max-w-[150px] truncate" title={person.email}>{person.email}</td>
-                    <td className="px-5 py-3 text-stone-500">{person.phone}</td>
-                    <td className="px-5 py-3"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === 'visitors' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>{person.type}</span></td>
-                    <td className="px-5 py-3 text-stone-500">{person.gender || 'N/A'}</td>
-                    {isAdmin && (
-                      <td className="px-5 py-3 text-right text-stone-400">
-                        <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => handleStartEdit(person)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">
-                            Edit
-                          </button>
-                          <button onClick={() => handleDeleteProfile(person.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">
-                            Delete
-                          </button>
-                        </div>
-                      </td>
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    {person.email ? renderDetailTrigger('Email Address', person.email, 'text-sm text-stone-700 max-w-full block') : <p className="text-sm text-stone-700">No email</p>}
+                    {person.phone ? renderDetailTrigger('Phone Number', person.phone, 'text-xs text-stone-500 mt-1 max-w-full block') : <p className="text-xs text-stone-500 mt-1">No phone</p>}
+                  </div>
+                  <div className="min-w-0">
+                    {person.address ? renderDetailTrigger('Address', person.address, 'text-sm text-stone-700 max-w-full block') : <p className="text-sm text-stone-700">No address</p>}
+                    <p className="text-xs text-stone-500 mt-1">Background Check: {person.bgCheck || 'N/A'}</p>
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    {isAdmin ? (
+                      <>
+                        <button onClick={() => handleStartEdit(person)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">
+                          Edit
+                        </button>
+                        <button onClick={() => handleDeleteProfile(person.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">
+                          Delete
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-stone-400">View only</span>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
 
           {activeTab === 'kids' && (
-            <table className="w-full text-sm text-left relative">
-              <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white z-10">
-                <tr>
-                  <th className="px-5 py-3">First Name</th>
-                  <th className="px-5 py-3">Last Name</th>
-                  <th className="px-5 py-3">Address</th>
-                  <th className="px-5 py-3">Parents / Guardians</th>
-                  <th className="px-5 py-3">Parent Phone</th>
-                  <th className="px-5 py-3">Allergies</th>
-                  {isAdmin && <th className="px-5 py-3 text-right">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {filteredPeople.map((child) => (
-                  <tr key={child.id} className="hover:bg-stone-50">
-                    <td className="px-5 py-3 font-medium text-stone-900 flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
-                        {child.firstName ? child.firstName.charAt(0) : child.name.charAt(0)}
-                      </div>
-                      {child.firstName}
-                    </td>
-                    <td className="px-5 py-3 font-medium text-stone-900">{child.lastName}</td>
-                    <td className="px-5 py-3 text-stone-500 text-xs max-w-[150px] truncate">{child.address}</td>
-                    <td className="px-5 py-3 text-stone-700 font-medium">{child.parents}</td>
-                    <td className="px-5 py-3 text-stone-500">{child.parentPhone}</td>
-                    <td className="px-5 py-3 text-rose-600 font-semibold text-xs">{child.allergies}</td>
-                    {isAdmin && (
-                      <td className="px-5 py-3 text-right text-stone-400">
-                        <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => handleStartEdit(child)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">
-                            Edit
-                          </button>
-                          <button onClick={() => handleDeleteProfile(child.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">
-                            Delete
-                          </button>
-                        </div>
-                      </td>
+            <div className="divide-y divide-stone-100">
+              <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] gap-4 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-stone-500 bg-white sticky top-0 z-10 border-b border-stone-100">
+                <div>Child</div>
+                <div>Guardians</div>
+                <div>Care Notes</div>
+                {isAdmin && <div className="text-right">Actions</div>}
+                {!isAdmin && <div className="text-right">Status</div>}
+              </div>
+              {filteredPeople.map((child) => (
+                <div key={child.id} className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] gap-4 px-5 py-4 items-center hover:bg-stone-50/70 transition-colors">
+                  <div className="min-w-0 flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
+                      {getInitial(child)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-stone-900 truncate">{getDisplayName(child)}</p>
+                      {child.address ? renderDetailTrigger('Address', child.address, 'text-xs text-stone-500 mt-1 max-w-full block') : <p className="text-xs text-stone-500 mt-1">No address</p>}
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    {child.parents ? renderDetailTrigger('Parents / Guardians', child.parents, 'text-sm font-medium text-stone-800 max-w-full block') : <p className="text-sm font-medium text-stone-800">No guardian listed</p>}
+                    {child.parentPhone ? renderDetailTrigger('Parent Phone', child.parentPhone, 'text-xs text-stone-500 mt-1 max-w-full block') : <p className="text-xs text-stone-500 mt-1">No phone</p>}
+                  </div>
+                  <div className="min-w-0">
+                    <div className={`text-sm font-semibold ${child.allergies && child.allergies !== 'None' ? 'text-rose-600' : 'text-emerald-700'}`}>
+                      {child.allergies && child.allergies !== 'None'
+                        ? renderDetailTrigger('Allergies / Medical Notes', child.allergies, 'max-w-full block')
+                        : 'No allergies noted'}
+                    </div>
+                    <p className="text-xs text-stone-500 mt-1">Status: {child.checkInStatus || 'Signed Out'}</p>
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    {isAdmin ? (
+                      <>
+                        <button onClick={() => handleStartEdit(child)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">
+                          Edit
+                        </button>
+                        <button onClick={() => handleDeleteProfile(child.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">
+                          Delete
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-stone-400">View only</span>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
 
           {activeTab === 'checkin' && (
