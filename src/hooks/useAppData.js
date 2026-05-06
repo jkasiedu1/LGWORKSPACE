@@ -56,45 +56,31 @@ export function useAppData(isAuthenticated) {
     if (isAuthenticated && db) {
       try {
         unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
-          if (!snapshot.empty) {
-            setEvents(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-          }
+          setEvents(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
         });
 
         unsubPeople = onSnapshot(collection(db, 'people'), (snapshot) => {
-          if (!snapshot.empty) {
-            setPeople(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-          }
+          setPeople(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
         });
 
         unsubDonations = onSnapshot(collection(db, 'donations'), (snapshot) => {
-          if (!snapshot.empty) {
-            setDonations(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-          }
+          setDonations(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
         });
 
         unsubSongs = onSnapshot(collection(db, 'songs'), (snapshot) => {
-          if (!snapshot.empty) {
-            setSongs(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-          }
+          setSongs(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
         });
 
         unsubTeams = onSnapshot(collection(db, 'teams'), (snapshot) => {
-          if (!snapshot.empty) {
-            setTeamsList(snapshot.docs.map((teamDoc) => ({ id: teamDoc.id, ...teamDoc.data() })));
-          }
+          setTeamsList(snapshot.docs.map((teamDoc) => ({ id: teamDoc.id, ...teamDoc.data() })));
         });
 
         unsubWorkflows = onSnapshot(collection(db, 'workflows'), (snapshot) => {
-          if (!snapshot.empty) {
-            setWorkflows(snapshot.docs.map((workflowDoc) => ({ id: workflowDoc.id, ...workflowDoc.data() })));
-          }
+          setWorkflows(snapshot.docs.map((workflowDoc) => ({ id: workflowDoc.id, ...workflowDoc.data() })));
         });
 
         unsubCommunityPosts = onSnapshot(collection(db, 'communityPosts'), (snapshot) => {
-          if (!snapshot.empty) {
-            setCommunityPosts(snapshot.docs.map((postDoc) => ({ id: postDoc.id, ...postDoc.data() })));
-          }
+          setCommunityPosts(snapshot.docs.map((postDoc) => ({ id: postDoc.id, ...postDoc.data() })));
         });
 
         unsubSecuritySettings = onSnapshot(doc(db, 'settings', 'security'), (settingsDoc) => {
