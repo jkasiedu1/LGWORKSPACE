@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import {
   logPersonCreated,
@@ -84,6 +84,38 @@ export async function createPerson(person, actorEmail) {
   }
 
   return { id: docRef.id, ...person };
+}
+
+export async function createPeopleBulk(people, actorEmail) {
+  if (!Array.isArray(people) || people.length === 0) {
+    return [];
+  }
+
+  if (!db) {
+    return people.map((person, index) => ({ id: Date.now() + index, ...person }));
+  }
+
+  const createdPeople = await withRetry(async () => {
+    const batch = writeBatch(db);
+    const results = people.map((person) => {
+      const docRef = doc(collection(db, 'people'));
+      batch.set(docRef, withAuditFields(person));
+      return { id: docRef.id, ...person };
+    });
+
+    await batch.commit();
+    return results;
+  });
+
+  if (actorEmail) {
+    createdPeople.forEach((person) => {
+      logPersonCreated(actorEmail, person.id, person).catch((err) =>
+        console.error('[createPeopleBulk] Audit logging failed:', err)
+      );
+    });
+  }
+
+  return createdPeople;
 }
 
 export async function deletePerson(personId, personData, actorEmail) {

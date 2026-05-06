@@ -1,0 +1,12 @@
+name = "lifegate-r2-signer"
+main = "src/index.js"
+compatibility_date = "2026-05-06"
+
+[vars]
+R2_BUCKET = "lifegateworkspace"
+R2_ACCOUNT_ID = "c48b96a30a4154f6bc192322362baff6"
+ALLOWED_ORIGIN = "https://lifegate-workspace.pages.dev"
+
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "lifegateworkspace"

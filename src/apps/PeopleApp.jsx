@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Search, UserPlus, AlertCircle, X, QrCode, UserCheck,
-  CheckCircle2, Printer
+  CheckCircle2, Printer, Upload
 } from 'lucide-react';
 import { db } from '../config/firebase';
-import { createPerson, deletePerson, updatePersonCheckInStatus } from '../lib/firestoreServices';
+import { createPeopleBulk, createPerson, deletePerson, updatePersonCheckInStatus } from '../lib/firestoreServices';
+import { getPersonImportKey, parseDirectoryWorkbook } from '../lib/directoryImport';
 import { validatePersonProfile } from '../lib/validation';
 import { useAuth } from '../hooks/useAuth';
 
@@ -15,8 +16,10 @@ function generateSecurityCode() {
 
 export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast }) {
   const { user } = useAuth();
+  const importInputRef = useRef(null);
   const [activeTab, setActiveTab] = useState('directory');
   const [isAdding, setIsAdding] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [newPerson, setNewPerson] = useState({
     firstName: '', lastName: '', email: '', phone: '', address: '',
@@ -25,6 +28,12 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
   });
 
   useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);
+
+  const resetImportInput = () => {
+    if (importInputRef.current) {
+      importInputRef.current.value = '';
+    }
+  };
 
   const filteredPeople = people.filter(p => {
     const matchesSearch = (p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.email?.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -105,6 +114,73 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
     }
   };
 
+  const handleImportPeople = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+
+    try {
+      const { people: importedPeople, skippedRows } = await parseDirectoryWorkbook(file);
+
+      if (importedPeople.length === 0) {
+        const skippedLabel = skippedRows.length > 0 ? ` ${skippedRows.length} row(s) were skipped.` : '';
+        throw new Error(`No valid people were found in the spreadsheet.${skippedLabel}`);
+      }
+
+      const seenKeys = new Set(people.map((person) => getPersonImportKey(person)).filter(Boolean));
+      let duplicateCount = 0;
+      const uniquePeople = importedPeople.reduce((result, person) => {
+        const key = getPersonImportKey(person);
+        if (key && seenKeys.has(key)) {
+          duplicateCount += 1;
+          return result;
+        }
+
+        if (key) {
+          seenKeys.add(key);
+        }
+
+        result.push({
+          ...person,
+          securityCode: person.type === 'Child' ? generateSecurityCode() : '',
+          checkInStatus: person.type === 'Child' ? 'Signed Out' : ''
+        });
+        return result;
+      }, []);
+
+      if (uniquePeople.length === 0) {
+        throw new Error('All rows already exist in the directory or were invalid.');
+      }
+
+      const createdPeople = await createPeopleBulk(uniquePeople, user?.email);
+
+      if (!db) {
+        setPeople([...createdPeople, ...people]);
+      }
+
+      const notices = [
+        `Imported ${createdPeople.length} profile${createdPeople.length === 1 ? '' : 's'}.`
+      ];
+
+      if (duplicateCount > 0) {
+        notices.push(`Skipped ${duplicateCount} duplicate${duplicateCount === 1 ? '' : 's'}.`);
+      }
+
+      if (skippedRows.length > 0) {
+        notices.push(`Skipped ${skippedRows.length} invalid row${skippedRows.length === 1 ? '' : 's'}.`);
+      }
+
+      showToast(notices.join(' '));
+    } catch (error) {
+      console.error('[PeopleApp] Failed to import directory spreadsheet:', error);
+      showToast(error?.message || 'Failed to import spreadsheet.');
+    } finally {
+      setIsImporting(false);
+      resetImportInput();
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-3 mb-6">
@@ -113,6 +189,24 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
           <p className="text-stone-500 text-sm mt-1">Manage profiles, backgrounds, and secure kids check-in.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+          {isAdmin && (
+            <>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={handleImportPeople}
+              />
+              <button
+                onClick={() => importInputRef.current?.click()}
+                disabled={isImporting}
+                className="px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Upload size={16}/>{isImporting ? 'Importing...' : 'Import Excel'}
+              </button>
+            </>
+          )}
           <button onClick={() => setActiveTab('checkin')} className="px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center justify-center gap-2">
             <UserCheck size={16}/> Launch Check-in Station
           </button>

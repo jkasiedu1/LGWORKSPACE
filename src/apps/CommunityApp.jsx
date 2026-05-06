@@ -10,6 +10,7 @@ import {
   deleteCommunityPost,
   updateCommunityPost
 } from '../lib/firestoreServices';
+import { uploadMediaToR2 } from '../lib/mediaStorage';
 import { db } from '../config/firebase';
 
 export default function CommunityApp({ theme, people, posts = [], setPosts, showToast }) {
@@ -149,34 +150,29 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
   const handlePhotoSelected = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const mediaUrl = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-    const isVideo = file.type?.startsWith('video/');
-    const post = {
-      author: 'You',
-      role: 'Staff',
-      time: 'Just now',
-      content: newPostContent.trim(),
-      likes: 0,
-      comments: 0,
-      commentList: [],
-      mediaUrl,
-      mediaType: isVideo ? 'video' : 'image',
-      mediaName: file.name,
-    };
+
     try {
+      const mediaMeta = await uploadMediaToR2(file, 'community');
+      const post = {
+        author: 'You',
+        role: 'Staff',
+        time: 'Just now',
+        content: newPostContent.trim(),
+        likes: 0,
+        comments: 0,
+        commentList: [],
+        ...mediaMeta,
+      };
+
       const created = await createCommunityPost(post);
       setPosts([created, ...posts]);
       setNewPostContent('');
-      showToast(isVideo ? 'Video posted to Community Feed' : 'Photo posted to Community Feed');
+      showToast(mediaMeta.mediaType === 'video' ? 'Video posted to Community Feed' : 'Photo posted to Community Feed');
     } catch (error) {
       console.error('[CommunityApp] Failed to post media:', error);
-      showToast('Failed to post media');
+      showToast(error?.message || 'Failed to post media');
     }
+
     e.target.value = '';
   };
 
