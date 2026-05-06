@@ -50,6 +50,62 @@ const PERSON_TYPE_ALIASES = {
   'new guest': 'First Time',
 };
 
+const MAIN_TEMPLATE_HEADERS = [
+  'First Name',
+  'Last Name',
+  'Email',
+  'Phone',
+  'Address',
+  'Type',
+  'Gender',
+  'Background Check',
+];
+
+const MAIN_TEMPLATE_ROWS = [
+  {
+    'First Name': 'John',
+    'Last Name': 'Carter',
+    Email: 'john.carter@example.com',
+    Phone: '555-123-4567',
+    Address: '123 Main St, Dallas, TX',
+    Type: 'Member',
+    Gender: 'Male',
+    'Background Check': 'Cleared',
+  },
+  {
+    'First Name': 'Mia',
+    'Last Name': 'Torres',
+    Email: 'mia.torres@example.com',
+    Phone: '555-444-1188',
+    Address: '410 Cedar St, Dallas, TX',
+    Type: 'Volunteer',
+    Gender: 'Female',
+    'Background Check': 'Pending',
+  },
+];
+
+const KIDS_TEMPLATE_HEADERS = [
+  'First Name',
+  'Last Name',
+  'Address',
+  'Gender',
+  'Parents',
+  'Parent Phone',
+  'Allergies',
+];
+
+const KIDS_TEMPLATE_ROWS = [
+  {
+    'First Name': 'Ava',
+    'Last Name': 'Carter',
+    Address: '123 Main St, Dallas, TX',
+    Gender: 'Female',
+    Parents: 'John Carter; Mia Carter',
+    'Parent Phone': '555-987-6543',
+    Allergies: 'Peanuts',
+  },
+];
+
 function cleanValue(value) {
   if (value == null) return '';
   return String(value).trim();
@@ -135,7 +191,26 @@ export function getPersonImportKey(person) {
   return name ? `name:${name}` : '';
 }
 
-export async function parseDirectoryWorkbook(file) {
+function normalizePersonForImport(person, mode) {
+  const nextPerson = { ...person };
+
+  if (mode === 'kids') {
+    nextPerson.type = 'Child';
+    nextPerson.bgCheck = 'N/A';
+  }
+
+  return nextPerson;
+}
+
+function validatePersonForMode(person, mode) {
+  if (mode === 'main' && person.type === 'Child') {
+    return { valid: false, message: 'Child records belong in the Kids template/import.' };
+  }
+
+  return validatePersonProfile(person);
+}
+
+export async function parseDirectoryWorkbook(file, mode = 'all') {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array' });
   const firstSheetName = workbook.SheetNames[0];
@@ -155,12 +230,12 @@ export async function parseDirectoryWorkbook(file) {
   const skippedRows = [];
 
   rows.forEach((row, index) => {
-    const person = mapRowToPerson(row);
+    const person = normalizePersonForImport(mapRowToPerson(row), mode);
     if (!hasAnyData(person)) {
       return;
     }
 
-    const validation = validatePersonProfile(person);
+    const validation = validatePersonForMode(person, mode);
     if (!validation.valid) {
       skippedRows.push({
         rowNumber: index + 2,
@@ -177,4 +252,20 @@ export async function parseDirectoryWorkbook(file) {
     skippedRows,
     sheetName: firstSheetName,
   };
+}
+
+export function downloadMainDirectoryImportTemplate() {
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.json_to_sheet(MAIN_TEMPLATE_ROWS, { header: MAIN_TEMPLATE_HEADERS });
+
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Main Directory');
+  XLSX.writeFile(workbook, 'lifegate-main-directory-template.xlsx');
+}
+
+export function downloadKidsDirectoryImportTemplate() {
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.json_to_sheet(KIDS_TEMPLATE_ROWS, { header: KIDS_TEMPLATE_HEADERS });
+
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Kids Directory');
+  XLSX.writeFile(workbook, 'lifegate-kids-directory-template.xlsx');
 }

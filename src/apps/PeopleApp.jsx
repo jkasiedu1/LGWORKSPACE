@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Search, UserPlus, AlertCircle, X, QrCode, UserCheck,
-  CheckCircle2, Printer, Upload
+  CheckCircle2, Printer, Upload, Download, Pencil
 } from 'lucide-react';
 import { db } from '../config/firebase';
-import { createPeopleBulk, createPerson, deletePerson, updatePersonCheckInStatus } from '../lib/firestoreServices';
-import { getPersonImportKey, parseDirectoryWorkbook } from '../lib/directoryImport';
+import { createPeopleBulk, createPerson, deletePerson, updatePersonCheckInStatus, updatePersonProfile } from '../lib/firestoreServices';
+import {
+  downloadKidsDirectoryImportTemplate,
+  downloadMainDirectoryImportTemplate,
+  getPersonImportKey,
+  parseDirectoryWorkbook,
+} from '../lib/directoryImport';
 import { validatePersonProfile } from '../lib/validation';
 import { useAuth } from '../hooks/useAuth';
 
@@ -16,9 +21,12 @@ function generateSecurityCode() {
 
 export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast }) {
   const { user } = useAuth();
-  const importInputRef = useRef(null);
+  const mainImportInputRef = useRef(null);
+  const kidsImportInputRef = useRef(null);
   const [activeTab, setActiveTab] = useState('directory');
   const [isAdding, setIsAdding] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingPersonId, setEditingPersonId] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [newPerson, setNewPerson] = useState({
@@ -26,14 +34,29 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
     type: 'Member', gender: 'Female', bgCheck: 'N/A',
     parents: '', parentPhone: '', allergies: ''
   });
+  const [editPerson, setEditPerson] = useState({
+    firstName: '', lastName: '', email: '', phone: '', address: '',
+    type: 'Member', gender: 'Female', bgCheck: 'N/A',
+    parents: '', parentPhone: '', allergies: ''
+  });
 
   useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);
 
-  const resetImportInput = () => {
-    if (importInputRef.current) {
-      importInputRef.current.value = '';
+  const resetImportInput = (mode) => {
+    if (mode === 'kids' && kidsImportInputRef.current) {
+      kidsImportInputRef.current.value = '';
+    }
+    if (mode === 'main' && mainImportInputRef.current) {
+      mainImportInputRef.current.value = '';
     }
   };
+
+  const toPersonPayload = (person) => ({
+    ...person,
+    name: `${person.firstName} ${person.lastName}`.trim(),
+    securityCode: person.type === 'Child' ? (person.securityCode || generateSecurityCode()) : '',
+    checkInStatus: person.type === 'Child' ? (person.checkInStatus || 'Signed Out') : '',
+  });
 
   const filteredPeople = people.filter(p => {
     const matchesSearch = (p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.email?.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -51,12 +74,7 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
       return;
     }
 
-    const dataToSave = {
-      ...newPerson,
-      name: `${newPerson.firstName} ${newPerson.lastName}`,
-      securityCode: newPerson.type === 'Child' ? generateSecurityCode() : '',
-      checkInStatus: newPerson.type === 'Child' ? 'Signed Out' : ''
-    };
+    const dataToSave = toPersonPayload(newPerson);
 
     try {
       const createdPerson = await createPerson(dataToSave, user?.email);
@@ -71,6 +89,53 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
     } catch (error) {
       console.error(error);
       showToast('Failed to create profile.');
+    }
+  };
+
+  const handleStartEdit = (person) => {
+    setEditingPersonId(person.id);
+    setEditPerson({
+      firstName: person.firstName || person.name?.split(' ')[0] || '',
+      lastName: person.lastName || person.name?.split(' ').slice(1).join(' ') || '',
+      email: person.email || '',
+      phone: person.phone || '',
+      address: person.address || '',
+      type: person.type || 'Member',
+      gender: person.gender || 'Female',
+      bgCheck: person.bgCheck || 'N/A',
+      parents: person.parents || '',
+      parentPhone: person.parentPhone || '',
+      allergies: person.allergies || '',
+      securityCode: person.securityCode || '',
+      checkInStatus: person.checkInStatus || '',
+    });
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    const validationResult = validatePersonProfile(editPerson);
+    if (!validationResult.valid) {
+      showToast(validationResult.message);
+      return;
+    }
+
+    const payload = toPersonPayload(editPerson);
+
+    try {
+      await updatePersonProfile(editingPersonId, payload);
+
+      if (!db) {
+        setPeople(people.map((person) => (
+          person.id === editingPersonId ? { ...person, ...payload } : person
+        )));
+      }
+
+      setIsEditing(false);
+      setEditingPersonId(null);
+      showToast('Profile updated successfully!');
+    } catch (error) {
+      console.error('[PeopleApp] Failed to update profile:', error);
+      showToast('Failed to update profile.');
     }
   };
 
@@ -114,14 +179,14 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
     }
   };
 
-  const handleImportPeople = async (event) => {
+  const handleImportPeople = async (mode, event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setIsImporting(true);
 
     try {
-      const { people: importedPeople, skippedRows } = await parseDirectoryWorkbook(file);
+      const { people: importedPeople, skippedRows } = await parseDirectoryWorkbook(file, mode);
 
       if (importedPeople.length === 0) {
         const skippedLabel = skippedRows.length > 0 ? ` ${skippedRows.length} row(s) were skipped.` : '';
@@ -142,9 +207,7 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
         }
 
         result.push({
-          ...person,
-          securityCode: person.type === 'Child' ? generateSecurityCode() : '',
-          checkInStatus: person.type === 'Child' ? 'Signed Out' : ''
+          ...toPersonPayload(person)
         });
         return result;
       }, []);
@@ -177,45 +240,79 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
       showToast(error?.message || 'Failed to import spreadsheet.');
     } finally {
       setIsImporting(false);
-      resetImportInput();
+      resetImportInput(mode);
     }
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 text-left">
-      <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-3 mb-6">
-        <div>
+    <div className="space-y-6 animate-in fade-in duration-500 text-left min-w-0">
+      <div className="space-y-4 mb-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 flex-1 max-w-xl">
           <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">People &amp; Check-ins</h1>
-          <p className="text-stone-500 text-sm mt-1">Manage profiles, backgrounds, and secure kids check-in.</p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-          {isAdmin && (
-            <>
-              <input
-                ref={importInputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                className="hidden"
-                onChange={handleImportPeople}
-              />
-              <button
-                onClick={() => importInputRef.current?.click()}
-                disabled={isImporting}
-                className="px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                <Upload size={16}/>{isImporting ? 'Importing...' : 'Import Excel'}
-              </button>
-            </>
-          )}
-          <button onClick={() => setActiveTab('checkin')} className="px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center justify-center gap-2">
-            <UserCheck size={16}/> Launch Check-in Station
-          </button>
-          {isAdmin && (
-            <button onClick={() => setIsAdding(true)} className={`px-4 py-2.5 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center justify-center gap-2`}>
-              <UserPlus size={16}/> Add Profile
+            <p className="text-stone-500 text-sm mt-1 max-w-md">Manage profiles, backgrounds, and secure kids check-in.</p>
+          </div>
+          <div className="flex flex-wrap gap-3 xl:justify-end shrink-0">
+            <button onClick={() => setActiveTab('checkin')} className="px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center justify-center gap-2">
+              <UserCheck size={16}/> Launch Check-in Station
             </button>
-          )}
+            {isAdmin && (
+              <button onClick={() => setIsAdding(true)} className={`px-4 py-2.5 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center justify-center gap-2`}>
+                <UserPlus size={16}/> Add Profile
+              </button>
+            )}
+          </div>
         </div>
+
+        {isAdmin && (
+          <>
+            <input
+              ref={mainImportInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(event) => handleImportPeople('main', event)}
+            />
+            <input
+              ref={kidsImportInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(event) => handleImportPeople('kids', event)}
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-3">
+              <button
+                onClick={() => mainImportInputRef.current?.click()}
+                disabled={isImporting}
+                className="min-h-16 px-4 py-3 bg-white border border-stone-200 text-stone-700 rounded-xl text-sm font-medium shadow-sm hover:bg-stone-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-center"
+              >
+                <Upload size={16}/>{isImporting ? 'Importing...' : 'Import Main Directory'}
+              </button>
+              <button
+                onClick={() => kidsImportInputRef.current?.click()}
+                disabled={isImporting}
+                className="min-h-16 px-4 py-3 bg-white border border-stone-200 text-stone-700 rounded-xl text-sm font-medium shadow-sm hover:bg-stone-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-center"
+              >
+                <Upload size={16}/>{isImporting ? 'Importing...' : 'Import Kids Directory'}
+              </button>
+              <button
+                onClick={downloadMainDirectoryImportTemplate}
+                className="min-h-16 px-4 py-3 bg-white border border-stone-200 text-stone-700 rounded-xl text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center justify-center gap-2 text-center"
+              >
+                <Download size={16}/> Main Template
+              </button>
+              <button
+                onClick={downloadKidsDirectoryImportTemplate}
+                className="min-h-16 px-4 py-3 bg-white border border-stone-200 text-stone-700 rounded-xl text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center justify-center gap-2 text-center"
+              >
+                <Download size={16}/> Kids Template
+              </button>
+            </div>
+          </>
+        )}
+        {isAdmin && (
+          <p className="text-xs text-stone-500">Use Main Directory for adults, members, visitors, staff, and volunteers. Use Kids Directory only for child records with parent details.</p>
+        )}
       </div>
 
       <div className="border-b border-stone-200 mb-6 overflow-x-auto">
@@ -287,6 +384,64 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
         </div>
       )}
 
+      {isEditing && isAdmin && (
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-stone-900">Edit Profile</h2>
+              <button onClick={() => setIsEditing(false)} className="text-stone-400 hover:text-rose-500"><X size={20}/></button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <input type="text" placeholder="First Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={editPerson.firstName} onChange={e => setEditPerson({...editPerson, firstName: e.target.value})} />
+                <input type="text" placeholder="Last Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={editPerson.lastName} onChange={e => setEditPerson({...editPerson, lastName: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={editPerson.type} onChange={e => setEditPerson({...editPerson, type: e.target.value})}>
+                  <optgroup label="Directory">
+                    <option value="Member">Member</option>
+                    <option value="Volunteer">Volunteer</option>
+                    <option value="Staff">Staff</option>
+                  </optgroup>
+                  <optgroup label="Visitors">
+                    <option value="First Time">First Time Guest</option>
+                    <option value="Returning">Returning Guest</option>
+                    <option value="Guest">Guest</option>
+                  </optgroup>
+                  <optgroup label="Kids Ministry">
+                    <option value="Child">Child (Lifegate Kids)</option>
+                  </optgroup>
+                </select>
+                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={editPerson.gender} onChange={e => setEditPerson({...editPerson, gender: e.target.value})}>
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
+                </select>
+              </div>
+              {editPerson.type !== 'Child' && (
+                <>
+                  <input type="email" placeholder="Email Address" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={editPerson.email} onChange={e => setEditPerson({...editPerson, email: e.target.value})} />
+                  <input type="text" placeholder="Phone Number" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={editPerson.phone} onChange={e => setEditPerson({...editPerson, phone: e.target.value})} />
+                  <input type="text" placeholder="Background Check" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={editPerson.bgCheck} onChange={e => setEditPerson({...editPerson, bgCheck: e.target.value})} />
+                </>
+              )}
+              <input type="text" placeholder={editPerson.type === 'Child' ? 'Home Address' : 'Mailing Address'} className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={editPerson.address} onChange={e => setEditPerson({...editPerson, address: e.target.value})} />
+              {editPerson.type === 'Child' && (
+                <div className="p-4 bg-stone-50 border border-stone-200 rounded-lg space-y-3">
+                  <h4 className="text-xs font-bold text-stone-500 uppercase tracking-wider">Parents &amp; Guardians</h4>
+                  <input type="text" placeholder="Parent(s) Full Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={editPerson.parents} onChange={e => setEditPerson({...editPerson, parents: e.target.value})} />
+                  <input type="text" placeholder="Parent Phone Number" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={editPerson.parentPhone} onChange={e => setEditPerson({...editPerson, parentPhone: e.target.value})} />
+                  <input type="text" placeholder="Allergies / Medical Notes" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={editPerson.allergies} onChange={e => setEditPerson({...editPerson, allergies: e.target.value})} />
+                </div>
+              )}
+              <div className="flex justify-end gap-2 mt-6">
+                <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
+                <button onClick={handleSaveEdit} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Save Changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
           <h3 className="font-semibold text-stone-800">
@@ -313,7 +468,8 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
               </div>
               {person.address && <p className="text-xs text-stone-500 mt-2">{person.address}</p>}
               {isAdmin && (
-                <div className="mt-3 flex justify-end">
+                <div className="mt-3 flex justify-end gap-2">
+                  <button onClick={() => handleStartEdit(person)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100">Edit</button>
                   <button onClick={() => handleDeleteProfile(person.id)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100">Delete</button>
                 </div>
               )}
@@ -326,6 +482,12 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
               <p className="text-xs text-stone-500 mt-1">Parents: {child.parents || 'N/A'}</p>
               <p className="text-xs text-stone-500">Phone: {child.parentPhone || 'N/A'}</p>
               {child.allergies && child.allergies !== 'None' && <p className="text-xs text-rose-600 font-semibold mt-1">Allergies: {child.allergies}</p>}
+              {isAdmin && (
+                <div className="mt-3 flex justify-end gap-2">
+                  <button onClick={() => handleStartEdit(child)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100">Edit</button>
+                  <button onClick={() => handleDeleteProfile(child.id)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100">Delete</button>
+                </div>
+              )}
             </div>
           ))}
 
@@ -366,12 +528,12 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
                   <th className="px-5 py-3">Phone</th>
                   <th className="px-5 py-3">Type</th>
                   <th className="px-5 py-3">Gender</th>
-                  {isAdmin && <th className="px-5 py-3 text-right"></th>}
+                  {isAdmin && <th className="px-5 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
                 {filteredPeople.map((person) => (
-                  <tr key={person.id} className="hover:bg-stone-50 group">
+                  <tr key={person.id} className="hover:bg-stone-50">
                     <td className="px-5 py-3 font-medium text-stone-900 flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
                         {person.firstName ? person.firstName.charAt(0) : person.name.charAt(0)}
@@ -386,9 +548,14 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
                     <td className="px-5 py-3 text-stone-500">{person.gender || 'N/A'}</td>
                     {isAdmin && (
                       <td className="px-5 py-3 text-right text-stone-400">
-                        <button onClick={() => handleDeleteProfile(person.id)} className="hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100" title="Delete Profile">
-                          <AlertCircle size={18} className="ml-auto"/>
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => handleStartEdit(person)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">
+                            Edit
+                          </button>
+                          <button onClick={() => handleDeleteProfile(person.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -407,6 +574,7 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
                   <th className="px-5 py-3">Parents / Guardians</th>
                   <th className="px-5 py-3">Parent Phone</th>
                   <th className="px-5 py-3">Allergies</th>
+                  {isAdmin && <th className="px-5 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -423,6 +591,18 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
                     <td className="px-5 py-3 text-stone-700 font-medium">{child.parents}</td>
                     <td className="px-5 py-3 text-stone-500">{child.parentPhone}</td>
                     <td className="px-5 py-3 text-rose-600 font-semibold text-xs">{child.allergies}</td>
+                    {isAdmin && (
+                      <td className="px-5 py-3 text-right text-stone-400">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => handleStartEdit(child)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">
+                            Edit
+                          </button>
+                          <button onClick={() => handleDeleteProfile(child.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

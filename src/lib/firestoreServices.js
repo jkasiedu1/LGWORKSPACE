@@ -118,6 +118,15 @@ export async function createPeopleBulk(people, actorEmail) {
   return createdPeople;
 }
 
+export async function updatePersonProfile(personId, updates) {
+  if (!db) {
+    return { id: personId, ...updates };
+  }
+
+  await withRetry(() => updateDoc(doc(db, 'people', personId), withUpdatedAuditFields(updates)));
+  return { id: personId, ...updates };
+}
+
 export async function deletePerson(personId, personData, actorEmail) {
   if (!db) {
     return;

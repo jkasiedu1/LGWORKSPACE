@@ -18,6 +18,15 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
     { id: 3, label: 'Online Stream', time: '10:30 AM', location: 'YouTube / Church Online', volunteers: 4 },
   ]);
   const [newServiceTime, setNewServiceTime] = useState({ label: '', time: '', location: '' });
+  const [serviceTeamAssignments, setServiceTeamAssignments] = useState([
+    { id: 1, role: 'Worship Leader', person: 'James Asiedu', status: 'Confirmed' },
+    { id: 2, role: 'Drummer', person: 'Marcus Johnson', status: 'Confirmed' },
+    { id: 3, role: 'Keys', person: 'Priya Nair', status: 'Pending' },
+    { id: 4, role: 'Bassist', person: 'Tom Eriksen', status: 'Confirmed' },
+    { id: 5, role: 'Vocals', person: 'Abena Mensah', status: 'Confirmed' },
+    { id: 6, role: 'Sermon', person: 'Pastor David Chen', status: 'Confirmed' },
+    { id: 7, role: 'Production / Stream', person: 'Sam Rivera', status: 'Pending' },
+  ]);
 
   useEffect(() => {
     if (servicePlan?.headerData) {
@@ -100,14 +109,14 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
               </div>
             </div>
           ) : (
-            <div className="group flex items-start gap-3">
+            <div className="flex items-start gap-3">
               <div>
                 <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">{headerData.title}</h1>
                 <p className="text-stone-500 text-sm mt-1">{displayDate} • {displayTime} • {headerData.location}</p>
               </div>
               {isAdmin && (
-                <button onClick={() => setIsEditingHeader(true)} className="mt-1 text-stone-300 hover:text-amber-600 transition-colors opacity-0 group-hover:opacity-100" title="Edit Service Details">
-                  <Edit2 size={18} />
+                <button onClick={() => setIsEditingHeader(true)} className="mt-1 px-2.5 py-1 text-xs font-semibold rounded-md text-amber-700 bg-amber-50 border border-amber-100 hover:bg-amber-100 transition-colors" title="Edit Service Details">
+                  Edit Details
                 </button>
               )}
             </div>
@@ -156,7 +165,7 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
                     </td>
                     <td className="px-4 py-3 text-stone-500">{item.person}</td>
                     <td className="px-4 py-3 text-right">
-                      {isAdmin && <button onClick={() => setPlanItems(planItems.filter(i => i.id !== item.id))} className="text-stone-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"><AlertCircle size={16}/></button>}
+                      {isAdmin && <button onClick={() => setPlanItems(planItems.filter(i => i.id !== item.id))} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition-colors">Delete</button>}
                     </td>
                   </tr>
                 ))}
@@ -213,19 +222,22 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
               <h3 className="font-semibold text-stone-800 flex items-center gap-2"><Users size={16}/> Service Team Assignments</h3>
             </div>
             <div className="divide-y divide-stone-100">
-              {[
-                { role: 'Worship Leader', person: 'James Asiedu', status: 'Confirmed' },
-                { role: 'Drummer', person: 'Marcus Johnson', status: 'Confirmed' },
-                { role: 'Keys', person: 'Priya Nair', status: 'Pending' },
-                { role: 'Bassist', person: 'Tom Eriksen', status: 'Confirmed' },
-                { role: 'Vocals', person: 'Abena Mensah', status: 'Confirmed' },
-                { role: 'Sermon', person: 'Pastor David Chen', status: 'Confirmed' },
-                { role: 'Production / Stream', person: 'Sam Rivera', status: 'Pending' },
-              ].map((row, i) => (
-                <div key={i} className="px-5 py-4 flex items-center justify-between hover:bg-stone-50">
+              {serviceTeamAssignments.map((row) => (
+                <div key={row.id} className="px-5 py-4 flex items-center justify-between hover:bg-stone-50">
                   <div>
                     <p className="font-medium text-stone-900 text-sm">{row.role}</p>
-                    <p className="text-xs text-stone-500 mt-0.5">{row.person}</p>
+                    {isAdmin ? (
+                      <input
+                        type="text"
+                        className="mt-1 text-xs text-stone-600 border border-stone-200 rounded px-2 py-1 outline-none focus:border-amber-500 w-64"
+                        value={row.person}
+                        onChange={(e) => setServiceTeamAssignments((prev) => prev.map((assignment) => (
+                          assignment.id === row.id ? { ...assignment, person: e.target.value } : assignment
+                        )))}
+                      />
+                    ) : (
+                      <p className="text-xs text-stone-500 mt-0.5">{row.person}</p>
+                    )}
                   </div>
                   <span className={`text-xs font-bold px-2 py-0.5 rounded ${row.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{row.status}</span>
                 </div>

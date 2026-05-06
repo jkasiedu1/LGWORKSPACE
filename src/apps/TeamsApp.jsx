@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import {
   FolderLock, ChevronRight, MessageSquare, Music, UserPlus,
-  UploadCloud, File, ShieldAlert, Users, Lock, Plus, Search, X, Send
+  UploadCloud, File, ShieldAlert, Users, Lock, Plus, Search, X, Send, Pencil, Save
 } from 'lucide-react';
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { createTeamMessage, createTeamPortal, updateTeamPortal } from '../lib/firestoreServices';
@@ -15,6 +15,8 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreatingPortal, setIsCreatingPortal] = useState(false);
   const [newPortal, setNewPortal] = useState({ name: '', desc: '', lead: '' });
+  const [isEditingPortal, setIsEditingPortal] = useState(false);
+  const [editingPortal, setEditingPortal] = useState({ name: '', desc: '', lead: '' });
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatMessagesByTeam, setChatMessagesByTeam] = useState({});
@@ -28,6 +30,19 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
     team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     team.desc.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const getPersonDisplayName = (person) => {
+    if (!person) return 'Unknown Person';
+    if (person.firstName || person.lastName) {
+      return `${person.firstName || ''} ${person.lastName || ''}`.trim();
+    }
+    return person.name || person.email || 'Unknown Person';
+  };
+
+  const resolveMemberName = (member) => {
+    const matchedPerson = people.find((person) => String(person.id) === String(member?.id));
+    return matchedPerson ? getPersonDisplayName(matchedPerson) : (member?.name || 'Unknown Member');
+  };
 
   useEffect(() => {
     if (!activePortal?.id || !db) return undefined;
@@ -77,7 +92,7 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
         if (existingRoster.some((member) => String(member.id) === String(person.id))) {
           return t;
         }
-        return { ...t, members: t.members + 1, roster: [...existingRoster, person] };
+        return { ...t, members: t.members + 1, roster: [...existingRoster, { id: person.id, name: getPersonDisplayName(person) }] };
       }
       return t;
     });
@@ -91,10 +106,55 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
       setTeamsList(updatedTeams);
       setActivePortal(updatedPortal);
       setIsAddingMember(false);
-      showToast(`${person.name} assigned to ${activePortal.name}`);
+      showToast(`${getPersonDisplayName(person)} assigned to ${activePortal.name}`);
     } catch (error) {
       console.error('[TeamsApp] Failed to add member:', error);
       showToast('Failed to assign member');
+    }
+  };
+
+  const handleStartPortalEdit = () => {
+    if (!activePortal) return;
+    setEditingPortal({
+      name: activePortal.name || '',
+      desc: activePortal.desc || '',
+      lead: activePortal.lead || '',
+    });
+    setIsEditingPortal(true);
+  };
+
+  const handleSavePortalEdit = async () => {
+    if (!activePortal?.id || !editingPortal.name.trim()) {
+      showToast('Portal name is required.');
+      return;
+    }
+
+    const updates = {
+      name: editingPortal.name.trim(),
+      desc: editingPortal.desc.trim(),
+      lead: editingPortal.lead.trim() || 'Unassigned',
+    };
+
+    try {
+      if (typeof activePortal.id === 'string') {
+        await updateTeamPortal(activePortal.id, updates);
+      }
+
+      const updatedTeams = teamsList.map((team) => (
+        team.id === activePortal.id ? { ...team, ...updates } : team
+      ));
+      const updatedPortal = updatedTeams.find((team) => team.id === activePortal.id);
+
+      setTeamsList(updatedTeams);
+      if (updatedPortal) {
+        setActivePortal(updatedPortal);
+      }
+
+      setIsEditingPortal(false);
+      showToast('Portal details updated.');
+    } catch (error) {
+      console.error('[TeamsApp] Failed to update portal details:', error);
+      showToast('Failed to update portal details');
     }
   };
 
@@ -184,6 +244,11 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
             <div className="flex items-center gap-3">
               <div className={`p-2.5 rounded-lg ${theme.light} ${theme.color}`}><FolderLock size={24}/></div>
               <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">{activePortal.name}</h1>
+              {isAdmin && (
+                <button onClick={handleStartPortalEdit} className="mt-1 px-2.5 py-1 text-xs font-semibold rounded-md text-indigo-700 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 transition-colors" title="Edit Portal Details">
+                  Edit Portal
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-2">
               <span className="text-stone-500 text-sm font-medium">Team Lead: {activePortal.lead}</span>
@@ -255,7 +320,7 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
               <div className="p-4 border-b border-stone-200 bg-stone-100/50 flex gap-2 items-center">
                 <select className="flex-1 p-2 border border-stone-300 rounded text-sm outline-none focus:border-indigo-500" value={memberToAdd} onChange={e => setMemberToAdd(e.target.value)}>
                   <option value="">Select someone from database...</option>
-                  {people.map(p => <option key={p.id} value={p.id}>{p.name} ({p.email})</option>)}
+                  {people.map(p => <option key={p.id} value={p.id}>{getPersonDisplayName(p)} ({p.email || 'No email'})</option>)}
                 </select>
                 <button onClick={handleAddMember} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-medium">Assign</button>
                 <button onClick={() => setIsAddingMember(false)} className="px-4 py-2 bg-stone-200 text-stone-700 rounded text-sm font-medium">Cancel</button>
@@ -265,8 +330,8 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
               {activePortal.roster && activePortal.roster.length > 0
                 ? activePortal.roster.map(member => (
                   <div key={member.id} className="p-4 flex items-center gap-3 hover:bg-stone-50">
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">{member.name.charAt(0)}</div>
-                    <span className="font-medium text-stone-900">{member.name}</span>
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">{resolveMemberName(member).charAt(0)}</div>
+                    <span className="font-medium text-stone-900">{resolveMemberName(member)}</span>
                   </div>
                 )) : (
                   <div className="p-8 text-center">
@@ -375,6 +440,26 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setIsCreatingPortal(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
               <button onClick={handleCreatePortal} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Create Portal</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEditingPortal && isAdmin && (
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-stone-900 flex items-center gap-2"><FolderLock className={theme.color}/> Edit Ministry Portal</h2>
+              <button onClick={() => setIsEditingPortal(false)} className="text-stone-400 hover:text-stone-600"><X size={20}/></button>
+            </div>
+            <div className="space-y-4">
+              <input type="text" placeholder="Portal Name" className="w-full p-2 border border-stone-200 rounded-md text-sm outline-none focus:border-indigo-500" value={editingPortal.name} onChange={e => setEditingPortal({ ...editingPortal, name: e.target.value })} />
+              <input type="text" placeholder="Description" className="w-full p-2 border border-stone-200 rounded-md text-sm outline-none focus:border-indigo-500" value={editingPortal.desc} onChange={e => setEditingPortal({ ...editingPortal, desc: e.target.value })} />
+              <input type="text" placeholder="Team Lead Name" className="w-full p-2 border border-stone-200 rounded-md text-sm outline-none focus:border-indigo-500" value={editingPortal.lead} onChange={e => setEditingPortal({ ...editingPortal, lead: e.target.value })} />
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={() => setIsEditingPortal(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
+              <button onClick={handleSavePortalEdit} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90 flex items-center gap-2`}><Save size={14}/> Save Changes</button>
             </div>
           </div>
         </div>

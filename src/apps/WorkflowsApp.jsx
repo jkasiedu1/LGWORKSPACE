@@ -202,10 +202,10 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
                 {workflows.map((w) => {
                   const Icon = getIconForWorkflow(w);
                   return (
-                    <div key={w.id} className="group relative">
+                    <div key={w.id} className="relative pr-20">
                       <WorkflowCard title={w.title} trigger={w.trigger} actions={w.actions} icon={Icon} />
-                      <button onClick={() => handleDeleteWorkflow(w.id)} className="absolute right-4 top-4 text-stone-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Trash2 size={14}/>
+                      <button onClick={() => handleDeleteWorkflow(w.id)} className="absolute right-4 top-4 px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition-colors">
+                        Delete
                       </button>
                     </div>
                   );

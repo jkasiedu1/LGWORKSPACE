@@ -159,8 +159,8 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
                       </td>
                       {isAdmin && (
                         <td className="px-5 py-4 text-right">
-                          <button onClick={(e) => { e.stopPropagation(); handleDeleteSong(song.id); }} className="text-stone-400 hover:text-rose-600 transition-colors" title="Delete song">
-                            <Trash2 size={15}/>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteSong(song.id); }} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition-colors" title="Delete song">
+                            Delete
                           </button>
                         </td>
                       )}

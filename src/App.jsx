@@ -789,7 +789,7 @@ export default function App() {
             })}
           </aside>
 
-          <section className="glass-surface rounded-3xl p-4 sm:p-6 min-h-[75vh] shadow-xl app-scene-enter">
+          <section className="glass-surface rounded-3xl p-4 sm:p-6 min-h-[75vh] min-w-0 shadow-xl app-scene-enter overflow-hidden">
             <div key={activeApp} className="app-scene-enter">
               {activeApp === 'home' && <HomeApp events={appData.events} people={appData.people} isAdmin={isAdmin} isSeniorPastor={isSeniorPastor} setActiveApp={setActiveApp} />}
               {activeApp === 'community' && <CommunityApp theme={theme} people={appData.people} posts={appData.communityPosts} setPosts={appData.setCommunityPosts} showToast={showToast} />}
