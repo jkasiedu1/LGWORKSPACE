@@ -1,0 +1,389 @@
+import { useState, useEffect } from 'react';
+import {
+  Search, UserPlus, AlertCircle, X, QrCode, UserCheck,
+  CheckCircle2, Printer
+} from 'lucide-react';
+import { db } from '../config/firebase';
+import { createPerson, deletePerson, updatePersonCheckInStatus } from '../lib/firestoreServices';
+import { validatePersonProfile } from '../lib/validation';
+import { useAuth } from '../hooks/useAuth';
+
+function generateSecurityCode() {
+  const randomValue = Math.floor(Math.random() * 1679616);
+  return randomValue.toString(36).toUpperCase().padStart(4, '0').slice(0, 4);
+}
+
+export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast }) {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('directory');
+  const [isAdding, setIsAdding] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [newPerson, setNewPerson] = useState({
+    firstName: '', lastName: '', email: '', phone: '', address: '',
+    type: 'Member', gender: 'Female', bgCheck: 'N/A',
+    parents: '', parentPhone: '', allergies: ''
+  });
+
+  useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);
+
+  const filteredPeople = people.filter(p => {
+    const matchesSearch = (p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.email?.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (!matchesSearch) return false;
+    if (activeTab === 'directory') return ['Member', 'Staff', 'Volunteer'].includes(p.type);
+    if (activeTab === 'visitors') return ['First Time', 'Returning', 'Guest'].includes(p.type);
+    if (activeTab === 'kids' || activeTab === 'checkin') return p.type === 'Child';
+    return true;
+  });
+
+  const handleAdd = async () => {
+    const validationResult = validatePersonProfile(newPerson);
+    if (!validationResult.valid) {
+      showToast(validationResult.message);
+      return;
+    }
+
+    const dataToSave = {
+      ...newPerson,
+      name: `${newPerson.firstName} ${newPerson.lastName}`,
+      securityCode: newPerson.type === 'Child' ? generateSecurityCode() : '',
+      checkInStatus: newPerson.type === 'Child' ? 'Signed Out' : ''
+    };
+
+    try {
+      const createdPerson = await createPerson(dataToSave, user?.email);
+
+      if (!db) {
+        setPeople([{ id: createdPerson.id, ...dataToSave }, ...people]);
+      }
+
+      setIsAdding(false);
+      showToast('Profile created successfully!');
+      setNewPerson({ firstName: '', lastName: '', email: '', phone: '', address: '', type: 'Member', gender: 'Female', bgCheck: 'N/A', parents: '', parentPhone: '', allergies: '' });
+    } catch (error) {
+      console.error(error);
+      showToast('Failed to create profile.');
+    }
+  };
+
+  const handleCheckInToggle = async (childId, currentStatus) => {
+    if (!isAdmin) return;
+
+    const newStatus = currentStatus === 'Checked In' ? 'Signed Out' : 'Checked In';
+    const child = people.find(p => p.id === childId);
+    const parentName = child?.parents || 'Unknown';
+
+    try {
+      await updatePersonCheckInStatus(childId, newStatus, parentName, user?.email);
+
+      if (!db) {
+        setPeople(people.map((person) => (
+          person.id === childId ? { ...person, checkInStatus: newStatus } : person
+        )));
+      }
+
+      showToast(newStatus === 'Checked In' ? 'Child Checked In Successfully' : 'Child Signed Out Successfully');
+    } catch (error) {
+      console.error(error);
+      showToast('Failed to update check-in status.');
+    }
+  };
+
+  const handleDeleteProfile = async (personId) => {
+    const personData = people.find(p => p.id === personId);
+
+    try {
+      await deletePerson(personId, personData, user?.email);
+
+      if (!db) {
+        setPeople(people.filter((person) => person.id !== personId));
+      }
+
+      showToast('Profile deleted');
+    } catch (error) {
+      console.error(error);
+      showToast('Failed to delete profile.');
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
+      <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-3 mb-6">
+        <div>
+          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">People &amp; Check-ins</h1>
+          <p className="text-stone-500 text-sm mt-1">Manage profiles, backgrounds, and secure kids check-in.</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+          <button onClick={() => setActiveTab('checkin')} className="px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center justify-center gap-2">
+            <UserCheck size={16}/> Launch Check-in Station
+          </button>
+          {isAdmin && (
+            <button onClick={() => setIsAdding(true)} className={`px-4 py-2.5 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center justify-center gap-2`}>
+              <UserPlus size={16}/> Add Profile
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="border-b border-stone-200 mb-6 overflow-x-auto">
+        <nav className="-mb-px flex space-x-6 min-w-max pr-3">
+          {['directory', 'visitors', 'kids', 'checkin'].map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === tab ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>
+              {tab === 'directory' && 'General Directory'}
+              {tab === 'visitors'  && 'Visitors'}
+              {tab === 'kids'      && 'Lifegate Kids'}
+              {tab === 'checkin'   && <><QrCode size={14} className="inline mr-1"/> Kids Check-in</>}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {isAdding && isAdmin && (
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-stone-900">Add New Profile</h2>
+              <button onClick={() => setIsAdding(false)} className="text-stone-400 hover:text-rose-500"><X size={20}/></button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <input type="text" placeholder="First Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.firstName} onChange={e => setNewPerson({...newPerson, firstName: e.target.value})} />
+                <input type="text" placeholder="Last Name"  className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.lastName}  onChange={e => setNewPerson({...newPerson, lastName: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.type} onChange={e => setNewPerson({...newPerson, type: e.target.value})}>
+                  <optgroup label="Directory">
+                    <option value="Member">Member</option>
+                    <option value="Volunteer">Volunteer</option>
+                    <option value="Staff">Staff</option>
+                  </optgroup>
+                  <optgroup label="Visitors">
+                    <option value="First Time">First Time Guest</option>
+                    <option value="Returning">Returning Guest</option>
+                  </optgroup>
+                  <optgroup label="Kids Ministry">
+                    <option value="Child">Child (Lifegate Kids)</option>
+                  </optgroup>
+                </select>
+                <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.gender} onChange={e => setNewPerson({...newPerson, gender: e.target.value})}>
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
+                </select>
+              </div>
+              {newPerson.type !== 'Child' && (
+                <>
+                  <input type="email" placeholder="Email Address" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.email} onChange={e => setNewPerson({...newPerson, email: e.target.value})} />
+                  <input type="text" placeholder="Phone Number"   className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.phone} onChange={e => setNewPerson({...newPerson, phone: e.target.value})} />
+                </>
+              )}
+              <input type="text" placeholder={newPerson.type === 'Child' ? "Home Address" : "Mailing Address"} className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.address} onChange={e => setNewPerson({...newPerson, address: e.target.value})} />
+              {newPerson.type === 'Child' && (
+                <div className="p-4 bg-stone-50 border border-stone-200 rounded-lg space-y-3">
+                  <h4 className="text-xs font-bold text-stone-500 uppercase tracking-wider">Parents &amp; Guardians</h4>
+                  <input type="text" placeholder="Parent(s) Full Name"    className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.parents}     onChange={e => setNewPerson({...newPerson, parents: e.target.value})} />
+                  <input type="text" placeholder="Parent Phone Number"    className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.parentPhone} onChange={e => setNewPerson({...newPerson, parentPhone: e.target.value})} />
+                  <input type="text" placeholder="Allergies / Medical Notes" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-sky-500" value={newPerson.allergies}  onChange={e => setNewPerson({...newPerson, allergies: e.target.value})} />
+                </div>
+              )}
+              <div className="flex justify-end gap-2 mt-6">
+                <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
+                <button onClick={handleAdd} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Save Profile</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
+          <h3 className="font-semibold text-stone-800">
+            {activeTab === 'directory' && "General Church Directory"}
+            {activeTab === 'visitors'  && "Visitor Log"}
+            {activeTab === 'kids'      && "Lifegate Kids Roster"}
+            {activeTab === 'checkin'   && "Live Check-in Station"}
+          </h3>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 h-4 w-4" />
+            <input type="text" placeholder="Search records..." className="pl-9 pr-4 py-1.5 border border-stone-200 rounded-md text-sm outline-none focus:border-sky-500" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="lg:hidden p-3 space-y-3">
+          {(activeTab === 'directory' || activeTab === 'visitors') && filteredPeople.map((person) => (
+            <div key={`m-${person.id}`} className="rounded-xl border border-stone-200 p-3 bg-white">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-stone-900 text-sm">{person.firstName || person.name?.split(' ')[0]} {person.lastName || person.name?.split(' ')[1] || ''}</p>
+                  <p className="text-xs text-stone-500 mt-1">{person.email || 'No email'} • {person.phone || 'No phone'}</p>
+                </div>
+                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === 'visitors' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>{person.type}</span>
+              </div>
+              {person.address && <p className="text-xs text-stone-500 mt-2">{person.address}</p>}
+              {isAdmin && (
+                <div className="mt-3 flex justify-end">
+                  <button onClick={() => handleDeleteProfile(person.id)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100">Delete</button>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {activeTab === 'kids' && filteredPeople.map((child) => (
+            <div key={`mk-${child.id}`} className="rounded-xl border border-stone-200 p-3 bg-white">
+              <p className="font-semibold text-stone-900 text-sm">{child.firstName} {child.lastName}</p>
+              <p className="text-xs text-stone-500 mt-1">Parents: {child.parents || 'N/A'}</p>
+              <p className="text-xs text-stone-500">Phone: {child.parentPhone || 'N/A'}</p>
+              {child.allergies && child.allergies !== 'None' && <p className="text-xs text-rose-600 font-semibold mt-1">Allergies: {child.allergies}</p>}
+            </div>
+          ))}
+
+          {activeTab === 'checkin' && filteredPeople.map((child) => {
+            const isCheckedIn = child.checkInStatus === 'Checked In';
+            return (
+              <div key={`mc-${child.id}`} className={`rounded-xl border p-3 ${isCheckedIn ? 'border-emerald-200 bg-emerald-50/40' : 'border-stone-200 bg-white'}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-stone-900 text-sm">{child.firstName} {child.lastName}</p>
+                    <p className="text-xs text-stone-500 mt-1">Security: <span className="font-mono font-bold tracking-wider text-indigo-700">{child.securityCode}</span></p>
+                    <p className="text-xs text-stone-500">Status: {child.checkInStatus}</p>
+                  </div>
+                  {isAdmin && (
+                    <button onClick={() => handleCheckInToggle(child.id, child.checkInStatus)} className={`px-3 py-2 rounded-md text-xs font-bold min-w-[96px] ${isCheckedIn ? 'bg-stone-200 text-stone-700' : 'bg-emerald-600 text-white'}`}>
+                      {isCheckedIn ? 'Sign Out' : 'Check In'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {filteredPeople.length === 0 && (
+            <div className="px-5 py-8 text-center text-stone-500 text-sm">No records found matching your criteria.</div>
+          )}
+        </div>
+
+        <div className="hidden lg:block overflow-x-auto max-h-[600px] overflow-y-auto">
+          {(activeTab === 'directory' || activeTab === 'visitors') && (
+            <table className="w-full text-sm text-left relative">
+              <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white z-10">
+                <tr>
+                  <th className="px-5 py-3">First Name</th>
+                  <th className="px-5 py-3">Last Name</th>
+                  <th className="px-5 py-3">Address</th>
+                  <th className="px-5 py-3">Email</th>
+                  <th className="px-5 py-3">Phone</th>
+                  <th className="px-5 py-3">Type</th>
+                  <th className="px-5 py-3">Gender</th>
+                  {isAdmin && <th className="px-5 py-3 text-right"></th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredPeople.map((person) => (
+                  <tr key={person.id} className="hover:bg-stone-50 group">
+                    <td className="px-5 py-3 font-medium text-stone-900 flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
+                        {person.firstName ? person.firstName.charAt(0) : person.name.charAt(0)}
+                      </div>
+                      {person.firstName || person.name.split(' ')[0]}
+                    </td>
+                    <td className="px-5 py-3 font-medium text-stone-900">{person.lastName || person.name.split(' ')[1] || ''}</td>
+                    <td className="px-5 py-3 text-stone-500 text-xs max-w-[150px] truncate" title={person.address}>{person.address}</td>
+                    <td className="px-5 py-3 text-stone-500 max-w-[150px] truncate" title={person.email}>{person.email}</td>
+                    <td className="px-5 py-3 text-stone-500">{person.phone}</td>
+                    <td className="px-5 py-3"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === 'visitors' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>{person.type}</span></td>
+                    <td className="px-5 py-3 text-stone-500">{person.gender || 'N/A'}</td>
+                    {isAdmin && (
+                      <td className="px-5 py-3 text-right text-stone-400">
+                        <button onClick={() => handleDeleteProfile(person.id)} className="hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100" title="Delete Profile">
+                          <AlertCircle size={18} className="ml-auto"/>
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {activeTab === 'kids' && (
+            <table className="w-full text-sm text-left relative">
+              <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white z-10">
+                <tr>
+                  <th className="px-5 py-3">First Name</th>
+                  <th className="px-5 py-3">Last Name</th>
+                  <th className="px-5 py-3">Address</th>
+                  <th className="px-5 py-3">Parents / Guardians</th>
+                  <th className="px-5 py-3">Parent Phone</th>
+                  <th className="px-5 py-3">Allergies</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredPeople.map((child) => (
+                  <tr key={child.id} className="hover:bg-stone-50">
+                    <td className="px-5 py-3 font-medium text-stone-900 flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
+                        {child.firstName ? child.firstName.charAt(0) : child.name.charAt(0)}
+                      </div>
+                      {child.firstName}
+                    </td>
+                    <td className="px-5 py-3 font-medium text-stone-900">{child.lastName}</td>
+                    <td className="px-5 py-3 text-stone-500 text-xs max-w-[150px] truncate">{child.address}</td>
+                    <td className="px-5 py-3 text-stone-700 font-medium">{child.parents}</td>
+                    <td className="px-5 py-3 text-stone-500">{child.parentPhone}</td>
+                    <td className="px-5 py-3 text-rose-600 font-semibold text-xs">{child.allergies}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {activeTab === 'checkin' && (
+            <table className="w-full text-sm text-left relative">
+              <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white z-10">
+                <tr>
+                  <th className="px-5 py-3">Child Name</th>
+                  <th className="px-5 py-3">Room / Group</th>
+                  <th className="px-5 py-3">Security Code</th>
+                  <th className="px-5 py-3">Allergies</th>
+                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredPeople.map((child) => {
+                  const isCheckedIn = child.checkInStatus === 'Checked In';
+                  return (
+                    <tr key={child.id} className={`${isCheckedIn ? 'bg-emerald-50/30' : ''} hover:bg-stone-50 transition-colors`}>
+                      <td className="px-5 py-4 font-bold text-stone-900">{child.firstName} {child.lastName}</td>
+                      <td className="px-5 py-4 text-stone-600 font-medium">{child.room || 'Unassigned'}</td>
+                      <td className="px-5 py-4 font-mono font-bold tracking-widest text-indigo-600">{child.securityCode}</td>
+                      <td className="px-5 py-4 text-rose-500 text-xs font-bold uppercase tracking-wider">{child.allergies !== 'None' ? child.allergies : ''}</td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${isCheckedIn ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-500'}`}>
+                          {isCheckedIn ? <CheckCircle2 size={12} className="mr-1"/> : null}
+                          {child.checkInStatus}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {isCheckedIn && <button className="p-1.5 text-stone-400 hover:text-stone-700 bg-white border border-stone-200 rounded shadow-sm" title="Print Tag"><Printer size={14}/></button>}
+                          {isAdmin && (
+                            <button onClick={() => handleCheckInToggle(child.id, child.checkInStatus)} className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${isCheckedIn ? 'bg-stone-200 text-stone-700 hover:bg-stone-300' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}>
+                              {isCheckedIn ? 'Sign Out' : 'Check In'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          {filteredPeople.length === 0 && (
+            <div className="px-5 py-12 text-center text-stone-500">No records found matching your criteria.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

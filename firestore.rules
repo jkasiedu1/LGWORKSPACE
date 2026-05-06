@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      let claims = request.auth.token;
+      return claims.admin == true
+        || claims.isAdmin == true
+        || request.auth.token.email in ['jkasiedu1@gmail.com'];
+    }
+
+    function isSeniorPastor() {
+      let claims = request.auth.token;
+      return claims.seniorPastor == true
+        || claims.isSeniorPastor == true
+        || request.auth.token.email == 'bigjoe11221985@gmail.com';
+    }
+
+    function canWrite() {
+      return isAdmin() || isSeniorPastor();
+    }
+
+    function canDelete() {
+      return isAdmin();
+    }
+
+    match /auditLogs/{logId} {
+      allow create: if isAuthenticated() && canWrite();
+      allow read: if isAuthenticated() && (isAdmin() || resource.data.actorEmail == request.auth.token.email);
+      allow update, delete: if false;
+    }
+
+    match /people/{personId} {
+      allow create: if isAuthenticated() && canWrite();
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated() && canWrite();
+      allow delete: if isAuthenticated() && canDelete();
+    }
+
+    match /events/{eventId} {
+      allow create: if isAuthenticated() && canWrite();
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated() && canWrite();
+      allow delete: if isAuthenticated() && canDelete();
+    }
+
+    match /giving/{giftId} {
+      allow create: if isAuthenticated() && isAdmin();
+      allow read: if isAuthenticated() && isAdmin();
+      allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    match /donations/{donationId} {
+      allow create: if isAuthenticated() && isAdmin();
+      allow read: if isAuthenticated() && isAdmin();
+      allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    match /songs/{songId} {
+      allow create: if isAuthenticated() && canWrite();
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated() && canWrite();
+      allow delete: if isAuthenticated() && canDelete();
+    }
+
+    match /teams/{teamId} {
+      allow create: if isAuthenticated() && canWrite();
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated() && canWrite();
+      allow delete: if isAuthenticated() && canDelete();
+    }
+
+    match /workflows/{workflowId} {
+      allow create: if isAuthenticated() && canWrite();
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated() && canWrite();
+      allow delete: if isAuthenticated() && canDelete();
+    }
+
+    match /communityPosts/{postId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated() && canWrite();
+      allow delete: if isAuthenticated() && canWrite();
+    }
+
+    match /communityMessages/{messageId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && canWrite();
+    }
+
+    match /teamMessages/{messageId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && canWrite();
+    }
+
+    match /workflowInboxMessages/{messageId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && canWrite();
+    }
+
+    match /settings/{settingId} {
+      allow create: if isAuthenticated() && canWrite();
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated() && canWrite();
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      allow read: if isAuthenticated() && isAdmin();
+    }
+  }
+}

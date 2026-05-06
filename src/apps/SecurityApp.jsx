@@ -1,0 +1,219 @@
+import { useEffect, useState } from 'react';
+import {
+  ShieldCheck, ShieldAlert, ToggleRight, ToggleLeft, History,
+  EyeOff, SmartphoneNfc, UserCog, X
+} from 'lucide-react';
+import { SENIOR_PASTOR_EMAIL, ADMIN_EMAILS } from '../config/roles';
+import { saveSecuritySettings } from '../lib/firestoreServices';
+
+export default function SecurityApp({ theme, isSeniorPastor, securitySettings, setSecuritySettings, showToast }) {
+  const [is2FA, setIs2FA] = useState(securitySettings?.is2FA ?? true);
+  const [isDLP, setIsDLP] = useState(securitySettings?.isDLP ?? true);
+  const [isPII, setIsPII] = useState(securitySettings?.isPII ?? true);
+  const [isOptOut, setIsOptOut] = useState(securitySettings?.isOptOut ?? true);
+  const [isEndpoint, setIsEndpoint] = useState(securitySettings?.isEndpoint ?? false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [grantEmail, setGrantEmail] = useState('');
+
+  useEffect(() => {
+    if (!securitySettings) return;
+    setIs2FA(securitySettings.is2FA ?? true);
+    setIsDLP(securitySettings.isDLP ?? true);
+    setIsPII(securitySettings.isPII ?? true);
+    setIsOptOut(securitySettings.isOptOut ?? true);
+    setIsEndpoint(securitySettings.isEndpoint ?? false);
+  }, [securitySettings]);
+
+  const handleSaveSettings = async () => {
+    const settings = { is2FA, isDLP, isPII, isOptOut, isEndpoint };
+    try {
+      await saveSecuritySettings(settings);
+      setSecuritySettings(settings);
+      showToast('Enterprise Security Settings Secured and Applied');
+    } catch (error) {
+      console.error('[SecurityApp] Failed to save settings:', error);
+      showToast('Failed to save security settings');
+    }
+  };
+
+  const handleGrantAccess = () => {
+    if (!grantEmail.trim()) { showToast("Please enter an email address"); return; }
+    showToast(`Invitation sent to ${grantEmail}`);
+    setGrantEmail('');
+    setShowRoleModal(false);
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500 text-left">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Workspace Security</h1>
+          <p className="text-stone-500 text-sm mt-1">Manage authentication, data loss prevention (DLP), and roles.</p>
+        </div>
+        {isSeniorPastor && (
+          <button onClick={handleSaveSettings} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
+            <ShieldCheck size={16}/> Save Security Settings
+          </button>
+        )}
+      </div>
+
+      {showRoleModal && (
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-4 border-b border-stone-200 pb-3">
+              <h2 className="text-xl font-bold text-stone-900 flex items-center gap-2"><UserCog className="text-stone-700"/> Access Control Matrix</h2>
+              <button onClick={() => setShowRoleModal(false)} className="text-stone-400 hover:text-rose-500"><X size={20}/></button>
+            </div>
+            <div className="space-y-4 max-h-[400px] overflow-y-auto">
+              <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                <div>
+                  <p className="font-bold text-indigo-900 text-sm">Lead Pastor (Owner)</p>
+                  <p className="text-xs text-indigo-700">{SENIOR_PASTOR_EMAIL}</p>
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider bg-indigo-200 text-indigo-800 px-2 py-1 rounded">Super Admin</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-100 rounded-lg">
+                <div>
+                  <p className="font-bold text-emerald-900 text-sm">Campus Director</p>
+                  <p className="text-xs text-emerald-700">{ADMIN_EMAILS[0]}</p>
+                </div>
+                <select className="text-xs font-bold uppercase tracking-wider bg-white border border-emerald-200 text-emerald-800 px-2 py-1 rounded outline-none cursor-pointer">
+                  <option>Full Admin</option>
+                  <option>Revoke</option>
+                </select>
+              </div>
+              <div className="pt-4 border-t border-stone-200 mt-4">
+                <label className="block text-xs font-semibold text-stone-500 mb-1.5 uppercase">Promote User to Admin</label>
+                <div className="flex gap-2">
+                  <input type="email" placeholder="staff@lifegate.ag" className="flex-1 p-2 text-sm border border-stone-300 rounded outline-none focus:border-stone-500" value={grantEmail} onChange={e => setGrantEmail(e.target.value)} />
+                  <button onClick={handleGrantAccess} className="px-4 py-2 bg-stone-800 text-white rounded text-sm font-medium hover:bg-stone-900">Grant Access</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+            <div className="p-5 border-b border-stone-200 bg-stone-50 flex items-center gap-2">
+              <ShieldCheck size={18} className="text-stone-600"/>
+              <h3 className="font-semibold text-stone-800">Authentication &amp; Access</h3>
+            </div>
+            <div className="divide-y divide-stone-100">
+              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
+                <div>
+                  <h4 className="font-bold text-stone-900 text-sm">Enforce 2-Step Verification (2FA)</h4>
+                  <p className="text-xs text-stone-500 mt-1 max-w-md">Require all staff and team leaders to use a secondary authentication method when logging in.</p>
+                </div>
+                <div onClick={() => isSeniorPastor && setIs2FA(!is2FA)} className={isSeniorPastor ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}>
+                  {is2FA ? <ToggleRight size={36} className="text-emerald-500"/> : <ToggleLeft size={36} className="text-stone-300"/>}
+                </div>
+              </div>
+              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
+                <div>
+                  <h4 className="font-bold text-stone-900 text-sm">Advanced Endpoint Management</h4>
+                  <p className="text-xs text-stone-500 mt-1 max-w-md">Allow admins to remotely wipe church data from personal mobile devices.</p>
+                </div>
+                <div onClick={() => isSeniorPastor && setIsEndpoint(!isEndpoint)} className={isSeniorPastor ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}>
+                  {isEndpoint ? <ToggleRight size={36} className="text-emerald-500"/> : <ToggleLeft size={36} className="text-stone-300"/>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+            <div className="p-5 border-b border-stone-200 bg-stone-50 flex items-center gap-2">
+              <ShieldAlert size={18} className="text-stone-600"/>
+              <h3 className="font-semibold text-stone-800">Data Protection &amp; AI Governance</h3>
+            </div>
+            <div className="divide-y divide-stone-100">
+              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-stone-900 text-sm">Data Loss Prevention (DLP)</h4>
+                    <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 rounded uppercase">Recommended</span>
+                  </div>
+                  <p className="text-xs text-stone-500 mt-1 max-w-md">Automatically scan internal chats and documents to prevent users from sharing sensitive congregant data externally.</p>
+                </div>
+                <div onClick={() => isSeniorPastor && setIsDLP(!isDLP)} className={isSeniorPastor ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}>
+                  {isDLP ? <ToggleRight size={36} className="text-emerald-500"/> : <ToggleLeft size={36} className="text-stone-300"/>}
+                </div>
+              </div>
+              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
+                <div>
+                  <h4 className="font-bold text-stone-900 text-sm">PII Data Masking for AI</h4>
+                  <p className="text-xs text-stone-500 mt-1 max-w-md">Automatically redact names, phone numbers, and addresses before sending any context to Gemini AI.</p>
+                </div>
+                <div onClick={() => isSeniorPastor && setIsPII(!isPII)} className={isSeniorPastor ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}>
+                  {isPII ? <ToggleRight size={36} className="text-emerald-500"/> : <ToggleLeft size={36} className="text-stone-300"/>}
+                </div>
+              </div>
+              <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
+                <div>
+                  <h4 className="font-bold text-stone-900 text-sm">LLM Training Opt-Out</h4>
+                  <p className="text-xs text-stone-500 mt-1 max-w-md">Enforce Google Workspace privacy policy ensuring your internal data is never used to train public AI models.</p>
+                </div>
+                <div onClick={() => isSeniorPastor && setIsOptOut(!isOptOut)} className={isSeniorPastor ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}>
+                  {isOptOut ? <ToggleRight size={36} className="text-emerald-500"/> : <ToggleLeft size={36} className="text-stone-300"/>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit">
+            <div className="p-5 border-b border-stone-200 bg-stone-50 flex items-center justify-between">
+              <div className="flex items-center gap-2"><History size={18} className="text-stone-600"/><h3 className="font-semibold text-stone-800">Security Audit Log</h3></div>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            </div>
+            <div className="divide-y divide-stone-100 max-h-[300px] overflow-y-auto">
+              <div className="p-4 bg-rose-50/30">
+                <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5"><EyeOff size={12}/> DLP Policy Triggered</p>
+                <p className="text-xs text-stone-600 mt-1">Blocked user &lsquo;S. Jenkins&rsquo; from emailing a spreadsheet containing credit card numbers externally.</p>
+                <p className="text-[10px] text-stone-400 mt-1">Today, 10:42 AM</p>
+              </div>
+              <div className="p-4">
+                <p className="text-xs font-bold text-stone-700 flex items-center gap-1.5"><ShieldCheck size={12}/> Successful Login (2FA)</p>
+                <p className="text-xs text-stone-600 mt-1">User &lsquo;J. Asiedu&rsquo; authenticated successfully from recognized IP address.</p>
+                <p className="text-[10px] text-stone-400 mt-1">Today, 8:15 AM</p>
+              </div>
+              <div className="p-4">
+                <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5"><SmartphoneNfc size={12}/> New Device Registered</p>
+                <p className="text-xs text-stone-600 mt-1">A new mobile device was registered to &lsquo;D. Chen&rsquo; via Endpoint Management.</p>
+                <p className="text-[10px] text-stone-400 mt-1">Yesterday, 4:30 PM</p>
+              </div>
+            </div>
+            <div className="p-3 border-t border-stone-100 bg-stone-50 text-center">
+              <button className="text-xs font-semibold text-stone-600 hover:text-stone-900">View Full Logs (Google Vault)</button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit">
+            <div className="p-5 border-b border-stone-200 bg-stone-50"><h3 className="font-semibold text-stone-800">Role-Based Access</h3></div>
+            <div className="p-5 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-stone-700">Lead Pastors</span>
+                <span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-2 py-1 rounded">Super Admin</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-stone-700">Staff / Directors</span>
+                <span className="text-xs font-bold bg-emerald-50 text-emerald-700 px-2 py-1 rounded">Full Admin</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-stone-700">Volunteers</span>
+                <span className="text-xs font-bold bg-stone-100 text-stone-700 px-2 py-1 rounded">View Only</span>
+              </div>
+              {isSeniorPastor && <button onClick={() => setShowRoleModal(true)} className="w-full mt-2 py-2 border border-stone-200 rounded text-xs font-semibold text-stone-600 hover:bg-stone-50 transition-colors">Manage Roles</button>}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
