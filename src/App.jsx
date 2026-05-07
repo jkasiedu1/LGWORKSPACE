@@ -353,7 +353,8 @@ export default function App() {
       }
       .theme-dark input::placeholder,
       .theme-dark textarea::placeholder {
-        color: #64748b !important;
+        color: #94a3b8 !important;
+        opacity: 1;
       }
       .theme-dark .bg-stone-900 {
         background-color: #020617 !important;
