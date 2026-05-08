@@ -4,7 +4,8 @@ import {
   EyeOff, SmartphoneNfc, UserCog, X
 } from 'lucide-react';
 import { saveSecuritySettings } from '../lib/firestoreServices';
-import { grantAdminAccess, revokeAdminAccess } from '../lib/securityAdmin';
+import { grantAdminAccess, revokeAdminAccess, grantAppAccess, revokeAppAccess } from '../lib/securityAdmin';
+import { APPS } from '../config/apps';
 
 export default function SecurityApp({ theme, isSeniorPastor, securitySettings, setSecuritySettings, showToast }) {
   const [is2FA, setIs2FA] = useState(securitySettings?.is2FA ?? true);
@@ -14,6 +15,8 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
   const [isEndpoint, setIsEndpoint] = useState(securitySettings?.isEndpoint ?? false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [grantEmail, setGrantEmail] = useState('');
+  const [grantMode, setGrantMode] = useState('full-admin'); // 'full-admin' | 'app-access'
+  const [selectedApps, setSelectedApps] = useState([]);
   const [revokeEmail, setRevokeEmail] = useState('');
   const [directorRole, setDirectorRole] = useState('full-admin');
 
@@ -45,14 +48,30 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
     }
 
     try {
-      await grantAdminAccess(grantEmail);
-      showToast(`Admin access granted to ${grantEmail.trim()}`);
+      if (grantMode === 'app-access') {
+        if (selectedApps.length === 0) {
+          showToast('Please select at least one app');
+          return;
+        }
+        await grantAppAccess(grantEmail, selectedApps);
+        showToast(`App access granted to ${grantEmail.trim()} for: ${selectedApps.join(', ')}`);
+      } else {
+        await grantAdminAccess(grantEmail);
+        showToast(`Admin access granted to ${grantEmail.trim()}`);
+      }
       setGrantEmail('');
+      setSelectedApps([]);
       setShowRoleModal(false);
     } catch (error) {
-      console.error('[SecurityApp] Failed to grant admin access:', error);
+      console.error('[SecurityApp] Failed to grant access:', error);
       showToast(error?.message || 'Failed to grant access');
     }
+  };
+
+  const toggleAppSelection = (appId) => {
+    setSelectedApps((prev) =>
+      prev.includes(appId) ? prev.filter((id) => id !== appId) : [...prev, appId]
+    );
   };
 
   const handleDirectorRoleChange = async (value) => {
@@ -70,6 +89,22 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
       } catch (error) {
         console.error('[SecurityApp] Failed to revoke admin access:', error);
         showToast(error?.message || 'Failed to revoke access');
+        setDirectorRole('full-admin');
+      }
+    } else if (value === 'revoke-app') {
+      if (!revokeEmail.trim()) {
+        showToast('Enter the email address to revoke app access, then select Revoke App Access again');
+        setDirectorRole('full-admin');
+        return;
+      }
+      try {
+        await revokeAppAccess(revokeEmail.trim());
+        showToast(`App access revoked for ${revokeEmail.trim()}`);
+        setRevokeEmail('');
+        setDirectorRole('full-admin');
+      } catch (error) {
+        console.error('[SecurityApp] Failed to revoke app access:', error);
+        showToast(error?.message || 'Failed to revoke app access');
         setDirectorRole('full-admin');
       }
     } else {
@@ -113,21 +148,57 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
                 </div>
                 <span className="text-xs font-bold uppercase tracking-wider bg-emerald-200 text-emerald-800 px-2 py-1 rounded">Full Admin</span>
               </div>
+              <div className="flex items-center justify-between p-3 bg-violet-50 border border-violet-100 rounded-lg">
+                <div>
+                  <p className="font-bold text-violet-900 text-sm">Ministry Leaders</p>
+                  <p className="text-xs text-violet-700">Access specific portals only</p>
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider bg-violet-200 text-violet-800 px-2 py-1 rounded">App-Scoped</span>
+              </div>
               <div className="pt-4 border-t border-stone-200 mt-4">
                 <label className="block text-xs font-semibold text-stone-500 mb-1.5 uppercase">Promote User to Admin</label>
                 <p className="text-xs text-stone-500 mb-3">User will gain full admin access immediately. No confirmation email is sent—share new access details separately.</p>
+                <div className="flex gap-2 mb-3">
+                  <button
+                    onClick={() => { setGrantMode('full-admin'); setSelectedApps([]); }}
+                    className={`flex-1 py-1.5 rounded text-xs font-semibold border transition-colors ${grantMode === 'full-admin' ? 'bg-stone-800 text-white border-stone-800' : 'bg-white text-stone-600 border-stone-300 hover:border-stone-500'}`}
+                  >Full Admin</button>
+                  <button
+                    onClick={() => setGrantMode('app-access')}
+                    className={`flex-1 py-1.5 rounded text-xs font-semibold border transition-colors ${grantMode === 'app-access' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-stone-600 border-stone-300 hover:border-indigo-400'}`}
+                  >App-Scoped Access</button>
+                </div>
+                {grantMode === 'app-access' && (
+                  <div className="mb-3 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                    <p className="text-xs font-semibold text-indigo-700 mb-2">Select portals this user can access:</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {Object.values(APPS).filter(a => a.id !== 'home').map((app) => (
+                        <label key={app.id} className={`flex items-center gap-2 p-1.5 rounded cursor-pointer text-xs font-medium border transition-colors ${selectedApps.includes(app.id) ? 'bg-indigo-100 border-indigo-300 text-indigo-800' : 'bg-white border-stone-200 text-stone-600 hover:border-indigo-200'}`}>
+                          <input
+                            type="checkbox"
+                            className="accent-indigo-600"
+                            checked={selectedApps.includes(app.id)}
+                            onChange={() => toggleAppSelection(app.id)}
+                          />
+                          {app.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-2 mb-4">
                   <input type="email" placeholder="staff@lifegate.ag" className="flex-1 p-2 text-sm border border-stone-300 rounded outline-none focus:border-stone-500" value={grantEmail} onChange={e => setGrantEmail(e.target.value)} />
                   <button onClick={handleGrantAccess} className="px-4 py-2 bg-stone-800 text-white rounded text-sm font-medium hover:bg-stone-900">Grant Access</button>
                 </div>
               </div>
               <div className="border-t border-stone-200 pt-4">
-                <label className="block text-xs font-semibold text-rose-500 mb-1.5 uppercase">Revoke Admin Access</label>
+                <label className="block text-xs font-semibold text-rose-500 mb-1.5 uppercase">Revoke Access</label>
                 <div className="flex gap-2">
                   <input type="email" placeholder="staff@lifegate.ag" className="flex-1 p-2 text-sm border border-rose-200 rounded outline-none focus:border-rose-400" value={revokeEmail} onChange={e => setRevokeEmail(e.target.value)} />
                   <select value={directorRole} onChange={(e) => handleDirectorRoleChange(e.target.value)} className="text-xs font-bold uppercase tracking-wider bg-white border border-rose-200 text-rose-700 px-2 py-1 rounded outline-none cursor-pointer">
                     <option value="full-admin">Admin</option>
-                    <option value="revoke">Revoke</option>
+                    <option value="revoke">Revoke Admin</option>
+                    <option value="revoke-app">Revoke App Access</option>
                   </select>
                 </div>
               </div>

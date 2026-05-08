@@ -12,7 +12,7 @@ export function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [roleAccess, setRoleAccess] = useState({ isSeniorPastor: false, isAdmin: false });
+  const [roleAccess, setRoleAccess] = useState({ isSeniorPastor: false, isAdmin: false, appAccess: [] });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
@@ -28,12 +28,12 @@ export function useAuth() {
               setRoleAccess(rolesFromClaims);
             } catch (claimsError) {
               console.warn('[useAuth] Failed to fetch custom claims. Defaulting to least-privilege access:', claimsError);
-              setRoleAccess({ isSeniorPastor: false, isAdmin: false });
+            setRoleAccess({ isSeniorPastor: false, isAdmin: false, appAccess: [] });
             }
             setUser(currentUser);
           } else {
             setUser(null);
-            setRoleAccess({ isSeniorPastor: false, isAdmin: false });
+            setRoleAccess({ isSeniorPastor: false, isAdmin: false, appAccess: [] });
           }
           setError(null);
         } catch (err) {
@@ -63,11 +63,23 @@ export function useAuth() {
   };
 
   /**
-   * Get the primary role name (admin > seniorPastor > member)
+   * Helper: check if user can access a specific app by ID.
+   * Admins and senior pastors have access to everything.
+   * App-scoped users only have access to their assigned apps.
+   */
+  const canAccess = (appId) => {
+    if (!user) return false;
+    if (roleAccess.isAdmin || roleAccess.isSeniorPastor) return true;
+    return Array.isArray(roleAccess.appAccess) && roleAccess.appAccess.includes(appId);
+  };
+
+  /**
+   * Get the primary role name (admin > seniorPastor > appAccess > member)
    */
   const getRole = () => {
     if (roleAccess.isAdmin) return 'admin';
     if (roleAccess.isSeniorPastor) return 'seniorPastor';
+    if (roleAccess.appAccess?.length > 0) return 'appAccess';
     return 'member';
   };
 
@@ -78,7 +90,7 @@ export function useAuth() {
     try {
       await signOut(auth);
       setUser(null);
-      setRoleAccess({ isSeniorPastor: false, isAdmin: false });
+      setRoleAccess({ isSeniorPastor: false, isAdmin: false, appAccess: [] });
     } catch (err) {
       console.error('[useAuth] Logout failed:', err);
       throw err;
@@ -92,6 +104,7 @@ export function useAuth() {
     role: getRole(),
     roleAccess,
     hasRole,
+    canAccess,
     isAuthenticated: !!user,
     logout
   };

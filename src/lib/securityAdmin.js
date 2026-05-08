@@ -60,6 +60,92 @@ export async function grantAdminAccess(email) {
   return response.json();
 }
 
+export async function grantAppAccess(email, apps) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error('Email is required.');
+  }
+
+  if (!Array.isArray(apps) || apps.length === 0) {
+    throw new Error('At least one app must be selected.');
+  }
+
+  if (!ROLE_ADMIN_API_URL) {
+    throw new Error('Role admin API is not configured. Set VITE_ROLE_ADMIN_API_URL.');
+  }
+
+  const token = await auth?.currentUser?.getIdToken();
+  if (!token) {
+    throw new Error('You must be signed in to manage roles.');
+  }
+
+  let response;
+  try {
+    response = await fetch(ROLE_ADMIN_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ email: normalizedEmail, role: 'appAccess', apps, enabled: true }),
+    });
+  } catch (error) {
+    const message = error?.message || '';
+    throw new Error(
+      `Role API network/CORS failure (${message || 'request failed'}). `
+      + `Confirm Cloudflare ALLOWED_ORIGINS contains ${window.location.origin} and the worker is deployed.`
+    );
+  }
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`App access grant failed (${response.status}): ${details}`);
+  }
+
+  return response.json();
+}
+
+export async function revokeAppAccess(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error('Email is required.');
+  }
+
+  if (!ROLE_ADMIN_API_URL) {
+    throw new Error('Role admin API is not configured. Set VITE_ROLE_ADMIN_API_URL.');
+  }
+
+  const token = await auth?.currentUser?.getIdToken();
+  if (!token) {
+    throw new Error('You must be signed in to manage roles.');
+  }
+
+  let response;
+  try {
+    response = await fetch(ROLE_ADMIN_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ email: normalizedEmail, role: 'appAccess', enabled: false }),
+    });
+  } catch (error) {
+    const message = error?.message || '';
+    throw new Error(
+      `Role API network/CORS failure (${message || 'request failed'}). `
+      + `Confirm Cloudflare ALLOWED_ORIGINS contains ${window.location.origin} and the worker is deployed.`
+    );
+  }
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`App access revoke failed (${response.status}): ${details}`);
+  }
+
+  return response.json();
+}
+
 export async function revokeAdminAccess(email) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   if (!normalizedEmail) {

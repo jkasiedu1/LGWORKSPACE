@@ -322,7 +322,12 @@ async function updateUserCustomClaims(localId, nextClaims, env) {
   });
 }
 
-function buildUpdatedClaims(existingClaims, role, enabled) {
+const VALID_APP_IDS = new Set([
+  'home', 'community', 'services', 'music', 'teams',
+  'people', 'giving', 'calendar', 'workflows', 'security', 'reporting',
+]);
+
+function buildUpdatedClaims(existingClaims, role, enabled, apps) {
   const nextClaims = { ...(existingClaims || {}) };
 
   if (role === 'admin') {
@@ -336,6 +341,19 @@ function buildUpdatedClaims(existingClaims, role, enabled) {
     if (enabled) {
       nextClaims.admin = true;
       nextClaims.isAdmin = true;
+    }
+  }
+
+  if (role === 'appAccess') {
+    if (!enabled) {
+      delete nextClaims.appAccess;
+    } else {
+      const validApps = (Array.isArray(apps) ? apps : [])
+        .map((id) => String(id).trim().toLowerCase())
+        .filter((id) => VALID_APP_IDS.has(id));
+      if (validApps.length > 0) {
+        nextClaims.appAccess = validApps;
+      }
     }
   }
 
@@ -440,15 +458,19 @@ export default {
           return json({ error: 'Only senior pastor accounts can manage roles.' }, 403, origin);
         }
 
-        const { email, role = 'admin', enabled = true } = await request.json();
+        const { email, role = 'admin', enabled = true, apps } = await request.json();
         const normalizedEmail = String(email || '').trim().toLowerCase();
 
         if (!normalizedEmail) {
           return json({ error: 'Email is required.' }, 400, origin);
         }
 
-        if (!['admin', 'seniorPastor'].includes(role)) {
+        if (!['admin', 'seniorPastor', 'appAccess'].includes(role)) {
           return json({ error: 'Unsupported role.' }, 400, origin);
+        }
+
+        if (role === 'appAccess' && enabled && (!Array.isArray(apps) || apps.length === 0)) {
+          return json({ error: 'apps array is required for appAccess role.' }, 400, origin);
         }
 
         const user = await lookupUserByEmail(normalizedEmail, env);
@@ -462,7 +484,7 @@ export default {
           }
         }
 
-        const nextClaims = buildUpdatedClaims(existingClaims, role, Boolean(enabled));
+        const nextClaims = buildUpdatedClaims(existingClaims, role, Boolean(enabled), apps);
         await updateUserCustomClaims(user.localId, nextClaims, env);
 
         return json({

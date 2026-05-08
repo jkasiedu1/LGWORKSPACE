@@ -16,5 +16,8 @@ export function resolveRoleAccess(email, claims = {}) {
   const isSeniorPastor = claimsSeniorPastor;
   const isAdmin = isSeniorPastor || claimsAdmin;
 
-  return { isSeniorPastor, isAdmin };
+  // Per-app scoped access (non-admin users with access to specific portals only)
+  const appAccess = Array.isArray(claims?.appAccess) ? claims.appAccess : [];
+
+  return { isSeniorPastor, isAdmin, appAccess };
 }
