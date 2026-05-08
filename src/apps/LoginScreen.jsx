@@ -50,12 +50,7 @@ export default function LoginScreen() {
 
     try {
       if (auth) {
-        const credential = await signInWithEmailAndPassword(auth, email, password);
-        if (!credential.user.emailVerified) {
-          await auth.signOut();
-          setErrorMsg('Please verify your email address before signing in. Check your inbox for a verification link.');
-          return;
-        }
+        await signInWithEmailAndPassword(auth, email, password);
       } else {
         setErrorMsg('Firebase Auth is not connected.');
       }
