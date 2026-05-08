@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search, UserPlus, AlertCircle, X, QrCode, UserCheck,
   CheckCircle2, Printer, Upload, Download, Pencil
@@ -15,8 +15,9 @@ import { validatePersonProfile } from '../lib/validation';
 import { useAuth } from '../hooks/useAuth';
 
 function generateSecurityCode() {
-  const randomValue = Math.floor(Math.random() * 1679616);
-  return randomValue.toString(36).toUpperCase().padStart(4, '0').slice(0, 4);
+  const array = new Uint32Array(1);
+  crypto.getRandomValues(array);
+  return (array[0] % 1679616).toString(36).toUpperCase().padStart(4, '0').slice(0, 4);
 }
 
 export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast }) {
@@ -88,14 +89,14 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
     );
   };
 
-  const filteredPeople = people.filter(p => {
+  const filteredPeople = useMemo(() => people.filter(p => {
     const matchesSearch = (p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.email?.toLowerCase().includes(searchQuery.toLowerCase()));
     if (!matchesSearch) return false;
     if (activeTab === 'directory') return ['Member', 'Staff', 'Volunteer'].includes(p.type);
     if (activeTab === 'visitors') return ['First Time', 'Returning', 'Guest'].includes(p.type);
     if (activeTab === 'kids' || activeTab === 'checkin') return p.type === 'Child';
     return true;
-  });
+  }), [people, searchQuery, activeTab]);
 
   const handleAdd = async () => {
     const validationResult = validatePersonProfile(newPerson);

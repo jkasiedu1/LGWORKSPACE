@@ -14,6 +14,11 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
 
   const handleAddDonation = async () => {
     if (!newDonation.name || !newDonation.amount) return;
+    const amountValid = /^\$?\d+(\.\d{1,2})?$/.test(newDonation.amount.trim());
+    if (!amountValid) {
+      showToast('Enter a valid amount (e.g. $100 or 100.00)');
+      return;
+    }
 
     const tempId = `temp-donation-${Date.now()}`;
     const optimisticDonation = { id: tempId, ...newDonation };

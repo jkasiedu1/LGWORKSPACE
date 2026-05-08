@@ -14,6 +14,7 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
   const [isEndpoint, setIsEndpoint] = useState(securitySettings?.isEndpoint ?? false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [grantEmail, setGrantEmail] = useState('');
+  const [revokeEmail, setRevokeEmail] = useState('');
   const [directorRole, setDirectorRole] = useState('full-admin');
 
   useEffect(() => {
@@ -56,9 +57,15 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
 
   const handleDirectorRoleChange = async (value) => {
     if (value === 'revoke') {
+      if (!revokeEmail.trim()) {
+        showToast('Enter the email address to revoke below, then select Revoke again');
+        setDirectorRole('full-admin');
+        return;
+      }
       try {
-        await revokeAdminAccess('director@lifegate.ag');
-        showToast('Admin access revoked for Campus Director');
+        await revokeAdminAccess(revokeEmail.trim());
+        showToast(`Admin access revoked for ${revokeEmail.trim()}`);
+        setRevokeEmail('');
         setDirectorRole('full-admin');
       } catch (error) {
         console.error('[SecurityApp] Failed to revoke admin access:', error);
@@ -101,20 +108,27 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
               </div>
               <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-100 rounded-lg">
                 <div>
-                  <p className="font-bold text-emerald-900 text-sm">Campus Director</p>
-                  <p className="text-xs text-emerald-700">Claim-based assignment</p>
+                  <p className="font-bold text-emerald-900 text-sm">Staff / Directors</p>
+                  <p className="text-xs text-emerald-700">Assigned via Grant Access below</p>
                 </div>
-                <select value={directorRole} onChange={(e) => handleDirectorRoleChange(e.target.value)} className="text-xs font-bold uppercase tracking-wider bg-white border border-emerald-200 text-emerald-800 px-2 py-1 rounded outline-none cursor-pointer">
-                  <option value="full-admin">Full Admin</option>
-                  <option value="revoke">Revoke</option>
-                </select>
+                <span className="text-xs font-bold uppercase tracking-wider bg-emerald-200 text-emerald-800 px-2 py-1 rounded">Full Admin</span>
               </div>
               <div className="pt-4 border-t border-stone-200 mt-4">
                 <label className="block text-xs font-semibold text-stone-500 mb-1.5 uppercase">Promote User to Admin</label>
                 <p className="text-xs text-stone-500 mb-3">User will gain full admin access immediately. No confirmation email is sent—share new access details separately.</p>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mb-4">
                   <input type="email" placeholder="staff@lifegate.ag" className="flex-1 p-2 text-sm border border-stone-300 rounded outline-none focus:border-stone-500" value={grantEmail} onChange={e => setGrantEmail(e.target.value)} />
                   <button onClick={handleGrantAccess} className="px-4 py-2 bg-stone-800 text-white rounded text-sm font-medium hover:bg-stone-900">Grant Access</button>
+                </div>
+              </div>
+              <div className="border-t border-stone-200 pt-4">
+                <label className="block text-xs font-semibold text-rose-500 mb-1.5 uppercase">Revoke Admin Access</label>
+                <div className="flex gap-2">
+                  <input type="email" placeholder="staff@lifegate.ag" className="flex-1 p-2 text-sm border border-rose-200 rounded outline-none focus:border-rose-400" value={revokeEmail} onChange={e => setRevokeEmail(e.target.value)} />
+                  <select value={directorRole} onChange={(e) => handleDirectorRoleChange(e.target.value)} className="text-xs font-bold uppercase tracking-wider bg-white border border-rose-200 text-rose-700 px-2 py-1 rounded outline-none cursor-pointer">
+                    <option value="full-admin">Admin</option>
+                    <option value="revoke">Revoke</option>
+                  </select>
                 </div>
               </div>
             </div>

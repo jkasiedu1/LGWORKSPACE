@@ -63,7 +63,7 @@ async function withRetry(operation, { retries = 2, baseDelayMs = 300 } = {}) {
       if (attempt === retries || !isRetryableError(error)) {
         throw error;
       }
-      await sleep(baseDelayMs * (attempt + 1));
+      await sleep(Math.min(baseDelayMs * (attempt + 1), 5000));
       attempt += 1;
     }
   }
@@ -291,6 +291,17 @@ export async function createTeamMessage(message) {
   if (!db) return { id: Date.now(), ...message };
   const docRef = await withRetry(() => addDoc(collection(db, 'teamMessages'), withAuditFields(message)));
   return { id: docRef.id, ...message };
+}
+
+export async function createWorkflowKeyword(keyword) {
+  if (!db) return { id: Date.now(), ...keyword };
+  const docRef = await withRetry(() => addDoc(collection(db, 'workflowKeywords'), withAuditFields(keyword)));
+  return { id: docRef.id, ...keyword };
+}
+
+export async function deleteWorkflowKeyword(keywordId) {
+  if (!db) return;
+  await withRetry(() => deleteDoc(doc(db, 'workflowKeywords', keywordId)));
 }
 
 export async function createWorkflowInboxMessage(message) {

@@ -3,7 +3,7 @@ import { Sparkles, Loader2, Plus, Search, Send, MoreVertical, Workflow, Smartpho
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { callGeminiAI } from '../lib/gemini';
 import WorkflowCard from '../components/WorkflowCard';
-import { createWorkflow, createWorkflowInboxMessage, deleteWorkflow, updateWorkflow } from '../lib/firestoreServices';
+import { createWorkflow, createWorkflowInboxMessage, deleteWorkflow, updateWorkflow, createWorkflowKeyword, deleteWorkflowKeyword } from '../lib/firestoreServices';
 import { db } from '../config/firebase';
 
 export default function WorkflowsApp({ theme, workflows = [], setWorkflows, showToast }) {
@@ -23,9 +23,23 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
   ]);
   const [newKeyword, setNewKeyword] = useState({ keyword: '', response: '' });
   const [replyText, setReplyText] = useState('');
-  const [activeThreadId] = useState('sarah-jenkins');
+  const [activeThreadId, setActiveThreadId] = useState('sarah-jenkins');
   const [conversation, setConversation] = useState([]);
   const [conversationLoading, setConversationLoading] = useState(false);
+
+  // Load keywords from Firestore
+  useEffect(() => {
+    if (!db) return undefined;
+    const keywordsQuery = query(collection(db, 'workflowKeywords'), orderBy('createdAt', 'asc'));
+    const unsub = onSnapshot(keywordsQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        setKeywords(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      }
+    }, (error) => {
+      console.warn('[WorkflowsApp] Could not load keywords:', error.message);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     if (!db) {
@@ -370,7 +384,14 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
                     </span>
                     <p className="text-sm text-stone-600">{kw.response}</p>
                   </div>
-                  <button onClick={() => setKeywords(prev => prev.filter(k => k.id !== kw.id))} className="text-stone-300 hover:text-rose-500 shrink-0 transition-colors"><Trash2 size={15}/></button>
+                  <button onClick={async () => {
+                    try {
+                      await deleteWorkflowKeyword(kw.id);
+                    } catch (err) {
+                      console.warn('[WorkflowsApp] Could not delete keyword:', err.message);
+                      setKeywords(prev => prev.filter(k => k.id !== kw.id));
+                    }
+                  }} className="text-stone-300 hover:text-rose-500 shrink-0 transition-colors"><Trash2 size={15}/></button>
                 </div>
               ))}
             </div>
@@ -380,11 +401,16 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
             <div className="flex gap-3 flex-col sm:flex-row">
               <input type="text" placeholder="Keyword (e.g. JOIN)" className="w-32 p-2 border border-stone-200 rounded-md text-sm outline-none focus:border-violet-500 font-mono uppercase" value={newKeyword.keyword} onChange={e => setNewKeyword(k => ({ ...k, keyword: e.target.value.toUpperCase() }))} />
               <input type="text" placeholder="Auto-response message…" className="flex-1 p-2 border border-stone-200 rounded-md text-sm outline-none focus:border-violet-500" value={newKeyword.response} onChange={e => setNewKeyword(k => ({ ...k, response: e.target.value }))} />
-              <button onClick={() => {
+              <button onClick={async () => {
                 if (!newKeyword.keyword.trim() || !newKeyword.response.trim()) return;
-                setKeywords(prev => [...prev, { id: Date.now(), ...newKeyword }]);
+                try {
+                  await createWorkflowKeyword(newKeyword);
+                } catch (err) {
+                  console.warn('[WorkflowsApp] Could not save keyword:', err.message);
+                  setKeywords(prev => [...prev, { id: Date.now(), ...newKeyword }]);
+                }
                 setNewKeyword({ keyword: '', response: '' });
-                showToast("Keyword saved");
+                showToast('Keyword saved');
               }} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium hover:opacity-90 shrink-0`}>Save Keyword</button>
             </div>
           </div>

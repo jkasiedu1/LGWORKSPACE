@@ -81,7 +81,7 @@ service cloud.firestore {
     }
 
     match /communityPosts/{postId} {
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && canWrite();
       allow read: if isAuthenticated();
       allow update: if isAuthenticated() && canWrite();
       allow delete: if isAuthenticated() && canWrite();

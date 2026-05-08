@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import {
   FolderLock, ChevronRight, MessageSquare, Music, UserPlus,
-  UploadCloud, File, ShieldAlert, Users, Lock, Plus, Search, X, Send, Pencil, Save
+  UploadCloud, File, ShieldAlert, Users, Lock, Plus, Search, X, Send, Pencil, Save, Trash2
 } from 'lucide-react';
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { createTeamMessage, createTeamPortal, updateTeamPortal } from '../lib/firestoreServices';
@@ -121,6 +121,24 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
       lead: activePortal.lead || '',
     });
     setIsEditingPortal(true);
+  };
+
+  const handleRemoveMember = async (memberId) => {
+    const updatedRoster = (activePortal.roster || []).filter((m) => String(m.id) !== String(memberId));
+    const updates = { members: updatedRoster.length, roster: updatedRoster };
+    const updatedTeams = teamsList.map((t) => (t.id === activePortal.id ? { ...t, ...updates } : t));
+    const updatedPortal = updatedTeams.find((t) => t.id === activePortal.id);
+    try {
+      if (typeof activePortal.id === 'string') {
+        await updateTeamPortal(activePortal.id, updates);
+      }
+      setTeamsList(updatedTeams);
+      setActivePortal(updatedPortal);
+      showToast('Member removed from roster');
+    } catch (error) {
+      console.error('[TeamsApp] Failed to remove member:', error);
+      showToast('Failed to remove member');
+    }
   };
 
   const handleSavePortalEdit = async () => {
@@ -329,9 +347,14 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
             <div className="divide-y divide-stone-100">
               {activePortal.roster && activePortal.roster.length > 0
                 ? activePortal.roster.map(member => (
-                  <div key={member.id} className="p-4 flex items-center gap-3 hover:bg-stone-50">
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">{resolveMemberName(member).charAt(0)}</div>
-                    <span className="font-medium text-stone-900">{resolveMemberName(member)}</span>
+                  <div key={member.id} className="p-4 flex items-center justify-between gap-3 hover:bg-stone-50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">{resolveMemberName(member).charAt(0)}</div>
+                      <span className="font-medium text-stone-900">{resolveMemberName(member)}</span>
+                    </div>
+                    {isAdmin && (
+                      <button onClick={() => handleRemoveMember(member.id)} className="text-stone-300 hover:text-rose-500 transition-colors" title="Remove from roster"><Trash2 size={15}/></button>
+                    )}
                   </div>
                 )) : (
                   <div className="p-8 text-center">
