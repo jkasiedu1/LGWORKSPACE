@@ -18,5 +18,28 @@
     "location": "nam5",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8085
+    },
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9099
+    },
+    "ui": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 4005
+    },
+    "hub": {
+      "host": "127.0.0.1",
+      "port": 4405
+    },
+    "logging": {
+      "host": "127.0.0.1",
+      "port": 4505
+    }
   }
 }

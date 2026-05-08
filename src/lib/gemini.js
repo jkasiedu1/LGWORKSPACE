@@ -1,8 +1,34 @@
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+import {
+  containsRestrictedData,
+  normalizeSecuritySettings,
+  redactSensitiveData,
+} from './securityPolicy';
 
-export const callGeminiAI = async (prompt, systemContext) => {
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+let securityPolicy = normalizeSecuritySettings();
+
+export function configureGeminiPolicy(nextPolicy = {}) {
+  securityPolicy = normalizeSecuritySettings(nextPolicy);
+}
+
+export const callGeminiAI = async (prompt, systemContext, policyOverride = null) => {
+  const effectivePolicy = policyOverride
+    ? normalizeSecuritySettings(policyOverride)
+    : securityPolicy;
+
   if (!GEMINI_API_KEY) {
     return 'Gemini AI is not configured. Set VITE_GEMINI_API_KEY before using AI features.';
+  }
+
+  if (!effectivePolicy.isOptOut) {
+    return 'AI usage is disabled by security policy. Enable LLM Training Opt-Out to use AI features.';
+  }
+
+  const nextPrompt = effectivePolicy.isPII ? redactSensitiveData(prompt) : String(prompt || '');
+  const nextContext = effectivePolicy.isPII ? redactSensitiveData(systemContext) : String(systemContext || '');
+
+  if (effectivePolicy.isDLP && containsRestrictedData(`${nextPrompt}\n${nextContext}`)) {
+    return 'AI request blocked by DLP policy because sensitive data was detected.';
   }
 
   const retryFetch = async (url, options, retries = 5) => {
@@ -27,8 +53,8 @@ export const callGeminiAI = async (prompt, systemContext) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          systemInstruction: { parts: [{ text: systemContext }] }
+          contents: [{ parts: [{ text: nextPrompt }] }],
+          systemInstruction: { parts: [{ text: nextContext }] }
         })
       }
     );

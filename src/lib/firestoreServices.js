@@ -5,7 +5,8 @@ import {
   logPersonDeleted,
   logCheckInStatusChanged,
   logEventCreated,
-  logEventDeleted
+  logEventDeleted,
+  logGivingRecorded,
 } from './auditService';
 
 const RETRYABLE_ERROR_CODES = new Set([
@@ -173,20 +174,42 @@ export async function createEvent(event, actorEmail) {
   return { id: docRef.id, ...event };
 }
 
-export async function deleteEvent(eventId) {
+export async function deleteEvent(eventId, eventData, actorEmail) {
   if (!db) return;
   await withRetry(() => deleteDoc(doc(db, 'events', eventId)));
+
+  if (actorEmail && eventData) {
+    logEventDeleted(actorEmail, eventId, eventData).catch((err) =>
+      console.error('[deleteEvent] Audit logging failed:', err)
+    );
+  }
 }
 
-export async function createDonation(donation) {
+export async function createDonation(donation, actorEmail) {
   if (!db) return { id: Date.now(), ...donation };
   const docRef = await withRetry(() => addDoc(collection(db, 'donations'), withAuditFields(donation)));
+
+  if (actorEmail) {
+    logGivingRecorded(actorEmail, docRef.id, donation).catch((err) =>
+      console.error('[createDonation] Audit logging failed:', err)
+    );
+  }
+
   return { id: docRef.id, ...donation };
 }
 
-export async function deleteDonation(donationId) {
+export async function deleteDonation(donationId, donationData, actorEmail) {
   if (!db) return;
   await withRetry(() => deleteDoc(doc(db, 'donations', donationId)));
+
+  if (actorEmail && donationData) {
+    logGivingRecorded(actorEmail, donationId, {
+      ...donationData,
+      action: 'DELETE',
+    }).catch((err) =>
+      console.error('[deleteDonation] Audit logging failed:', err)
+    );
+  }
 }
 
 export async function createSong(song) {

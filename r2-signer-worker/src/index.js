@@ -1,5 +1,3 @@
-import { AwsClient } from 'aws4fetch';
-
 const ALLOWED_IMAGE_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic',
 ]);
@@ -10,14 +8,350 @@ const ALLOWED_VIDEO_TYPES = new Set([
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;  // 10 MB
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // 200 MB
+const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const AWS_ALGORITHM = 'AWS4-HMAC-SHA256';
+const AWS_REGION = 'auto';
+const AWS_SERVICE = 's3';
 
 function sanitize(name) {
   return String(name || 'upload').replace(/[^a-zA-Z0-9._-]/g, '-').replace(/-+/g, '-').slice(0, 120);
 }
 
+function getAllowedOrigins(env) {
+  const raw = String(env.ALLOWED_ORIGINS || '').trim();
+  if (!raw) return [];
+  return raw.split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function getFirebaseProjectId(env) {
+  return String(env.FIREBASE_PROJECT_ID || '').trim();
+}
+
+function resolveCorsOrigin(origin, env) {
+  const allowedOrigins = getAllowedOrigins(env);
+  if (allowedOrigins.length === 0) {
+    return origin || '*';
+  }
+
+  return allowedOrigins.includes(origin) ? origin : null;
+}
+
+function hasSeniorPastorClaims(claims) {
+  return claims?.seniorPastor === true || claims?.isSeniorPastor === true;
+}
+
+function hasPrivilegedClaims(claims) {
+  return claims?.admin === true
+    || claims?.isAdmin === true
+    || claims?.seniorPastor === true
+    || claims?.isSeniorPastor === true;
+}
+
+async function verifyFirebaseToken(idToken, env) {
+  if (!idToken) {
+    throw new Error('Missing bearer token.');
+  }
+
+  if (!env.FIREBASE_WEB_API_KEY) {
+    throw new Error('FIREBASE_WEB_API_KEY is not configured.');
+  }
+
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(env.FIREBASE_WEB_API_KEY)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    }
+  );
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Token verification failed (${response.status}): ${details}`);
+  }
+
+  const body = await response.json();
+  const user = body?.users?.[0];
+  if (!user) {
+    throw new Error('Token verification failed: user not found.');
+  }
+
+  let claims = {};
+  if (user.customAttributes) {
+    try {
+      claims = JSON.parse(user.customAttributes);
+    } catch (error) {
+      console.warn('[verifyFirebaseToken] Failed to parse customAttributes:', error);
+    }
+  }
+
+  return { uid: user.localId, email: user.email, claims };
+}
+
+function pemToBinary(pem) {
+  const normalized = String(pem || '')
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\n/g, '')
+    .replace(/\s+/g, '');
+
+  const binary = atob(normalized);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
+}
+
+function base64UrlEncode(value) {
+  const bytes = value instanceof Uint8Array ? value : new TextEncoder().encode(String(value));
+  let binary = '';
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function toHex(buffer) {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function sha256Hex(value) {
+  const bytes = value instanceof Uint8Array ? value : new TextEncoder().encode(String(value));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return toHex(digest);
+}
+
+async function hmacSha256(key, message) {
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    key,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    cryptoKey,
+    new TextEncoder().encode(message)
+  );
+
+  return new Uint8Array(signature);
+}
+
+function formatAmzDate(date) {
+  return date.toISOString().replace(/[:-]|\.\d{3}/g, '');
+}
+
+function formatDateStamp(date) {
+  return formatAmzDate(date).slice(0, 8);
+}
+
+async function deriveSigningKey(secretAccessKey, dateStamp) {
+  const kDate = await hmacSha256(new TextEncoder().encode(`AWS4${secretAccessKey}`), dateStamp);
+  const kRegion = await hmacSha256(kDate, AWS_REGION);
+  const kService = await hmacSha256(kRegion, AWS_SERVICE);
+  return hmacSha256(kService, 'aws4_request');
+}
+
+async function signR2UploadUrl(endpoint, fileType, accessKeyId, secretAccessKey) {
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error('R2 signing credentials are not configured.');
+  }
+
+  const url = new URL(endpoint);
+  const now = new Date();
+  const amzDate = formatAmzDate(now);
+  const dateStamp = formatDateStamp(now);
+  const credentialScope = `${dateStamp}/${AWS_REGION}/${AWS_SERVICE}/aws4_request`;
+  const signedHeaders = 'host';
+
+  url.searchParams.set('X-Amz-Algorithm', AWS_ALGORITHM);
+  url.searchParams.set('X-Amz-Credential', `${accessKeyId}/${credentialScope}`);
+  url.searchParams.set('X-Amz-Date', amzDate);
+  url.searchParams.set('X-Amz-Expires', '900');
+  url.searchParams.set('X-Amz-SignedHeaders', signedHeaders);
+
+  const canonicalQuery = Array.from(url.searchParams.entries())
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+
+  const canonicalRequest = [
+    'PUT',
+    url.pathname,
+    canonicalQuery,
+    `host:${url.host}\n`,
+    signedHeaders,
+    'UNSIGNED-PAYLOAD',
+  ].join('\n');
+
+  const stringToSign = [
+    AWS_ALGORITHM,
+    amzDate,
+    credentialScope,
+    await sha256Hex(canonicalRequest),
+  ].join('\n');
+
+  const signingKey = await deriveSigningKey(secretAccessKey, dateStamp);
+  const signature = toHex(await hmacSha256(signingKey, stringToSign));
+
+  url.searchParams.set('X-Amz-Signature', signature);
+
+  return new Request(url.toString(), {
+    method: 'PUT',
+    headers: { 'Content-Type': fileType },
+  });
+}
+
+async function createSignedJwt(serviceAccountEmail, privateKey, scope) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const payload = {
+    iss: serviceAccountEmail,
+    scope,
+    aud: GOOGLE_OAUTH_TOKEN_URL,
+    iat: now,
+    exp: now + 3600,
+  };
+
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    pemToBinary(privateKey),
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      hash: 'SHA-256',
+    },
+    false,
+    ['sign']
+  );
+
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    new TextEncoder().encode(signingInput)
+  );
+
+  return `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
+}
+
+async function getGoogleAccessToken(env) {
+  const serviceAccountEmail = String(env.FIREBASE_SERVICE_ACCOUNT_EMAIL || '').trim();
+  const privateKey = String(env.FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY || '').trim();
+
+  if (!serviceAccountEmail || !privateKey) {
+    throw new Error('Service account credentials are not configured.');
+  }
+
+  const assertion = await createSignedJwt(
+    serviceAccountEmail,
+    privateKey,
+    'https://www.googleapis.com/auth/identitytoolkit'
+  );
+
+  const response = await fetch(GOOGLE_OAUTH_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion,
+    }).toString(),
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`OAuth token request failed (${response.status}): ${details}`);
+  }
+
+  const payload = await response.json();
+  if (!payload.access_token) {
+    throw new Error('OAuth token response did not include access_token.');
+  }
+
+  return payload.access_token;
+}
+
+async function fetchIdentityToolkit(env, path, body) {
+  const projectId = getFirebaseProjectId(env);
+  if (!projectId) {
+    throw new Error('FIREBASE_PROJECT_ID is not configured.');
+  }
+
+  const accessToken = await getGoogleAccessToken(env);
+  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${encodeURIComponent(projectId)}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Identity Toolkit request failed (${response.status}): ${details}`);
+  }
+
+  return response.json();
+}
+
+async function lookupUserByEmail(email, env) {
+  const payload = await fetchIdentityToolkit(env, '/accounts:lookup', {
+    email: [email],
+  });
+
+  const user = payload?.users?.[0];
+  if (!user) {
+    throw new Error('No Firebase Auth user exists for that email.');
+  }
+
+  return user;
+}
+
+async function updateUserCustomClaims(localId, nextClaims, env) {
+  return fetchIdentityToolkit(env, '/accounts:update', {
+    localId,
+    customAttributes: JSON.stringify(nextClaims),
+  });
+}
+
+function buildUpdatedClaims(existingClaims, role, enabled) {
+  const nextClaims = { ...(existingClaims || {}) };
+
+  if (role === 'admin') {
+    nextClaims.admin = enabled;
+    nextClaims.isAdmin = enabled;
+  }
+
+  if (role === 'seniorPastor') {
+    nextClaims.seniorPastor = enabled;
+    nextClaims.isSeniorPastor = enabled;
+    if (enabled) {
+      nextClaims.admin = true;
+      nextClaims.isAdmin = true;
+    }
+  }
+
+  Object.keys(nextClaims).forEach((key) => {
+    if (nextClaims[key] === false) {
+      delete nextClaims[key];
+    }
+  });
+
+  return nextClaims;
+}
+
 function cors(origin) {
+  const allowOrigin = origin || '*';
   return {
-    'Access-Control-Allow-Origin': origin || '*',
+    'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',
@@ -33,8 +367,13 @@ function json(body, status = 200, origin) {
 
 export default {
   async fetch(request, env) {
-    const origin = request.headers.get('Origin') || '*';
+    const requestOrigin = request.headers.get('Origin') || '';
+    const origin = resolveCorsOrigin(requestOrigin, env);
     const url = new URL(request.url);
+
+    if (!origin) {
+      return json({ error: 'Origin not allowed.' }, 403, null);
+    }
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: cors(origin) });
@@ -43,6 +382,13 @@ export default {
     // POST /sign-upload — generate signed R2 PUT URL
     if (request.method === 'POST' && url.pathname === '/sign-upload') {
       try {
+        const authHeader = request.headers.get('Authorization') || '';
+        const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+        const requester = await verifyFirebaseToken(idToken, env);
+        if (!hasPrivilegedClaims(requester.claims)) {
+          return json({ error: 'Insufficient privileges to sign uploads.' }, 403, origin);
+        }
+
         const { fileName, fileType, fileSize, folder = 'community' } = await request.json();
 
         if (!fileName || !fileType) {
@@ -67,17 +413,11 @@ export default {
         const key = `${folder}/${Date.now()}-${sanitize(fileName)}`;
         const endpoint = `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${env.R2_BUCKET}/${key}`;
 
-        const aws = new AwsClient({
-          accessKeyId: env.R2_ACCESS_KEY_ID,
-          secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-        });
-
-        const signedReq = await aws.sign(
-          new Request(endpoint, {
-            method: 'PUT',
-            headers: { 'Content-Type': fileType },
-          }),
-          { aws: { service: 's3', region: 'auto' }, signQuery: true }
+        const signedReq = await signR2UploadUrl(
+          endpoint,
+          fileType,
+          env.R2_ACCESS_KEY_ID,
+          env.R2_SECRET_ACCESS_KEY
         );
 
         const fileUrl = `${url.origin}/media/${encodeURIComponent(key)}`;
@@ -85,6 +425,55 @@ export default {
         return json({ uploadUrl: signedReq.url, fileUrl, key }, 200, origin);
       } catch (err) {
         console.error('[sign-upload]', err);
+        return json({ error: String(err?.message || err) }, 500, origin);
+      }
+    }
+
+    // POST /roles/grant — assign Firebase custom claims
+    if (request.method === 'POST' && url.pathname === '/roles/grant') {
+      try {
+        const authHeader = request.headers.get('Authorization') || '';
+        const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+        const requester = await verifyFirebaseToken(idToken, env);
+
+        if (!hasSeniorPastorClaims(requester.claims)) {
+          return json({ error: 'Only senior pastor accounts can manage roles.' }, 403, origin);
+        }
+
+        const { email, role = 'admin', enabled = true } = await request.json();
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+
+        if (!normalizedEmail) {
+          return json({ error: 'Email is required.' }, 400, origin);
+        }
+
+        if (!['admin', 'seniorPastor'].includes(role)) {
+          return json({ error: 'Unsupported role.' }, 400, origin);
+        }
+
+        const user = await lookupUserByEmail(normalizedEmail, env);
+
+        let existingClaims = {};
+        if (user.customAttributes) {
+          try {
+            existingClaims = JSON.parse(user.customAttributes);
+          } catch (error) {
+            console.warn('[roles/grant] Failed to parse existing customAttributes:', error);
+          }
+        }
+
+        const nextClaims = buildUpdatedClaims(existingClaims, role, Boolean(enabled));
+        await updateUserCustomClaims(user.localId, nextClaims, env);
+
+        return json({
+          ok: true,
+          email: normalizedEmail,
+          role,
+          enabled: Boolean(enabled),
+          claims: nextClaims,
+        }, 200, origin);
+      } catch (err) {
+        console.error('[roles/grant]', err);
         return json({ error: String(err?.message || err) }, 500, origin);
       }
     }

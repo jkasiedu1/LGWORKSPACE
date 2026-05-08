@@ -27,10 +27,8 @@ export function useAuth() {
               const rolesFromClaims = resolveRoleAccess(currentUser.email, claims);
               setRoleAccess(rolesFromClaims);
             } catch (claimsError) {
-              console.warn('[useAuth] Failed to fetch custom claims, falling back to email-based roles:', claimsError);
-              // Fall back to email-based role resolution
-              const rolesFromEmail = resolveRoleAccess(currentUser.email, {});
-              setRoleAccess(rolesFromEmail);
+              console.warn('[useAuth] Failed to fetch custom claims. Defaulting to least-privilege access:', claimsError);
+              setRoleAccess({ isSeniorPastor: false, isAdmin: false });
             }
             setUser(currentUser);
           } else {

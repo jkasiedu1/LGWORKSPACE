@@ -3,8 +3,8 @@ import {
   ShieldCheck, ShieldAlert, ToggleRight, ToggleLeft, History,
   EyeOff, SmartphoneNfc, UserCog, X
 } from 'lucide-react';
-import { SENIOR_PASTOR_EMAIL, ADMIN_EMAILS } from '../config/roles';
 import { saveSecuritySettings } from '../lib/firestoreServices';
+import { grantAdminAccess, revokeAdminAccess } from '../lib/securityAdmin';
 
 export default function SecurityApp({ theme, isSeniorPastor, securitySettings, setSecuritySettings, showToast }) {
   const [is2FA, setIs2FA] = useState(securitySettings?.is2FA ?? true);
@@ -14,6 +14,7 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
   const [isEndpoint, setIsEndpoint] = useState(securitySettings?.isEndpoint ?? false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [grantEmail, setGrantEmail] = useState('');
+  const [directorRole, setDirectorRole] = useState('full-admin');
 
   useEffect(() => {
     if (!securitySettings) return;
@@ -36,11 +37,37 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
     }
   };
 
-  const handleGrantAccess = () => {
-    if (!grantEmail.trim()) { showToast("Please enter an email address"); return; }
-    showToast(`Invitation sent to ${grantEmail}`);
-    setGrantEmail('');
-    setShowRoleModal(false);
+  const handleGrantAccess = async () => {
+    if (!grantEmail.trim()) {
+      showToast('Please enter an email address');
+      return;
+    }
+
+    try {
+      await grantAdminAccess(grantEmail);
+      showToast(`Admin access granted to ${grantEmail.trim()}`);
+      setGrantEmail('');
+      setShowRoleModal(false);
+    } catch (error) {
+      console.error('[SecurityApp] Failed to grant admin access:', error);
+      showToast(error?.message || 'Failed to grant access');
+    }
+  };
+
+  const handleDirectorRoleChange = async (value) => {
+    if (value === 'revoke') {
+      try {
+        await revokeAdminAccess('director@lifegate.ag');
+        showToast('Admin access revoked for Campus Director');
+        setDirectorRole('full-admin');
+      } catch (error) {
+        console.error('[SecurityApp] Failed to revoke admin access:', error);
+        showToast(error?.message || 'Failed to revoke access');
+        setDirectorRole('full-admin');
+      }
+    } else {
+      setDirectorRole(value);
+    }
   };
 
   return (
@@ -68,22 +95,23 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
               <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
                 <div>
                   <p className="font-bold text-indigo-900 text-sm">Lead Pastor (Owner)</p>
-                  <p className="text-xs text-indigo-700">{SENIOR_PASTOR_EMAIL}</p>
+                  <p className="text-xs text-indigo-700">Claim-based assignment</p>
                 </div>
                 <span className="text-xs font-bold uppercase tracking-wider bg-indigo-200 text-indigo-800 px-2 py-1 rounded">Super Admin</span>
               </div>
               <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-100 rounded-lg">
                 <div>
                   <p className="font-bold text-emerald-900 text-sm">Campus Director</p>
-                  <p className="text-xs text-emerald-700">{ADMIN_EMAILS[0]}</p>
+                  <p className="text-xs text-emerald-700">Claim-based assignment</p>
                 </div>
-                <select className="text-xs font-bold uppercase tracking-wider bg-white border border-emerald-200 text-emerald-800 px-2 py-1 rounded outline-none cursor-pointer">
-                  <option>Full Admin</option>
-                  <option>Revoke</option>
+                <select value={directorRole} onChange={(e) => handleDirectorRoleChange(e.target.value)} className="text-xs font-bold uppercase tracking-wider bg-white border border-emerald-200 text-emerald-800 px-2 py-1 rounded outline-none cursor-pointer">
+                  <option value="full-admin">Full Admin</option>
+                  <option value="revoke">Revoke</option>
                 </select>
               </div>
               <div className="pt-4 border-t border-stone-200 mt-4">
                 <label className="block text-xs font-semibold text-stone-500 mb-1.5 uppercase">Promote User to Admin</label>
+                <p className="text-xs text-stone-500 mb-3">User will gain full admin access immediately. No confirmation email is sent—share new access details separately.</p>
                 <div className="flex gap-2">
                   <input type="email" placeholder="staff@lifegate.ag" className="flex-1 p-2 text-sm border border-stone-300 rounded outline-none focus:border-stone-500" value={grantEmail} onChange={e => setGrantEmail(e.target.value)} />
                   <button onClick={handleGrantAccess} className="px-4 py-2 bg-stone-800 text-white rounded text-sm font-medium hover:bg-stone-900">Grant Access</button>

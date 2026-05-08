@@ -11,7 +11,17 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port ${PORT:-3000}",
     "start": "npm run preview",
-    "verify-deploy": "npm run build"
+    "verify-deploy": "npm run build",
+    "fb:login": "npx firebase-tools login",
+    "fb:whoami": "npx firebase-tools login:list",
+    "fb:project": "npx firebase-tools use lifegate-workspace-5dd48",
+    "firestore:deploy": "npx firebase-tools deploy --only firestore:rules,firestore:indexes",
+    "firestore:rules": "npx firebase-tools deploy --only firestore:rules",
+    "firestore:indexes": "npx firebase-tools deploy --only firestore:indexes",
+    "firestore:emulator": "npx firebase-tools emulators:start --only firestore",
+    "auth:emulator": "npx firebase-tools emulators:start --only auth",
+    "firebase:emulators": "npx firebase-tools emulators:start --only firestore,auth",
+    "dev:local": "npx firebase-tools emulators:exec --only firestore,auth \"npx vite --host 0.0.0.0\""
   },
   "dependencies": {
     "firebase": "^10.8.1",
@@ -23,6 +33,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",
+    "firebase-admin": "^13.9.0",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.3",
     "vite": "^5.2.0"

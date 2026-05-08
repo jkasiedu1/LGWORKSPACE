@@ -36,6 +36,7 @@ import TeamsApp from './apps/TeamsApp';
 import WorkflowsApp from './apps/WorkflowsApp';
 import SecurityApp from './apps/SecurityApp';
 import ReportingApp from './apps/ReportingApp';
+import { configureGeminiPolicy } from './lib/gemini';
 
 const THEME_PRESETS = {
   stoneTeal: {
@@ -225,6 +226,10 @@ export default function App() {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
   };
+
+  useEffect(() => {
+    configureGeminiPolicy(appData.securitySettings);
+  }, [appData.securitySettings]);
 
   /**
    * Inactivity auto-logout: 15 minutes

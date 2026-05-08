@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Plus, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Trash2 } from 'lucide-react';
 import { db } from '../config/firebase';
-import { createEvent } from '../lib/firestoreServices';
+import { createEvent, deleteEvent } from '../lib/firestoreServices';
 import { validateCalendarEvent } from '../lib/validation';
 import { useAuth } from '../hooks/useAuth';
 
@@ -43,6 +43,23 @@ export default function CalendarApp({ theme, events, setEvents, isAdmin, showToa
     } catch (error) {
       console.error(error);
       showToast('Failed to schedule event.');
+    }
+  };
+
+  const handleDeleteEvent = async (eventId) => {
+    if (!isAdmin) return;
+
+    const eventToDelete = events.find((event) => event.id === eventId);
+    if (!eventToDelete) return;
+
+    setEvents((prev) => prev.filter((event) => event.id !== eventId));
+    try {
+      await deleteEvent(String(eventId), eventToDelete, user?.email);
+      showToast('Event removed');
+    } catch (error) {
+      console.error('[CalendarApp] Failed to remove event:', error);
+      setEvents((prev) => [eventToDelete, ...prev]);
+      showToast('Failed to remove event.');
     }
   };
 
@@ -90,6 +107,14 @@ export default function CalendarApp({ theme, events, setEvents, isAdmin, showToa
                 </div>
                 <span className={`text-[10px] px-2 py-1 rounded-full ${theme.light} ${theme.color} font-bold uppercase tracking-wider`}>{event.type || 'Event'}</span>
               </div>
+              {isAdmin && (
+                <button
+                  onClick={() => handleDeleteEvent(event.id)}
+                  className="mt-3 text-xs font-semibold text-rose-700 hover:text-rose-800 inline-flex items-center gap-1"
+                >
+                  <Trash2 size={12} /> Delete
+                </button>
+              )}
             </div>
           ))
         ) : (
@@ -115,8 +140,16 @@ export default function CalendarApp({ theme, events, setEvents, isAdmin, showToa
                 <span className={`text-sm font-medium ${isCurrentMonth ? 'text-stone-700' : 'text-stone-300'}`}>{isCurrentMonth ? dayNum : ''}</span>
                 <div className="mt-1 space-y-1">
                   {daysEvents.map(event => (
-                    <div key={event.id} className={`text-[10px] px-2 py-1 rounded bg-orange-50 border-l-2 ${theme.border} truncate font-bold text-orange-700 shadow-sm`} title={`${event.time} - ${event.title}`}>
-                      {event.time} - {event.title}
+                    <div key={event.id} className={`text-[10px] px-2 py-1 rounded bg-orange-50 border-l-2 ${theme.border} font-bold text-orange-700 shadow-sm`} title={`${event.time} - ${event.title}`}>
+                      <div className="truncate">{event.time} - {event.title}</div>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteEvent(event.id)}
+                          className="mt-1 text-[10px] text-rose-700 hover:text-rose-800"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

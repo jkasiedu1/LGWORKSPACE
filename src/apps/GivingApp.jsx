@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { DollarSign, TrendingUp, Users, CreditCard, Sparkles, Loader2 } from 'lucide-react';
 import { callGeminiAI } from '../lib/gemini';
 import { createDonation, deleteDonation } from '../lib/firestoreServices';
+import { useAuth } from '../hooks/useAuth';
 
 export default function GivingApp({ theme, donations, setDonations, showToast }) {
+  const { user } = useAuth();
   const [reportResult, setReportResult] = useState(null);
   const [reportPrompt, setReportPrompt] = useState('');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
@@ -20,7 +22,7 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
     setNewDonation({ name: '', amount: '', fund: 'General Tithe', type: 'Zelle', date: new Date().toISOString().split('T')[0] });
 
     try {
-      const created = await createDonation(newDonation);
+      const created = await createDonation(newDonation, user?.email);
       setDonations((prev) => prev.map((donation) => (donation.id === tempId ? created : donation)));
       showToast('Donation Recorded Successfully');
     } catch (error) {
@@ -36,7 +38,7 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
 
     setDonations((prev) => prev.filter((donation) => donation.id !== donationId));
     try {
-      await deleteDonation(String(donationId));
+      await deleteDonation(String(donationId), removedDonation, user?.email);
       showToast('Donation removed');
     } catch (error) {
       console.error('[GivingApp] Failed to delete donation:', error);

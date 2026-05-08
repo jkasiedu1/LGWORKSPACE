@@ -2,3 +2,11 @@ node_modules
 .env
 .env.local
 .env.*.local
+
+# Local credentials and debug artifacts
+service-account-key.json
+**/service-account-key.json
+**/*service-account*.json
+firebase-debug.log
+firestore-debug.log
+set-claims.js

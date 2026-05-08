@@ -49,6 +49,7 @@ async function requestUploadSignature(file, folder = 'community') {
     body: JSON.stringify({
       fileName: sanitizeFileName(file.name),
       fileType: file.type || 'application/octet-stream',
+      fileSize: file.size || 0,
       folder,
     }),
   });

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Sparkles, Loader2, Plus, Search, Send, MoreVertical, Workflow, Smartphone, Mail, X, Hash, Trash2 } from 'lucide-react';
+import { Sparkles, Loader2, Plus, Search, Send, MoreVertical, Workflow, Smartphone, Mail, X, Hash, Trash2, Pencil } from 'lucide-react';
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { callGeminiAI } from '../lib/gemini';
 import WorkflowCard from '../components/WorkflowCard';
-import { createWorkflow, createWorkflowInboxMessage, deleteWorkflow } from '../lib/firestoreServices';
+import { createWorkflow, createWorkflowInboxMessage, deleteWorkflow, updateWorkflow } from '../lib/firestoreServices';
 import { db } from '../config/firebase';
 
 export default function WorkflowsApp({ theme, workflows = [], setWorkflows, showToast }) {
@@ -11,6 +11,8 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isNewWorkflow, setIsNewWorkflow] = useState(false);
+  const [isEditingWorkflow, setIsEditingWorkflow] = useState(false);
+  const [editingWorkflowId, setEditingWorkflowId] = useState(null);
   const [workflowName, setWorkflowName] = useState('');
   const [workflowTrigger, setWorkflowTrigger] = useState("Trigger: When someone joins a list");
   const [workflowAction, setWorkflowAction] = useState("Action: Send SMS");
@@ -118,6 +120,46 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
     }
   };
 
+  const openEditWorkflow = (workflow) => {
+    setEditingWorkflowId(workflow.id);
+    setWorkflowName(workflow.title || '');
+    setWorkflowTrigger(`Trigger: ${workflow.trigger || 'When someone joins a list'}`);
+    setWorkflowAction(`Action: ${workflow.actions || 'Send SMS'}`);
+    setIsEditingWorkflow(true);
+  };
+
+  const handleUpdateWorkflow = async () => {
+    if (!workflowName.trim() || !editingWorkflowId) return;
+
+    const payload = {
+      title: workflowName,
+      trigger: workflowTrigger.replace('Trigger: ', ''),
+      actions: workflowAction.replace('Action: ', ''),
+      iconName: workflowAction.includes('SMS') ? 'Smartphone' : 'Mail',
+    };
+
+    const previous = workflows.find((workflow) => workflow.id === editingWorkflowId);
+    setWorkflows((prev) => prev.map((workflow) => (
+      workflow.id === editingWorkflowId ? { ...workflow, ...payload } : workflow
+    )));
+    setIsEditingWorkflow(false);
+    setEditingWorkflowId(null);
+    setWorkflowName('');
+
+    try {
+      await updateWorkflow(String(editingWorkflowId), payload);
+      showToast('Workflow updated');
+    } catch (error) {
+      console.error('[WorkflowsApp] Failed to update workflow:', error);
+      if (previous) {
+        setWorkflows((prev) => prev.map((workflow) => (
+          workflow.id === previous.id ? previous : workflow
+        )));
+      }
+      showToast('Failed to update workflow');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 text-left">
       <div className="flex justify-between items-center mb-6">
@@ -151,6 +193,30 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setIsNewWorkflow(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
               <button onClick={handleCreateWorkflow} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Save &amp; Activate</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEditingWorkflow && (
+        <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 animate-in zoom-in-95 duration-200">
+            <h2 className="text-xl font-bold text-stone-900 mb-4 flex items-center gap-2"><Pencil className={theme.color}/> Edit Workflow</h2>
+            <div className="space-y-4">
+              <input type="text" placeholder="Workflow Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-violet-500" value={workflowName} onChange={e => setWorkflowName(e.target.value)} />
+              <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-violet-500 text-sm text-stone-600" value={workflowTrigger} onChange={e => setWorkflowTrigger(e.target.value)}>
+                <option>Trigger: When someone joins a list</option>
+                <option>Trigger: Date based (e.g. Birthday)</option>
+              </select>
+              <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-violet-500 text-sm text-stone-600" value={workflowAction} onChange={e => setWorkflowAction(e.target.value)}>
+                <option>Action: Send SMS</option>
+                <option>Action: Send Email</option>
+                <option>Action: Alert Staff</option>
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={() => setIsEditingWorkflow(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
+              <button onClick={handleUpdateWorkflow} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Save Changes</button>
             </div>
           </div>
         </div>
@@ -204,6 +270,9 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
                   return (
                     <div key={w.id} className="relative pr-20">
                       <WorkflowCard title={w.title} trigger={w.trigger} actions={w.actions} icon={Icon} />
+                      <button onClick={() => openEditWorkflow(w)} className="absolute right-20 top-4 px-2.5 py-1 text-xs font-semibold rounded-md text-indigo-700 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 transition-colors">
+                        Edit
+                      </button>
                       <button onClick={() => handleDeleteWorkflow(w.id)} className="absolute right-4 top-4 px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition-colors">
                         Delete
                       </button>

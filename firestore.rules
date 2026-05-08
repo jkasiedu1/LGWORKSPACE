@@ -8,15 +8,13 @@ service cloud.firestore {
     function isAdmin() {
       let claims = request.auth.token;
       return claims.admin == true
-        || claims.isAdmin == true
-        || request.auth.token.email in ['jkasiedu1@gmail.com'];
+        || claims.isAdmin == true;
     }
 
     function isSeniorPastor() {
       let claims = request.auth.token;
       return claims.seniorPastor == true
-        || claims.isSeniorPastor == true
-        || request.auth.token.email == 'bigjoe11221985@gmail.com';
+        || claims.isSeniorPastor == true;
     }
 
     function canWrite() {
