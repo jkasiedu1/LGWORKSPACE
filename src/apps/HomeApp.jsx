@@ -12,14 +12,11 @@ import HomeMetricCard from '../components/HomeMetricCard';
 import QuickActionButton from '../components/QuickActionButton';
 import { SkeletonCard } from '../components/Skeleton';
 
-export default function HomeApp({ events, people, isAdmin, isSeniorPastor, setActiveApp, loadingPeople, loadingEvents }) {
+export default function HomeApp({ events, people, isAdmin, isSeniorPastor, setActiveApp, loadingPeople, loadingEvents, user }) {
   const formatEventDate = (dateStr, timeStr) => {
     if (!dateStr) return '';
     try {
       const d = new Date(dateStr + 'T00:00:00');
-      const now = new Date();
-      const hour = now.getHours();
-      const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
       const formattedDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       return `${formattedDate} • ${timeStr || ''}`;
     } catch { return dateStr; }
@@ -29,6 +26,8 @@ export default function HomeApp({ events, people, isAdmin, isSeniorPastor, setAc
   const weekLabel = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const hour = today.getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const firstName = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || null;
+  const greetingName = firstName || (isSeniorPastor ? 'Pastor' : isAdmin ? 'Admin' : 'Volunteer');
   const nextEvent = events?.[0] || null;
   const kidsCount = people.filter((person) => person.type === 'Child').length;
   const volunteersCount = people.filter((person) => person.type === 'Volunteer').length;
@@ -59,7 +58,7 @@ export default function HomeApp({ events, people, isAdmin, isSeniorPastor, setAc
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
           <div>
             <h1 className="font-serif text-3xl sm:text-4xl font-bold text-stone-900 tracking-tight">
-              {isSeniorPastor ? `${greeting}, Pastor` : isAdmin ? `${greeting}, Admin` : `${greeting}, Volunteer`}
+              {greeting}, {greetingName}
             </h1>
             <p className="text-stone-500 text-sm mt-2">Ministry pulse for {weekLabel}</p>
           </div>

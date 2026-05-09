@@ -13,7 +13,17 @@ import {
 import { uploadMediaToR2 } from '../lib/mediaStorage';
 import { db } from '../config/firebase';
 
-export default function CommunityApp({ theme, people, posts = [], setPosts, showToast }) {
+function getInitials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+export default function CommunityApp({ theme, people, posts = [], setPosts, showToast, user, roleAccess = {} }) {
+  const displayName = user?.displayName || user?.email?.split('@')[0] || 'You';
+  const roleLabel = roleAccess?.isSeniorPastor ? 'Senior Pastor' : roleAccess?.isAdmin ? 'Admin' : 'Volunteer';
+  const myInitials = getInitials(displayName);
   const [newPostContent, setNewPostContent] = useState('');
   const [actionMenuPostId, setActionMenuPostId] = useState(null);
   const [editingPostId, setEditingPostId] = useState(null);
@@ -73,8 +83,8 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
     const tempId = `temp-post-${Date.now()}`;
     const optimisticPost = {
       id: tempId,
-      author: 'You',
-      role: 'Staff',
+      author: displayName,
+      role: roleLabel,
       time: 'Just now',
       content,
       likes: 0,
@@ -87,8 +97,8 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
 
     try {
       const created = await createCommunityPost({
-        author: 'You',
-        role: 'Staff',
+        author: displayName,
+        role: roleLabel,
         time: 'Just now',
         content,
         likes: 0,
@@ -128,7 +138,7 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
     const targetPost = posts.find((post) => post.id === postId);
     if (!targetPost) return;
     const nextComments = (targetPost.comments || 0) + 1;
-    const nextCommentList = [...(targetPost.commentList || []), { id: Date.now(), author: 'You', text }];
+    const nextCommentList = [...(targetPost.commentList || []), { id: Date.now(), author: displayName, text }];
     setPosts(posts.map(p => {
       if (p.id !== postId) return p;
       return { ...p, comments: nextComments, commentList: nextCommentList };
@@ -154,8 +164,8 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
     try {
       const mediaMeta = await uploadMediaToR2(file, 'community');
       const post = {
-        author: 'You',
-        role: 'Staff',
+        author: displayName,
+        role: roleLabel,
         time: 'Just now',
         content: newPostContent.trim(),
         likes: 0,
@@ -274,10 +284,10 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
         {/* LEFT NAV */}
         <div className="hidden lg:flex flex-col gap-2">
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-4 mb-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${theme.bg} text-white`}>YO</div>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${theme.bg} text-white`}>{myInitials}</div>
             <div>
-              <h3 className="font-bold text-stone-900 text-sm">Your Profile</h3>
-              <p className="text-xs text-stone-500">View timeline</p>
+              <h3 className="font-bold text-stone-900 text-sm">{displayName}</h3>
+              <p className="text-xs text-stone-500">{roleLabel}</p>
             </div>
           </div>
           <button className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${theme.light} ${theme.color} flex items-center gap-3`}><Globe size={18}/> News Feed</button>
@@ -289,7 +299,7 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
         <div className="lg:col-span-2 space-y-6 order-1 lg:order-2">
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-4">
             <div className="flex gap-3">
-              <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-bold ${theme.bg} text-white`}>YO</div>
+              <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-bold ${theme.bg} text-white`}>{myInitials}</div>
               <textarea
                 placeholder="Share an update, praise report, or prayer request..."
                 className="w-full resize-none outline-none text-stone-700 placeholder:text-stone-400 pt-2 text-sm"

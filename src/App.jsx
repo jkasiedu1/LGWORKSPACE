@@ -809,8 +809,8 @@ export default function App() {
           <section className="glass-surface rounded-3xl p-4 sm:p-6 min-h-[75vh] min-w-0 shadow-xl app-scene-enter overflow-hidden">
             <div key={activeApp} className="app-scene-enter">
               <ErrorBoundary>
-                {activeApp === 'home' && <HomeApp events={appData.events} people={appData.people} isAdmin={isAdmin} isSeniorPastor={isSeniorPastor} setActiveApp={setActiveApp} loadingPeople={appData.loadingPeople} loadingEvents={appData.loadingEvents} />}
-                {activeApp === 'community' && <CommunityApp theme={theme} people={appData.people} posts={appData.communityPosts} setPosts={appData.setCommunityPosts} showToast={showToast} />}
+                {activeApp === 'home' && <HomeApp events={appData.events} people={appData.people} isAdmin={isAdmin} isSeniorPastor={isSeniorPastor} setActiveApp={setActiveApp} loadingPeople={appData.loadingPeople} loadingEvents={appData.loadingEvents} user={user} />}
+                {activeApp === 'community' && <CommunityApp theme={theme} people={appData.people} posts={appData.communityPosts} setPosts={appData.setCommunityPosts} showToast={showToast} user={user} roleAccess={roleAccess} />}
                 {activeApp === 'services' && <ServicesApp theme={theme} planItems={appData.planItems} setPlanItems={appData.setPlanItems} servicePlan={appData.servicePlan} setServicePlan={appData.setServicePlan} isAdmin={isAdmin} showToast={showToast} />}
                 {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} songs={appData.songs} setSongs={appData.setSongs} globalSearch={globalSearchQuery} showToast={showToast} />}
                 {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={appData.teamsList} setTeamsList={appData.setTeamsList} people={appData.people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} globalSearch={globalSearchQuery} />}
