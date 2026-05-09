@@ -669,6 +669,7 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
   };
 
   return (
+    <>
     <div className="animate-in fade-in duration-500 text-left h-full">
       <div className="flex justify-between items-center mb-5">
         <div>
@@ -688,9 +689,6 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
             </div>
           </div>
           <button className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${theme.light} ${theme.color} flex items-center gap-3`}><Globe size={16}/> News Feed</button>
-          <button className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100 flex items-center gap-3"><Users size={16}/> Groups</button>
-          <button className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100 flex items-center gap-3"><CalendarIcon size={16}/> Events</button>
-          <button className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100 flex items-center gap-3"><BookOpen size={16}/> Scripture Feed</button>
         </div>
 
         {/* CENTER FEED */}
@@ -713,8 +711,8 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
               />
             </div>
             {isPostFocused && (
-              <div className="px-3 pb-2 flex items-center justify-between border-t border-stone-100 pt-2">
-                <div className="flex items-center gap-1">
+              <div className="border-t border-stone-100">
+                <div className="px-3 pt-2 pb-1 flex items-center gap-1">
                   <input ref={photoInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handlePhotoSelected}/>
                   <button onClick={() => photoInputRef.current?.click()}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-stone-500 hover:bg-stone-100 transition-colors">
@@ -727,10 +725,12 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
                     <Smile size={15} className="text-amber-500"/> Emoji
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="px-3 pb-2 flex items-center justify-between">
                   <span className={`text-[10px] ${newPostContent.length > MAX_CHARS * 0.9 ? 'text-rose-500' : 'text-stone-400'}`}>{newPostContent.length}/{MAX_CHARS}</span>
-                  <button onClick={() => { setIsPostFocused(false); setNewPostContent(''); }} className="px-3 py-1.5 text-xs font-semibold text-stone-500 hover:bg-stone-100 rounded-lg">Cancel</button>
-                  <button onClick={handlePost} disabled={!newPostContent.trim()} className={`px-4 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50 transition-opacity ${theme.bg}`}>Post</button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => { setIsPostFocused(false); setNewPostContent(''); }} className="px-3 py-1.5 text-xs font-semibold text-stone-500 hover:bg-stone-100 rounded-lg">Cancel</button>
+                    <button onClick={handlePost} disabled={!newPostContent.trim()} className={`px-4 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50 transition-opacity ${theme.bg}`}>Post</button>
+                  </div>
                 </div>
               </div>
             )}
@@ -786,9 +786,10 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
         </div>
       </div>
 
-      {/* Chat popup */}
-      {activeChat && (
-        <div className="fixed inset-x-2 bottom-2 sm:inset-x-auto sm:bottom-4 sm:right-8 sm:w-[340px] bg-white rounded-2xl shadow-2xl border border-stone-200 z-50 flex flex-col overflow-hidden animate-in slide-in-from-bottom-8">
+    </div>
+    {/* Chat popup — rendered outside animate-in so position:fixed isn't broken by parent transform */}
+    {activeChat && (
+      <div className="fixed inset-x-2 bottom-2 sm:inset-x-auto sm:bottom-4 sm:right-8 sm:w-[340px] bg-white rounded-2xl shadow-2xl border border-stone-200 z-50 flex flex-col overflow-hidden">
           <div className={`${theme.bg} p-3 text-white flex justify-between items-center`}>
             <div className="flex items-center gap-2">
               <Avatar name={activeChat.name} size={8}/>
@@ -815,8 +816,8 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
               <Send size={15}/>
             </button>
           </form>
-        </div>
-      )}
-    </div>
+      </div>
+    )}
+    </>
   );
 }
