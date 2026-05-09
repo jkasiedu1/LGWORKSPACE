@@ -20,9 +20,10 @@ export function useAuth() {
       async (currentUser) => {
         try {
           if (currentUser) {
-            // Attempt to load custom claims for RBAC
+            // Force-refresh the token so custom claims set via the worker
+            // are always reflected immediately after sign-in.
             try {
-              const tokenResult = await currentUser.getIdTokenResult();
+              const tokenResult = await currentUser.getIdTokenResult(true);
               const claims = tokenResult.claims;
               const rolesFromClaims = resolveRoleAccess(currentUser.email, claims);
               setRoleAccess(rolesFromClaims);

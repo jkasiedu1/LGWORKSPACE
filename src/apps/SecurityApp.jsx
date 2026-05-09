@@ -54,10 +54,10 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
           return;
         }
         await grantAppAccess(grantEmail, selectedApps);
-        showToast(`App access granted to ${grantEmail.trim()} for: ${selectedApps.join(', ')}`);
+        showToast(`App access granted to ${grantEmail.trim()} — they must sign out and back in to activate it.`);
       } else {
         await grantAdminAccess(grantEmail);
-        showToast(`Admin access granted to ${grantEmail.trim()}`);
+        showToast(`Admin access granted to ${grantEmail.trim()} — they must sign out and back in to activate it.`);
       }
       setGrantEmail('');
       setSelectedApps([]);
