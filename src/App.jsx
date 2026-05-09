@@ -596,10 +596,14 @@ export default function App() {
     return <LoginScreen />;
   }
 
-  // Filter visible apps based on user role
+  // Filter visible apps based on user role.
+  // Admins see everything. Scoped users see apps explicitly in their appAccess claims.
+  // Non-admin, non-scoped users never see privileged apps.
+  const PRIVILEGED_APP_IDS = new Set(['security', 'reporting', 'giving', 'workflows']);
   const visibleApps = Object.values(APPS).filter((app) => {
-    if (!isAdmin && ['security', 'reporting', 'giving', 'workflows'].includes(app.id)) {
-      return false;
+    if (isAdmin) return true;
+    if (PRIVILEGED_APP_IDS.has(app.id)) {
+      return Array.isArray(roleAccess.appAccess) && roleAccess.appAccess.includes(app.id);
     }
     return true;
   });
@@ -811,11 +815,11 @@ export default function App() {
                 {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} songs={appData.songs} setSongs={appData.setSongs} globalSearch={globalSearchQuery} showToast={showToast} />}
                 {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={appData.teamsList} setTeamsList={appData.setTeamsList} people={appData.people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} globalSearch={globalSearchQuery} />}
                 {activeApp === 'people' && <PeopleApp theme={theme} people={appData.people} setPeople={appData.setPeople} isAdmin={isAdmin} globalSearch={globalSearchQuery} showToast={showToast} loadingPeople={appData.loadingPeople} />}
-                {activeApp === 'giving' && isAdmin && <GivingApp theme={theme} donations={appData.donations} setDonations={appData.setDonations} showToast={showToast} />}
+                {activeApp === 'giving' && (isAdmin || roleAccess.appAccess?.includes('giving')) && <GivingApp theme={theme} donations={appData.donations} setDonations={appData.setDonations} showToast={showToast} />}
                 {activeApp === 'calendar' && <CalendarApp theme={theme} events={appData.events} setEvents={appData.setEvents} isAdmin={isAdmin} showToast={showToast} />}
-                {activeApp === 'workflows' && isAdmin && <WorkflowsApp theme={theme} workflows={appData.workflows} setWorkflows={appData.setWorkflows} showToast={showToast} />}
+                {activeApp === 'workflows' && (isAdmin || roleAccess.appAccess?.includes('workflows')) && <WorkflowsApp theme={theme} workflows={appData.workflows} setWorkflows={appData.setWorkflows} showToast={showToast} />}
                 {activeApp === 'security' && isAdmin && <SecurityApp theme={theme} isSeniorPastor={isSeniorPastor} securitySettings={appData.securitySettings} setSecuritySettings={appData.setSecuritySettings} showToast={showToast} />}
-                {activeApp === 'reporting' && isAdmin && <ReportingApp theme={theme} people={appData.people} donations={appData.donations} events={appData.events} teamsList={appData.teamsList} />}
+                {activeApp === 'reporting' && (isAdmin || roleAccess.appAccess?.includes('reporting')) && <ReportingApp theme={theme} people={appData.people} donations={appData.donations} events={appData.events} teamsList={appData.teamsList} />}
               </ErrorBoundary>
             </div>
           </section>
