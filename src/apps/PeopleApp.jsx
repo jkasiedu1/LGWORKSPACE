@@ -3,7 +3,6 @@ import {
   Search, UserPlus, AlertCircle, X, QrCode, UserCheck,
   CheckCircle2, Printer, Upload, Download, Pencil, Trash2, ScanLine
 } from 'lucide-react';
-import { FixedSizeList } from 'react-window';
 import { db } from '../config/firebase';
 import { createPeopleBulk, createPerson, deletePerson, updatePersonCheckInStatus, updatePersonProfile } from '../lib/firestoreServices';
 import {
@@ -651,50 +650,7 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
                 {isAdmin && <div className="text-right">Actions</div>}
                 {!isAdmin && <div className="text-right">Profile</div>}
               </div>
-              {filteredPeople.length > 80 ? (
-                <FixedSizeList
-                  height={520}
-                  itemCount={filteredPeople.length}
-                  itemSize={80}
-                  width="100%"
-                >
-                  {({ index, style }) => {
-                    const person = filteredPeople[index];
-                    return (
-                      <div key={person.id} style={style} className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto] gap-4 px-5 items-center hover:bg-stone-50/70 border-b border-stone-100 transition-colors">
-                        <div className="min-w-0 flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>{getInitial(person)}</div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-stone-900 truncate text-sm">{getDisplayName(person)}</p>
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${activeTab === 'visitors' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>{person.type}</span>
-                          </div>
-                        </div>
-                        <div className="min-w-0 text-xs">
-                          {person.email ? renderDetailTrigger('Email Address', person.email, 'text-stone-700 max-w-full block') : <span className="text-stone-400">No email</span>}
-                          {person.phone ? renderDetailTrigger('Phone Number', person.phone, 'text-stone-500 mt-0.5 max-w-full block') : null}
-                        </div>
-                        <div className="min-w-0 text-xs text-stone-500">{person.bgCheck || 'N/A'}</div>
-                        <div className="flex items-center justify-end gap-2">
-                          {isAdmin ? (
-                            <>
-                              <button onClick={() => handleStartEdit(person)} className="px-2 py-1 text-[10px] font-semibold rounded text-sky-700 bg-sky-50 border border-sky-100">Edit</button>
-                              {deleteConfirmId === person.id ? (
-                                <>
-                                  <button onClick={() => handleDeleteProfile(person.id)} className="px-2 py-1 text-[10px] font-semibold rounded text-white bg-rose-600">Confirm</button>
-                                  <button onClick={() => setDeleteConfirmId(null)} className="px-2 py-1 text-[10px] font-semibold rounded text-stone-500">Cancel</button>
-                                </>
-                              ) : (
-                                <button onClick={() => handleDeleteProfile(person.id)} className="px-2 py-1 text-[10px] font-semibold rounded text-rose-700 bg-rose-50 border border-rose-100">Delete</button>
-                              )}
-                            </>
-                          ) : <span className="text-xs text-stone-400">View only</span>}
-                        </div>
-                      </div>
-                    );
-                  }}
-                </FixedSizeList>
-              ) : (
-                filteredPeople.map((person) => (
+              {filteredPeople.map((person) => (
                   <div key={person.id} className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto] gap-4 px-5 py-4 items-center hover:bg-stone-50/70 transition-colors">
                     <div className="min-w-0 flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
