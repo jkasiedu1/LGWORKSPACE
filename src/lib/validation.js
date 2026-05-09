@@ -23,7 +23,7 @@ export function validatePersonProfile(person) {
     }
   }
 
-  if (person?.email && !/^\S+@\S+\.\S+$/.test(person.email)) {
+  if (person?.email && !/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/.test(person.email)) {
     return { valid: false, message: 'Email address format is invalid.' };
   }
 
@@ -41,6 +41,11 @@ export function validateCalendarEvent(event) {
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(event.date)) {
     return { valid: false, message: 'Event date must be in YYYY-MM-DD format.' };
+  }
+
+  const parsed = new Date(event.date + 'T00:00:00');
+  if (isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== event.date) {
+    return { valid: false, message: 'Event date is not a valid calendar date.' };
   }
 
   if (event?.time && !/^\d{2}:\d{2}$/.test(event.time)) {

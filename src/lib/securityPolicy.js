@@ -18,7 +18,8 @@ export function redactSensitiveData(input) {
   return text
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]')
     .replace(/\+?\d?[\d\s().-]{8,}\d/g, '[REDACTED_PHONE]')
-    .replace(/\b\d{1,5}\s+[a-zA-Z0-9.\s-]{2,}\b/g, '[REDACTED_ADDRESS]');
+    // Require a street-type suffix to avoid matching arbitrary numbers (e.g. "2 Samuel", "3 hours")
+    .replace(/\b\d{1,5}\s+[a-zA-Z0-9.\s-]{2,}?\b(?:St(?:reet)?|Ave(?:nue)?|Blvd|Rd|Road|Dr(?:ive)?|Ln|Lane|Ct|Court|Pl(?:ace)?|Way|Pkwy|Hwy)\b[^\n]*/gi, '[REDACTED_ADDRESS]');
 }
 
 export function containsRestrictedData(input) {

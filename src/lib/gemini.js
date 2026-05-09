@@ -5,6 +5,7 @@ import {
 } from './securityPolicy';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.0-flash';
 let securityPolicy = normalizeSecuritySettings();
 
 export function configureGeminiPolicy(nextPolicy = {}) {
@@ -48,7 +49,7 @@ export const callGeminiAI = async (prompt, systemContext, policyOverride = null)
 
   try {
     const data = await retryFetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

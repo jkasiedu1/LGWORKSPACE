@@ -1,3 +1,16 @@
+const UPLOAD_RATE_LIMIT = 20; // max uploads per user per hour
+
+async function checkUploadRateLimit(uid, env) {
+  if (!env.RATE_LIMIT_KV) return; // graceful degradation if KV not configured
+  const hourBucket = Math.floor(Date.now() / 3_600_000);
+  const key = `upload:${uid}:${hourBucket}`;
+  const current = parseInt(await env.RATE_LIMIT_KV.get(key) || '0', 10);
+  if (current >= UPLOAD_RATE_LIMIT) {
+    throw new Error(`Upload rate limit exceeded. Maximum ${UPLOAD_RATE_LIMIT} uploads per hour.`);
+  }
+  await env.RATE_LIMIT_KV.put(key, String(current + 1), { expirationTtl: 7200 });
+}
+
 const ALLOWED_IMAGE_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic',
 ]);
@@ -406,6 +419,8 @@ export default {
         if (!hasPrivilegedClaims(requester.claims)) {
           return json({ error: 'Insufficient privileges to sign uploads.' }, 403, origin);
         }
+
+        await checkUploadRateLimit(requester.uid, env);
 
         const { fileName, fileType, fileSize, folder = 'community' } = await request.json();
 

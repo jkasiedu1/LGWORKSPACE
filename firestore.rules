@@ -27,7 +27,7 @@ service cloud.firestore {
 
     match /auditLogs/{logId} {
       allow create: if isAuthenticated() && canWrite();
-      allow read: if isAuthenticated() && (isAdmin() || resource.data.actorEmail == request.auth.token.email);
+      allow read: if isAuthenticated() && isAdmin();
       allow update, delete: if false;
     }
 
@@ -84,7 +84,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && canWrite();
       allow read: if isAuthenticated();
       allow update: if isAuthenticated() && canWrite();
-      allow delete: if isAuthenticated() && canWrite();
+      allow delete: if isAuthenticated() && (isAdmin() || (canWrite() && resource.data.authorId == request.auth.uid));
     }
 
     match /communityMessages/{messageId} {

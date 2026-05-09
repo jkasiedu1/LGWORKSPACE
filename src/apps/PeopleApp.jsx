@@ -16,9 +16,18 @@ import { validatePersonProfile } from '../lib/validation';
 import { useAuth } from '../hooks/useAuth';
 
 function generateSecurityCode() {
-  const array = new Uint32Array(1);
-  crypto.getRandomValues(array);
-  return (array[0] % 1679616).toString(36).toUpperCase().padStart(4, '0').slice(0, 4);
+  // Use rejection sampling to avoid modulo bias when mapping bytes to base-36 chars.
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'; // 36 characters
+  const cap = Math.floor(256 / 36) * 36; // 252 — reject bytes >= 252
+  const buf = new Uint8Array(64); // oversized to absorb rejections
+  let code = '';
+  while (code.length < 4) {
+    crypto.getRandomValues(buf);
+    for (let i = 0; i < buf.length && code.length < 4; i++) {
+      if (buf[i] < cap) code += chars[buf[i] % 36];
+    }
+  }
+  return code;
 }
 
 export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast, loadingPeople }) {

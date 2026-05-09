@@ -815,7 +815,7 @@ export default function App() {
                 {activeApp === 'calendar' && <CalendarApp theme={theme} events={appData.events} setEvents={appData.setEvents} isAdmin={isAdmin} showToast={showToast} />}
                 {activeApp === 'workflows' && isAdmin && <WorkflowsApp theme={theme} workflows={appData.workflows} setWorkflows={appData.setWorkflows} showToast={showToast} />}
                 {activeApp === 'security' && isAdmin && <SecurityApp theme={theme} isSeniorPastor={isSeniorPastor} securitySettings={appData.securitySettings} setSecuritySettings={appData.setSecuritySettings} showToast={showToast} />}
-                {activeApp === 'reporting' && isAdmin && <ReportingApp theme={theme} />}
+                {activeApp === 'reporting' && isAdmin && <ReportingApp theme={theme} people={appData.people} donations={appData.donations} events={appData.events} teamsList={appData.teamsList} />}
               </ErrorBoundary>
             </div>
           </section>
