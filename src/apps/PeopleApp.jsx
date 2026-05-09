@@ -690,8 +690,7 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
                       )}
                     </div>
                   </div>
-                ))
-              )}
+                ))}
             </div>
           )}
 
