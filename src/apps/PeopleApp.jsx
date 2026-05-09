@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search, UserPlus, AlertCircle, X, QrCode, UserCheck,
-  CheckCircle2, Printer, Upload, Download, Pencil
+  CheckCircle2, Printer, Upload, Download, Pencil, Trash2, ScanLine
 } from 'lucide-react';
+import { FixedSizeList } from 'react-window';
 import { db } from '../config/firebase';
 import { createPeopleBulk, createPerson, deletePerson, updatePersonCheckInStatus, updatePersonProfile } from '../lib/firestoreServices';
 import {
@@ -20,10 +21,12 @@ function generateSecurityCode() {
   return (array[0] % 1679616).toString(36).toUpperCase().padStart(4, '0').slice(0, 4);
 }
 
-export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast }) {
+export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast, loadingPeople }) {
   const { user } = useAuth();
   const mainImportInputRef = useRef(null);
   const kidsImportInputRef = useRef(null);
+  const qrScannerRef = useRef(null);
+  const qrDivRef = useRef(null);
   const [activeTab, setActiveTab] = useState('directory');
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -31,6 +34,9 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
   const [isImporting, setIsImporting] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [qrScanActive, setQrScanActive] = useState(false);
+  const [qrScanResult, setQrScanResult] = useState(null);
   const [newPerson, setNewPerson] = useState({
     firstName: '', lastName: '', email: '', phone: '', address: '',
     type: 'Member', gender: 'Female', bgCheck: 'N/A',
@@ -90,7 +96,15 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
   };
 
   const filteredPeople = useMemo(() => people.filter(p => {
-    const matchesSearch = (p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.email?.toLowerCase().includes(searchQuery.toLowerCase()));
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q || (
+      (p.name?.toLowerCase().includes(q)) ||
+      (p.email?.toLowerCase().includes(q)) ||
+      (p.phone?.toLowerCase().includes(q)) ||
+      (p.type?.toLowerCase().includes(q)) ||
+      (p.address?.toLowerCase().includes(q)) ||
+      (`${p.firstName || ''} ${p.lastName || ''}`.toLowerCase().includes(q))
+    );
     if (!matchesSearch) return false;
     if (activeTab === 'directory') return ['Member', 'Staff', 'Volunteer'].includes(p.type);
     if (activeTab === 'visitors') return ['First Time', 'Returning', 'Guest'].includes(p.type);
@@ -194,6 +208,11 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
   };
 
   const handleDeleteProfile = async (personId) => {
+    if (deleteConfirmId !== personId) {
+      setDeleteConfirmId(personId);
+      return;
+    }
+    setDeleteConfirmId(null);
     const personData = people.find(p => p.id === personId);
 
     try {
@@ -209,6 +228,48 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
       showToast('Failed to delete profile.');
     }
   };
+
+  const stopQrScanner = async () => {
+    if (qrScannerRef.current) {
+      try {
+        await qrScannerRef.current.stop();
+        qrScannerRef.current.clear();
+      } catch (_) {}
+      qrScannerRef.current = null;
+    }
+    setQrScanActive(false);
+  };
+
+  const startQrScanner = async () => {
+    if (!qrDivRef.current) return;
+    setQrScanResult(null);
+    setQrScanActive(true);
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const scanner = new Html5Qrcode('qr-reader-div');
+      qrScannerRef.current = scanner;
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText) => {
+          const matched = people.find(p => p.type === 'Child' && p.securityCode === decodedText.trim().toUpperCase());
+          if (matched) {
+            setQrScanResult({ found: true, person: matched, code: decodedText });
+            stopQrScanner();
+          } else {
+            setQrScanResult({ found: false, code: decodedText });
+          }
+        },
+        () => {}
+      );
+    } catch (err) {
+      console.error('[QR Scanner]', err);
+      setQrScanActive(false);
+      showToast('Camera unavailable or permission denied');
+    }
+  };
+
+  useEffect(() => () => { stopQrScanner(); }, []);
 
   const handleImportPeople = async (mode, event) => {
     const file = event.target.files?.[0];
@@ -581,44 +642,91 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
                 {isAdmin && <div className="text-right">Actions</div>}
                 {!isAdmin && <div className="text-right">Profile</div>}
               </div>
-              {filteredPeople.map((person) => (
-                <div key={person.id} className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto] gap-4 px-5 py-4 items-center hover:bg-stone-50/70 transition-colors">
-                  <div className="min-w-0 flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
-                      {getInitial(person)}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-semibold text-stone-900 truncate">{getDisplayName(person)}</p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === 'visitors' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>{person.type}</span>
-                        <span className="text-xs text-stone-500">{person.gender || 'N/A'}</span>
+              {filteredPeople.length > 80 ? (
+                <FixedSizeList
+                  height={520}
+                  itemCount={filteredPeople.length}
+                  itemSize={80}
+                  width="100%"
+                >
+                  {({ index, style }) => {
+                    const person = filteredPeople[index];
+                    return (
+                      <div key={person.id} style={style} className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto] gap-4 px-5 items-center hover:bg-stone-50/70 border-b border-stone-100 transition-colors">
+                        <div className="min-w-0 flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>{getInitial(person)}</div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-stone-900 truncate text-sm">{getDisplayName(person)}</p>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${activeTab === 'visitors' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>{person.type}</span>
+                          </div>
+                        </div>
+                        <div className="min-w-0 text-xs">
+                          {person.email ? renderDetailTrigger('Email Address', person.email, 'text-stone-700 max-w-full block') : <span className="text-stone-400">No email</span>}
+                          {person.phone ? renderDetailTrigger('Phone Number', person.phone, 'text-stone-500 mt-0.5 max-w-full block') : null}
+                        </div>
+                        <div className="min-w-0 text-xs text-stone-500">{person.bgCheck || 'N/A'}</div>
+                        <div className="flex items-center justify-end gap-2">
+                          {isAdmin ? (
+                            <>
+                              <button onClick={() => handleStartEdit(person)} className="px-2 py-1 text-[10px] font-semibold rounded text-sky-700 bg-sky-50 border border-sky-100">Edit</button>
+                              {deleteConfirmId === person.id ? (
+                                <>
+                                  <button onClick={() => handleDeleteProfile(person.id)} className="px-2 py-1 text-[10px] font-semibold rounded text-white bg-rose-600">Confirm</button>
+                                  <button onClick={() => setDeleteConfirmId(null)} className="px-2 py-1 text-[10px] font-semibold rounded text-stone-500">Cancel</button>
+                                </>
+                              ) : (
+                                <button onClick={() => handleDeleteProfile(person.id)} className="px-2 py-1 text-[10px] font-semibold rounded text-rose-700 bg-rose-50 border border-rose-100">Delete</button>
+                              )}
+                            </>
+                          ) : <span className="text-xs text-stone-400">View only</span>}
+                        </div>
+                      </div>
+                    );
+                  }}
+                </FixedSizeList>
+              ) : (
+                filteredPeople.map((person) => (
+                  <div key={person.id} className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto] gap-4 px-5 py-4 items-center hover:bg-stone-50/70 transition-colors">
+                    <div className="min-w-0 flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
+                        {getInitial(person)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-stone-900 truncate">{getDisplayName(person)}</p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${activeTab === 'visitors' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>{person.type}</span>
+                          <span className="text-xs text-stone-500">{person.gender || 'N/A'}</span>
+                        </div>
                       </div>
                     </div>
+                    <div className="min-w-0">
+                      {person.email ? renderDetailTrigger('Email Address', person.email, 'text-sm text-stone-700 max-w-full block') : <p className="text-sm text-stone-700">No email</p>}
+                      {person.phone ? renderDetailTrigger('Phone Number', person.phone, 'text-xs text-stone-500 mt-1 max-w-full block') : <p className="text-xs text-stone-500 mt-1">No phone</p>}
+                    </div>
+                    <div className="min-w-0">
+                      {person.address ? renderDetailTrigger('Address', person.address, 'text-sm text-stone-700 max-w-full block') : <p className="text-sm text-stone-700">No address</p>}
+                      <p className="text-xs text-stone-500 mt-1">Background Check: {person.bgCheck || 'N/A'}</p>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      {isAdmin ? (
+                        <>
+                          <button onClick={() => handleStartEdit(person)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">Edit</button>
+                          {deleteConfirmId === person.id ? (
+                            <>
+                              <button onClick={() => handleDeleteProfile(person.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-white bg-rose-600 hover:bg-rose-700">Confirm</button>
+                              <button onClick={() => setDeleteConfirmId(null)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-stone-500 hover:bg-stone-100">Cancel</button>
+                            </>
+                          ) : (
+                            <button onClick={() => handleDeleteProfile(person.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">Delete</button>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-xs text-stone-400">View only</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    {person.email ? renderDetailTrigger('Email Address', person.email, 'text-sm text-stone-700 max-w-full block') : <p className="text-sm text-stone-700">No email</p>}
-                    {person.phone ? renderDetailTrigger('Phone Number', person.phone, 'text-xs text-stone-500 mt-1 max-w-full block') : <p className="text-xs text-stone-500 mt-1">No phone</p>}
-                  </div>
-                  <div className="min-w-0">
-                    {person.address ? renderDetailTrigger('Address', person.address, 'text-sm text-stone-700 max-w-full block') : <p className="text-sm text-stone-700">No address</p>}
-                    <p className="text-xs text-stone-500 mt-1">Background Check: {person.bgCheck || 'N/A'}</p>
-                  </div>
-                  <div className="flex items-center justify-end gap-2">
-                    {isAdmin ? (
-                      <>
-                        <button onClick={() => handleStartEdit(person)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">
-                          Edit
-                        </button>
-                        <button onClick={() => handleDeleteProfile(person.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">
-                          Delete
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-xs text-stone-400">View only</span>
-                    )}
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           )}
 
@@ -660,9 +768,16 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
                         <button onClick={() => handleStartEdit(child)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">
                           Edit
                         </button>
-                        <button onClick={() => handleDeleteProfile(child.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">
-                          Delete
-                        </button>
+                        {deleteConfirmId === child.id ? (
+                          <>
+                            <button onClick={() => handleDeleteProfile(child.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-white bg-rose-600 hover:bg-rose-700">Confirm</button>
+                            <button onClick={() => setDeleteConfirmId(null)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-stone-500 hover:bg-stone-100">Cancel</button>
+                          </>
+                        ) : (
+                          <button onClick={() => handleDeleteProfile(child.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">
+                            Delete
+                          </button>
+                        )}
                       </>
                     ) : (
                       <span className="text-xs text-stone-400">View only</span>
@@ -674,6 +789,30 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
           )}
 
           {activeTab === 'checkin' && (
+            <>
+            <div className="px-5 py-4 border-b border-stone-100 bg-stone-50/50">
+              <div className="flex items-center gap-3">
+                {!qrScanActive ? (
+                  <button onClick={startQrScanner} className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors">
+                    <ScanLine size={16} /> Scan QR Code
+                  </button>
+                ) : (
+                  <button onClick={stopQrScanner} className="inline-flex items-center gap-2 px-4 py-2 bg-stone-600 text-white rounded-lg text-sm font-semibold hover:bg-stone-700 transition-colors">
+                    <X size={16} /> Stop Scanner
+                  </button>
+                )}
+                {qrScanResult && (
+                  <div className={`text-sm font-semibold rounded-lg px-3 py-2 ${qrScanResult.found ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                    {qrScanResult.found
+                      ? `✓ ${qrScanResult.person.firstName} ${qrScanResult.person.lastName} — code ${qrScanResult.code}`
+                      : `Code "${qrScanResult.code}" not found`}
+                  </div>
+                )}
+              </div>
+              {qrScanActive && (
+                <div id="qr-reader-div" ref={qrDivRef} className="mt-3 max-w-xs rounded-xl overflow-hidden border border-stone-200 shadow-sm" />
+              )}
+            </div>
             <table className="w-full text-sm text-left relative">
               <thead className="border-b border-stone-100 text-stone-500 font-medium sticky top-0 bg-white z-10">
                 <tr>
@@ -715,6 +854,7 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
                 })}
               </tbody>
             </table>
+            </>
           )}
 
           {filteredPeople.length === 0 && (

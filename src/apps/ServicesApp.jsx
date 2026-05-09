@@ -1,7 +1,49 @@
 import { useEffect, useState } from 'react';
 import { Sparkles, Loader2, GripVertical, AlertCircle, Plus, Save, Edit2, Clock, Users } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { callGeminiAI } from '../lib/gemini';
 import { saveServicePlan } from '../lib/firestoreServices';
+
+function SortablePlanRow({ item, theme, isAdmin, onDelete }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  return (
+    <tr ref={setNodeRef} style={style} className="hover:bg-stone-50 group">
+      <td className="px-4 py-3 text-stone-300">
+        {isAdmin && (
+          <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none focus:outline-none">
+            <GripVertical size={16} className="group-hover:text-stone-500" />
+          </button>
+        )}
+      </td>
+      <td className="px-4 py-3 font-medium text-stone-900">{item.time}</td>
+      <td className="px-4 py-3 text-stone-500">{item.length}</td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          {item.type === 'Song' && <span className={`w-2 h-2 rounded-full ${theme.bg}`}></span>}
+          <span className="font-medium text-stone-900">{item.title}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-stone-500">{item.person}</td>
+      <td className="px-4 py-3 text-right">
+        {isAdmin && <button onClick={() => onDelete(item.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition-colors">Delete</button>}
+      </td>
+    </tr>
+  );
+}
 
 export default function ServicesApp({ theme, planItems, setPlanItems, servicePlan, setServicePlan, isAdmin, showToast }) {
   const [prompt, setPrompt] = useState('');
@@ -28,12 +70,17 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
     { id: 7, role: 'Production / Stream', person: 'Sam Rivera', status: 'Pending' },
   ]);
 
+  const dndSensors = useSensors(useSensor(PointerSensor));
+
   useEffect(() => {
     if (servicePlan?.headerData) {
       setHeaderData(servicePlan.headerData);
     }
     if (servicePlan?.serviceTimes) {
       setServiceTimes(servicePlan.serviceTimes);
+    }
+    if (servicePlan?.planItems) {
+      setPlanItems(servicePlan.planItems);
     }
   }, [servicePlan]);
 
@@ -57,7 +104,7 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
   };
 
   const handleSavePlan = async () => {
-    const payload = { headerData, serviceTimes };
+    const payload = { headerData, serviceTimes, planItems };
     try {
       await saveServicePlan(payload);
       setServicePlan(payload);
@@ -139,6 +186,16 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         {activeTab === 'order' && (<>
         <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+          <DndContext
+            sensors={dndSensors}
+            collisionDetection={closestCenter}
+            onDragEnd={({ active, over }) => {
+              if (!over || active.id === over.id) return;
+              const oldIndex = planItems.findIndex(i => i.id === active.id);
+              const newIndex = planItems.findIndex(i => i.id === over.id);
+              setPlanItems(arrayMove(planItems, oldIndex, newIndex));
+            }}
+          >
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-medium">
@@ -151,27 +208,22 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
                   <th className="px-4 py-3 w-8"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100">
-                {planItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-stone-50 group">
-                    <td className="px-4 py-3 text-stone-300">{isAdmin && <GripVertical size={16} className="cursor-move group-hover:text-stone-500" />}</td>
-                    <td className="px-4 py-3 font-medium text-stone-900">{item.time}</td>
-                    <td className="px-4 py-3 text-stone-500">{item.length}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {item.type === 'Song' && <span className={`w-2 h-2 rounded-full ${theme.bg}`}></span>}
-                        <span className="font-medium text-stone-900">{item.title}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-stone-500">{item.person}</td>
-                    <td className="px-4 py-3 text-right">
-                      {isAdmin && <button onClick={() => setPlanItems(planItems.filter(i => i.id !== item.id))} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition-colors">Delete</button>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+                <SortableContext items={planItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                  <tbody className="divide-y divide-stone-100">
+                    {planItems.map((item) => (
+                      <SortablePlanRow
+                        key={item.id}
+                        item={item}
+                        theme={theme}
+                        isAdmin={isAdmin}
+                        onDelete={(id) => setPlanItems(planItems.filter(i => i.id !== id))}
+                      />
+                    ))}
+                  </tbody>
+                </SortableContext>
             </table>
           </div>
+          </DndContext>
           {isAdmin && (
             isAdding ? (
               <div className="p-4 border-t border-stone-100 bg-stone-50">

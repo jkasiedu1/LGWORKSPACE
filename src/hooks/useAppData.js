@@ -39,10 +39,20 @@ export function useAppData(isAuthenticated) {
     ],
   });
 
+  // Per-collection loading states
+  const [loadingPeople, setLoadingPeople] = useState(true);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+
   /**
    * Subscribe to Firestore collections when authenticated
    */
   useEffect(() => {
+    if (!isAuthenticated || !db) {
+      setLoadingPeople(false);
+      setLoadingEvents(false);
+      return;
+    }
+
     let unsubEvents;
     let unsubPeople;
     let unsubDonations;
@@ -53,14 +63,15 @@ export function useAppData(isAuthenticated) {
     let unsubSecuritySettings;
     let unsubServicePlan;
 
-    if (isAuthenticated && db) {
-      try {
+    try {
         unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
           setEvents(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+          setLoadingEvents(false);
         });
 
         unsubPeople = onSnapshot(collection(db, 'people'), (snapshot) => {
           setPeople(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+          setLoadingPeople(false);
         });
 
         unsubDonations = onSnapshot(collection(db, 'donations'), (snapshot) => {
@@ -97,7 +108,6 @@ export function useAppData(isAuthenticated) {
       } catch (error) {
         console.error('[useAppData] Failed to subscribe to collections:', error);
       }
-    }
 
     return () => {
       if (unsubEvents) unsubEvents();
@@ -115,8 +125,10 @@ export function useAppData(isAuthenticated) {
   return {
     events,
     setEvents,
+    loadingEvents,
     people,
     setPeople,
+    loadingPeople,
     planItems,
     setPlanItems,
     donations,

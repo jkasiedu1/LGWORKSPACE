@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Accessibility,
   Activity,
@@ -24,6 +25,7 @@ import {
 import { APPS } from './config/apps';
 import { useAuth } from './hooks/useAuth';
 import { useAppData } from './hooks/useAppData';
+import ErrorBoundary from './components/ErrorBoundary';
 import LoginScreen from './apps/LoginScreen';
 import HomeApp from './apps/HomeApp';
 import CommunityApp from './apps/CommunityApp';
@@ -123,7 +125,10 @@ export default function App() {
   const { isSeniorPastor, isAdmin } = roleAccess;
 
   // Local UI state
-  const [activeApp, setActiveApp] = useState('home');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const activeApp = location.pathname.replace('/', '') || 'home';
+  const setActiveApp = (appId) => navigate(appId === 'home' ? '/' : `/${appId}`);
   const [isAppSwitcherOpen, setIsAppSwitcherOpen] = useState(false);
   const [globalSearchInput, setGlobalSearchInput] = useState('');
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
@@ -148,6 +153,7 @@ export default function App() {
     return window.localStorage.getItem(REDUCED_MOTION_STORAGE_KEY) === 'true';
   });
   const [toastMsg, setToastMsg] = useState(null);
+  const toastTimeoutRef = useRef(null);
   const contrastObserverRef = useRef(null);
 
   const themePreset = THEME_PRESETS[themePresetKey] ?? THEME_PRESETS.stoneTeal;
@@ -224,7 +230,8 @@ export default function App() {
 
   const showToast = (msg) => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3000);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => setToastMsg(null), 3000);
   };
 
   useEffect(() => {
@@ -797,17 +804,19 @@ export default function App() {
 
           <section className="glass-surface rounded-3xl p-4 sm:p-6 min-h-[75vh] min-w-0 shadow-xl app-scene-enter overflow-hidden">
             <div key={activeApp} className="app-scene-enter">
-              {activeApp === 'home' && <HomeApp events={appData.events} people={appData.people} isAdmin={isAdmin} isSeniorPastor={isSeniorPastor} setActiveApp={setActiveApp} />}
-              {activeApp === 'community' && <CommunityApp theme={theme} people={appData.people} posts={appData.communityPosts} setPosts={appData.setCommunityPosts} showToast={showToast} />}
-              {activeApp === 'services' && <ServicesApp theme={theme} planItems={appData.planItems} setPlanItems={appData.setPlanItems} servicePlan={appData.servicePlan} setServicePlan={appData.setServicePlan} isAdmin={isAdmin} showToast={showToast} />}
-              {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} songs={appData.songs} setSongs={appData.setSongs} globalSearch={globalSearchQuery} showToast={showToast} />}
-              {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={appData.teamsList} setTeamsList={appData.setTeamsList} people={appData.people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} globalSearch={globalSearchQuery} />}
-              {activeApp === 'people' && <PeopleApp theme={theme} people={appData.people} setPeople={appData.setPeople} isAdmin={isAdmin} globalSearch={globalSearchQuery} showToast={showToast} />}
-              {activeApp === 'giving' && isAdmin && <GivingApp theme={theme} donations={appData.donations} setDonations={appData.setDonations} showToast={showToast} />}
-              {activeApp === 'calendar' && <CalendarApp theme={theme} events={appData.events} setEvents={appData.setEvents} isAdmin={isAdmin} showToast={showToast} />}
-              {activeApp === 'workflows' && isAdmin && <WorkflowsApp theme={theme} workflows={appData.workflows} setWorkflows={appData.setWorkflows} showToast={showToast} />}
-              {activeApp === 'security' && isAdmin && <SecurityApp theme={theme} isSeniorPastor={isSeniorPastor} securitySettings={appData.securitySettings} setSecuritySettings={appData.setSecuritySettings} showToast={showToast} />}
-              {activeApp === 'reporting' && isAdmin && <ReportingApp theme={theme} />}
+              <ErrorBoundary>
+                {activeApp === 'home' && <HomeApp events={appData.events} people={appData.people} isAdmin={isAdmin} isSeniorPastor={isSeniorPastor} setActiveApp={setActiveApp} loadingPeople={appData.loadingPeople} loadingEvents={appData.loadingEvents} />}
+                {activeApp === 'community' && <CommunityApp theme={theme} people={appData.people} posts={appData.communityPosts} setPosts={appData.setCommunityPosts} showToast={showToast} />}
+                {activeApp === 'services' && <ServicesApp theme={theme} planItems={appData.planItems} setPlanItems={appData.setPlanItems} servicePlan={appData.servicePlan} setServicePlan={appData.setServicePlan} isAdmin={isAdmin} showToast={showToast} />}
+                {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} songs={appData.songs} setSongs={appData.setSongs} globalSearch={globalSearchQuery} showToast={showToast} />}
+                {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={appData.teamsList} setTeamsList={appData.setTeamsList} people={appData.people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} globalSearch={globalSearchQuery} />}
+                {activeApp === 'people' && <PeopleApp theme={theme} people={appData.people} setPeople={appData.setPeople} isAdmin={isAdmin} globalSearch={globalSearchQuery} showToast={showToast} loadingPeople={appData.loadingPeople} />}
+                {activeApp === 'giving' && isAdmin && <GivingApp theme={theme} donations={appData.donations} setDonations={appData.setDonations} showToast={showToast} />}
+                {activeApp === 'calendar' && <CalendarApp theme={theme} events={appData.events} setEvents={appData.setEvents} isAdmin={isAdmin} showToast={showToast} />}
+                {activeApp === 'workflows' && isAdmin && <WorkflowsApp theme={theme} workflows={appData.workflows} setWorkflows={appData.setWorkflows} showToast={showToast} />}
+                {activeApp === 'security' && isAdmin && <SecurityApp theme={theme} isSeniorPastor={isSeniorPastor} securitySettings={appData.securitySettings} setSecuritySettings={appData.setSecuritySettings} showToast={showToast} />}
+                {activeApp === 'reporting' && isAdmin && <ReportingApp theme={theme} />}
+              </ErrorBoundary>
             </div>
           </section>
 

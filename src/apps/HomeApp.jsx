@@ -10,12 +10,16 @@ import {
 } from 'lucide-react';
 import HomeMetricCard from '../components/HomeMetricCard';
 import QuickActionButton from '../components/QuickActionButton';
+import { SkeletonCard } from '../components/Skeleton';
 
-export default function HomeApp({ events, people, isAdmin, isSeniorPastor, setActiveApp }) {
+export default function HomeApp({ events, people, isAdmin, isSeniorPastor, setActiveApp, loadingPeople, loadingEvents }) {
   const formatEventDate = (dateStr, timeStr) => {
     if (!dateStr) return '';
     try {
       const d = new Date(dateStr + 'T00:00:00');
+      const now = new Date();
+      const hour = now.getHours();
+      const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
       const formattedDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       return `${formattedDate} • ${timeStr || ''}`;
     } catch { return dateStr; }
@@ -23,6 +27,8 @@ export default function HomeApp({ events, people, isAdmin, isSeniorPastor, setAc
 
   const today = new Date();
   const weekLabel = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const hour = today.getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
   const nextEvent = events?.[0] || null;
   const kidsCount = people.filter((person) => person.type === 'Child').length;
   const volunteersCount = people.filter((person) => person.type === 'Volunteer').length;
@@ -53,7 +59,7 @@ export default function HomeApp({ events, people, isAdmin, isSeniorPastor, setAc
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
           <div>
             <h1 className="font-serif text-3xl sm:text-4xl font-bold text-stone-900 tracking-tight">
-              {isSeniorPastor ? 'Good Morning, Pastor' : isAdmin ? 'Good Morning, Admin' : 'Welcome back, Volunteer'}
+              {isSeniorPastor ? `${greeting}, Pastor` : isAdmin ? `${greeting}, Admin` : `${greeting}, Volunteer`}
             </h1>
             <p className="text-stone-500 text-sm mt-2">Ministry pulse for {weekLabel}</p>
           </div>
@@ -82,11 +88,11 @@ export default function HomeApp({ events, people, isAdmin, isSeniorPastor, setAc
             </div>
           </div>
 
-          <HomeMetricCard title="Upcoming Services" value={events.length} label="Scheduled" color="text-amber-600" />
-          <HomeMetricCard title="Total Profiles" value={people.length} label="In Database" color="text-sky-600" />
-          <HomeMetricCard title="Children" value={kidsCount} label="In Kids Ministry" color="text-rose-600" />
+          {loadingEvents ? <SkeletonCard /> : <HomeMetricCard title="Upcoming Services" value={events.length} label="Scheduled" color="text-amber-600" />}
+          {loadingPeople ? <SkeletonCard /> : <HomeMetricCard title="Total Profiles" value={people.length} label="In Database" color="text-sky-600" />}
+          {loadingPeople ? <SkeletonCard /> : <HomeMetricCard title="Children" value={kidsCount} label="In Kids Ministry" color="text-rose-600" />}
           {isAdmin ? (
-            <HomeMetricCard title="Weekly Giving" value="$14.2k" label="Ahead of Goal" color="text-teal-600" />
+            <HomeMetricCard title="Serve Team" value={`${completion}%`} label="Filled for Sunday" color="text-teal-600" />
           ) : (
             <HomeMetricCard title="Serve Team" value={`${completion}%`} label="Filled for Sunday" color="text-orange-600" />
           )}

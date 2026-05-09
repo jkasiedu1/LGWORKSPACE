@@ -185,6 +185,12 @@ export async function deleteEvent(eventId, eventData, actorEmail) {
   }
 }
 
+export async function updateEvent(eventId, eventData, actorEmail) {
+  if (!db) return;
+  const { id: _id, ...fields } = eventData;
+  await withRetry(() => updateDoc(doc(db, 'events', eventId), { ...fields, updatedAt: serverTimestamp() }));
+}
+
 export async function createDonation(donation, actorEmail) {
   if (!db) return { id: Date.now(), ...donation };
   const docRef = await withRetry(() => addDoc(collection(db, 'donations'), withAuditFields(donation)));

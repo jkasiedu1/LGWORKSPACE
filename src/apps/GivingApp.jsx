@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { DollarSign, TrendingUp, Users, CreditCard, Sparkles, Loader2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { DollarSign, TrendingUp, Users, CreditCard, Sparkles, Loader2, Trash2 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { callGeminiAI } from '../lib/gemini';
 import { createDonation, deleteDonation } from '../lib/firestoreServices';
 import { useAuth } from '../hooks/useAuth';
@@ -10,7 +11,38 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
   const [reportPrompt, setReportPrompt] = useState('');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [newDonation, setNewDonation] = useState({ name: '', amount: '', fund: 'General Tithe', type: 'Zelle', date: new Date().toISOString().split('T')[0] });
+
+  // --- Live computed stats ---
+  const parsedDonations = useMemo(() => donations.map(d => ({
+    ...d,
+    amountNum: parseFloat(String(d.amount).replace(/[^0-9.]/g, '')) || 0,
+  })), [donations]);
+
+  const ytdTotal = useMemo(() => parsedDonations.reduce((sum, d) => sum + d.amountNum, 0), [parsedDonations]);
+  const uniqueDonors = useMemo(() => new Set(parsedDonations.map(d => (d.name || '').toLowerCase().trim()).filter(Boolean)).size, [parsedDonations]);
+  const avgGift = useMemo(() => parsedDonations.length > 0 ? ytdTotal / parsedDonations.length : 0, [ytdTotal, parsedDonations]);
+
+  const formatCurrency = (n) => n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${n.toFixed(0)}`;
+
+  // Weekly giving chart data — group by ISO week
+  const weeklyChartData = useMemo(() => {
+    const weeks = {};
+    parsedDonations.forEach(d => {
+      if (!d.date) return;
+      const date = new Date(d.date + 'T00:00:00');
+      const dayOfWeek = date.getDay();
+      const sunday = new Date(date);
+      sunday.setDate(date.getDate() - dayOfWeek);
+      const key = sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      weeks[key] = (weeks[key] || 0) + d.amountNum;
+    });
+    return Object.entries(weeks)
+      .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+      .slice(-8)
+      .map(([week, total]) => ({ week, total }));
+  }, [parsedDonations]);
 
   const handleAddDonation = async () => {
     if (!newDonation.name || !newDonation.amount) return;
@@ -42,6 +74,7 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
     if (!removedDonation) return;
 
     setDonations((prev) => prev.filter((donation) => donation.id !== donationId));
+    setDeleteConfirmId(null);
     try {
       await deleteDonation(String(donationId), removedDonation, user?.email);
       showToast('Donation removed');
@@ -55,7 +88,7 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
   const handleGenerateReport = async () => {
     if (!reportPrompt.trim()) return;
     setIsGeneratingReport(true);
-    const context = `You are a church financial analyst. The user is asking about giving trends and donation data. Provide a concise, insightful analysis. Current stats: YTD giving $142,500, 184 recurring donors, average gift $185. Donation types include Zelle, Cash/Check, and Online Card.`;
+    const context = `You are a church financial analyst. The user is asking about giving trends and donation data. Provide a concise, insightful analysis. Current stats: YTD giving ${formatCurrency(ytdTotal)}, ${uniqueDonors} unique donors, average gift ${formatCurrency(avgGift)}. Donation types include Zelle, Cash/Check, and Online Card.`;
     const result = await callGeminiAI(reportPrompt, context);
     setReportResult(result);
     setIsGeneratingReport(false);
@@ -104,18 +137,32 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between">
-          <div><p className="text-sm font-medium text-stone-500">YTD Giving</p><h3 className="text-2xl font-bold text-stone-900">$142,500</h3></div>
+          <div><p className="text-sm font-medium text-stone-500">YTD Giving</p><h3 className="text-2xl font-bold text-stone-900">{formatCurrency(ytdTotal)}</h3></div>
           <div className={`p-3 rounded-lg ${theme.light} ${theme.color}`}><TrendingUp size={20}/></div>
         </div>
         <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between">
-          <div><p className="text-sm font-medium text-stone-500">Recurring Donors</p><h3 className="text-2xl font-bold text-stone-900">184</h3></div>
+          <div><p className="text-sm font-medium text-stone-500">Unique Donors</p><h3 className="text-2xl font-bold text-stone-900">{uniqueDonors}</h3></div>
           <div className="p-3 rounded-lg bg-teal-50 text-teal-600"><Users size={20}/></div>
         </div>
         <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between">
-          <div><p className="text-sm font-medium text-stone-500">Average Gift</p><h3 className="text-2xl font-bold text-stone-900">$185</h3></div>
+          <div><p className="text-sm font-medium text-stone-500">Average Gift</p><h3 className="text-2xl font-bold text-stone-900">{formatCurrency(avgGift)}</h3></div>
           <div className="p-3 rounded-lg bg-orange-50 text-orange-600"><CreditCard size={20}/></div>
         </div>
       </div>
+
+      {weeklyChartData.length > 1 && (
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-5 mb-8">
+          <h3 className="font-semibold text-stone-800 mb-4 text-sm">Weekly Giving Trend</h3>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={weeklyChartData} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
+              <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#a8a29e' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#a8a29e' }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+              <Tooltip formatter={(v) => [`$${v.toFixed(0)}`, 'Total']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e7e5e4' }} />
+              <Bar dataKey="total" fill="#0d9488" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
@@ -141,7 +188,14 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
                     <td className="px-5 py-4"><span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${donation.type === 'Zelle' ? 'bg-purple-100 text-purple-700' : 'bg-stone-100 text-stone-600'}`}>{donation.type}</span></td>
                     <td className="px-5 py-4 text-stone-500">{donation.date}</td>
                     <td className="px-5 py-4 text-right">
-                      <button onClick={() => handleDeleteDonation(donation.id)} className="text-xs font-semibold text-rose-600 hover:text-rose-700">Delete</button>
+                      {deleteConfirmId === donation.id ? (
+                        <span className="inline-flex items-center gap-2">
+                          <button onClick={() => handleDeleteDonation(donation.id)} className="text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 px-2 py-1 rounded">Confirm</button>
+                          <button onClick={() => setDeleteConfirmId(null)} className="text-xs font-semibold text-stone-500 hover:text-stone-700">Cancel</button>
+                        </span>
+                      ) : (
+                        <button onClick={() => setDeleteConfirmId(donation.id)} className="text-xs font-semibold text-rose-600 hover:text-rose-700 inline-flex items-center gap-1"><Trash2 size={12}/> Delete</button>
+                      )}
                     </td>
                   </tr>
                 ))}
