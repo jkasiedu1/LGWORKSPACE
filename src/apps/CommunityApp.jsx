@@ -20,10 +20,24 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+function formatPostTime(createdAt) {
+  if (!createdAt) return 'Just now';
+  const date = typeof createdAt === 'string' ? new Date(createdAt) : createdAt;
+  if (isNaN(date.getTime())) return 'Just now';
+  const now = Date.now();
+  const diff = now - date.getTime();
+  if (diff < 60_000) return 'Just now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 export default function CommunityApp({ theme, people, posts = [], setPosts, showToast, user, roleAccess = {} }) {
   const displayName = user?.displayName || user?.email?.split('@')[0] || 'You';
   const roleLabel = roleAccess?.isSeniorPastor ? 'Senior Pastor' : roleAccess?.isAdmin ? 'Admin' : 'Volunteer';
   const myInitials = getInitials(displayName);
+  const isPrivileged = roleAccess?.isSeniorPastor || roleAccess?.isAdmin;
   const [newPostContent, setNewPostContent] = useState('');
   const [actionMenuPostId, setActionMenuPostId] = useState(null);
   const [editingPostId, setEditingPostId] = useState(null);
@@ -84,8 +98,9 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
     const optimisticPost = {
       id: tempId,
       author: displayName,
+      authorId: user?.uid,
       role: roleLabel,
-      time: 'Just now',
+      createdAt: new Date().toISOString(),
       content,
       likes: 0,
       comments: 0,
@@ -98,8 +113,8 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
     try {
       const created = await createCommunityPost({
         author: displayName,
+        authorId: user?.uid,
         role: roleLabel,
-        time: 'Just now',
         content,
         likes: 0,
         comments: 0,
@@ -165,8 +180,8 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
       const mediaMeta = await uploadMediaToR2(file, 'community');
       const post = {
         author: displayName,
+        authorId: user?.uid,
         role: roleLabel,
-        time: 'Just now',
         content: newPostContent.trim(),
         likes: 0,
         comments: 0,
@@ -321,21 +336,25 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
             <div key={post.id} className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
               <div className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-stone-200 flex items-center justify-center text-stone-500 font-bold text-sm">{post.author.charAt(0)}</div>
+                  <div className="w-10 h-10 rounded-full bg-stone-200 flex items-center justify-center text-stone-500 font-bold text-sm">{getInitials(post.author)}</div>
                   <div>
                     <h3 className="font-bold text-stone-900 text-sm leading-tight">{post.author}</h3>
                     <div className="flex items-center gap-1.5 text-xs text-stone-500">
                       <span className="bg-stone-100 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider text-stone-600">{post.role}</span>
                       <span>•</span>
-                      <span>{post.time}</span>
+                      <span>{formatPostTime(post.createdAt)}</span>
                     </div>
                   </div>
                 </div>
                 <div className="relative">
-                  <button onClick={() => setActionMenuPostId(actionMenuPostId === post.id ? null : post.id)} className="text-stone-400 hover:text-stone-600"><MoreHorizontal size={18}/></button>
+                  {(isPrivileged || post.authorId === user?.uid) && (
+                    <button onClick={() => setActionMenuPostId(actionMenuPostId === post.id ? null : post.id)} className="text-stone-400 hover:text-stone-600"><MoreHorizontal size={18}/></button>
+                  )}
                   {actionMenuPostId === post.id && (
                     <div className="absolute right-0 mt-1 w-28 bg-white border border-stone-200 rounded-lg shadow-lg z-20 overflow-hidden">
-                      <button onClick={() => handleOpenEdit(post)} className="w-full text-left px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50">Edit</button>
+                      {post.authorId === user?.uid && (
+                        <button onClick={() => handleOpenEdit(post)} className="w-full text-left px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50">Edit</button>
+                      )}
                       <button onClick={() => handleDeletePost(post.id)} className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50">Delete</button>
                     </div>
                   )}

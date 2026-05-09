@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import {
   UPCOMING_EVENTS,
@@ -90,9 +90,19 @@ export function useAppData(isAuthenticated) {
           setWorkflows(snapshot.docs.map((workflowDoc) => ({ id: workflowDoc.id, ...workflowDoc.data() })));
         });
 
-        unsubCommunityPosts = onSnapshot(collection(db, 'communityPosts'), (snapshot) => {
-          setCommunityPosts(snapshot.docs.map((postDoc) => ({ id: postDoc.id, ...postDoc.data() })));
-        });
+        unsubCommunityPosts = onSnapshot(
+          query(collection(db, 'communityPosts'), orderBy('createdAt', 'desc')),
+          (snapshot) => {
+            setCommunityPosts(snapshot.docs.map((postDoc) => {
+              const data = postDoc.data();
+              return {
+                id: postDoc.id,
+                ...data,
+                createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt ?? null,
+              };
+            }));
+          }
+        );
 
         unsubSecuritySettings = onSnapshot(doc(db, 'settings', 'security'), (settingsDoc) => {
           if (settingsDoc.exists()) {
