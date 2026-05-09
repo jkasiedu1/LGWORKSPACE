@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { updateProfile } from 'firebase/auth';
 import {
   Accessibility,
   Activity,
@@ -14,6 +15,7 @@ import {
   Loader2,
   LogOut,
   Palette,
+  Pencil,
   Search,
   Settings,
   ShieldCheck,
@@ -155,6 +157,10 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState(null);
   const toastTimeoutRef = useRef(null);
   const contrastObserverRef = useRef(null);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profileNameInput, setProfileNameInput] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const profilePopoverRef = useRef(null);
 
   const themePreset = THEME_PRESETS[themePresetKey] ?? THEME_PRESETS.stoneTeal;
   const isDarkTheme = themePresetKey === 'noirGlow';
@@ -232,6 +238,26 @@ export default function App() {
     setToastMsg(msg);
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     toastTimeoutRef.current = setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  const handleOpenProfile = () => {
+    setProfileNameInput(user?.displayName || '');
+    setIsProfileOpen(true);
+  };
+
+  const handleSaveProfileName = async () => {
+    const name = profileNameInput.trim();
+    if (!name || !user) return;
+    setProfileSaving(true);
+    try {
+      await updateProfile(user, { displayName: name });
+      setIsProfileOpen(false);
+      showToast('Display name updated — changes take effect on next page load.');
+    } catch (err) {
+      showToast(err?.message || 'Failed to update name.');
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -755,8 +781,39 @@ export default function App() {
                 <Settings className="h-5 w-5" />
               </button>
             )}
-            <div className={`h-8 w-8 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-sm cursor-pointer hover:ring-2 ring-stone-300 ring-offset-2 transition-all ${isSeniorPastor ? 'bg-indigo-600' : 'bg-stone-900'}`}>
-              {isSeniorPastor ? 'SP' : isAdmin ? 'AD' : 'VU'}
+            <div className="relative" ref={profilePopoverRef}>
+              <button
+                onClick={handleOpenProfile}
+                title="Edit profile name"
+                className={`h-8 w-8 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-sm hover:ring-2 ring-stone-300 ring-offset-2 transition-all ${isSeniorPastor ? 'bg-indigo-600' : 'bg-stone-900'}`}
+              >
+                {user?.displayName ? user.displayName.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() : isSeniorPastor ? 'SP' : isAdmin ? 'AD' : 'VU'}
+              </button>
+              {isProfileOpen && (
+                <div className="absolute right-0 top-10 w-64 bg-white border border-stone-200 rounded-xl shadow-xl z-50 p-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-bold text-stone-900 flex items-center gap-1.5"><Pencil size={13}/> Edit Display Name</h3>
+                    <button onClick={() => setIsProfileOpen(false)} className="text-stone-400 hover:text-stone-600"><X size={15}/></button>
+                  </div>
+                  <p className="text-xs text-stone-500 mb-2">{user?.email}</p>
+                  <input
+                    type="text"
+                    value={profileNameInput}
+                    onChange={e => setProfileNameInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSaveProfileName(); if (e.key === 'Escape') setIsProfileOpen(false); }}
+                    placeholder="Your full name"
+                    autoFocus
+                    className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-500 mb-3"
+                  />
+                  <button
+                    onClick={handleSaveProfileName}
+                    disabled={profileSaving || !profileNameInput.trim()}
+                    className="w-full bg-stone-900 text-white text-xs font-semibold py-2 rounded-lg hover:bg-stone-800 disabled:opacity-50 transition-colors"
+                  >
+                    {profileSaving ? 'Saving…' : 'Save Name'}
+                  </button>
+                </div>
+              )}
             </div>
             <button onClick={logout} className="text-stone-400 hover:text-rose-600 transition-colors ml-2" title="Logout">
               <LogOut className="h-5 w-5" />
