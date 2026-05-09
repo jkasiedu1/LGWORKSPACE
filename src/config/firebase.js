@@ -3,12 +3,12 @@ import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { connectAuthEmulator, getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? 'AIzaSyCrPxPLMS_pwryIRHoxYVUFiuxpKHyTk1M',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? 'lifegate-workspace-5dd48.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? 'lifegate-workspace-5dd48',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? 'lifegate-workspace-5dd48.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '747638028505',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? '1:747638028505:web:e0abb11d1ea0505c5526c8',
 };
 
 const useAllEmulators = import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true';
