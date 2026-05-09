@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, increment, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import {
   logPersonCreated,
@@ -261,6 +261,42 @@ export async function updateCommunityPost(postId, updates) {
 export async function deleteCommunityPost(postId) {
   if (!db) return;
   await withRetry(() => deleteDoc(doc(db, 'communityPosts', postId)));
+}
+
+export async function togglePostReaction(postId, uid, reactionType) {
+  if (!db) return;
+  const ref = doc(db, 'communityPosts', postId);
+  const field = `reactions.${reactionType}`;
+  // Check happens client-side; server just applies the union/remove
+  return { ref, field };
+}
+
+export async function addPostReaction(postId, uid, reactionType) {
+  if (!db) return;
+  await withRetry(() => updateDoc(doc(db, 'communityPosts', postId), {
+    [`reactions.${reactionType}`]: arrayUnion(uid),
+  }));
+}
+
+export async function removePostReaction(postId, uid, reactionType) {
+  if (!db) return;
+  await withRetry(() => updateDoc(doc(db, 'communityPosts', postId), {
+    [`reactions.${reactionType}`]: arrayRemove(uid),
+  }));
+}
+
+export async function addCommentToPost(postId, comment) {
+  if (!db) return;
+  await withRetry(() => updateDoc(doc(db, 'communityPosts', postId), {
+    commentList: arrayUnion(comment),
+    comments: increment(1),
+  }));
+}
+
+export async function createStory(story) {
+  if (!db) return { id: Date.now(), ...story };
+  const docRef = await withRetry(() => addDoc(collection(db, 'communityStories'), withAuditFields(story)));
+  return { id: docRef.id, ...story };
 }
 
 export async function createTeamPortal(team) {

@@ -13,8 +13,8 @@ FIREBASE_PROJECT_ID = "lifegate-workspace-5dd48"
 binding = "MEDIA_BUCKET"
 bucket_name = "lifegateworkspace"
 
-# Run: wrangler kv namespace create RATE_LIMIT_KV
-# then paste the returned id below.
-[[kv_namespaces]]
-binding = "RATE_LIMIT_KV"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+# Uncomment after running: wrangler kv namespace create RATE_LIMIT_KV
+# and replacing the id with the one returned by that command.
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT_KV"
+# id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
