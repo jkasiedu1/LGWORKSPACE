@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Globe, Users, Calendar as CalendarIcon, Plus, Search, MoreHorizontal,
   MessageCircle, Image as ImageIcon, Send, X, ChevronDown, ChevronUp,
@@ -799,8 +800,8 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
 
     </div>
 
-    {/* Mobile DM bottom sheet */}
-    {showDmSheet && (
+    {/* Mobile DM bottom sheet — portalled to body to escape CSS transform ancestor */}
+    {showDmSheet && createPortal(
       <div className="fixed inset-0 z-40 lg:hidden" style={{background:'rgba(0,0,0,0.4)'}} onClick={() => setShowDmSheet(false)}>
         <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl max-h-[75vh] flex flex-col" onClick={e => e.stopPropagation()}>
           <div className="w-10 h-1 bg-stone-300 rounded-full mx-auto mt-3 mb-1"/>
@@ -834,10 +835,10 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
           </div>
         </div>
       </div>
-    )}
+    , document.body)}
 
-    {/* Chat popup — outside animate-in so position:fixed works correctly */}
-    {activeChat && (
+    {/* Chat popup — portalled to body so position:fixed escapes CSS transform ancestor */}
+    {activeChat && createPortal(
       <div className="fixed bottom-0 left-0 right-0 sm:bottom-4 sm:right-4 sm:left-auto sm:w-[340px] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-stone-200 z-50 flex flex-col overflow-hidden">
           <div className={`${theme.bg} p-3 text-white flex justify-between items-center`}>
             <div className="flex items-center gap-2">
@@ -866,7 +867,7 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
             </button>
           </form>
       </div>
-    )}
+    , document.body)}
     </>
   );
 }
