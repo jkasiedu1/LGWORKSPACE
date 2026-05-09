@@ -227,11 +227,6 @@ export default function CalendarApp({ theme, events, setEvents, isAdmin, showToa
   );
 }
 
-  const sortedEvents = [...events].sort((a, b) => {
-    const left = `${a.date || ''} ${a.time || ''}`;
-    const right = `${b.date || ''} ${b.time || ''}`;
-    return left.localeCompare(right);
-  });
 
   const handleAddEvent = async () => {
     const validationResult = validateCalendarEvent(newEvent);
