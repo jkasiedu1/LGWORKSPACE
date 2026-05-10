@@ -18,10 +18,22 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
   const [isEndpoint, setIsEndpoint] = useState(securitySettings?.isEndpoint ?? false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [grantEmail, setGrantEmail] = useState('');
-  const [grantMode, setGrantMode] = useState('full-admin'); // 'full-admin' | 'app-access'
+  const [grantMode, setGrantMode] = useState('full-admin');
   const [selectedApps, setSelectedApps] = useState([]);
   const [revokeEmail, setRevokeEmail] = useState('');
   const [directorRole, setDirectorRole] = useState('full-admin');
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(true);
+
+  useEffect(() => {
+    if (!db) { setAuditLoading(false); return; }
+    const q = query(collection(db, 'auditLogs'), orderBy('createdAt', 'desc'), limit(20));
+    const unsub = onSnapshot(q, (snap) => {
+      setAuditLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setAuditLoading(false);
+    }, () => setAuditLoading(false));
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     if (!securitySettings) return;
