@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   ShieldCheck, ShieldAlert, ToggleRight, ToggleLeft, History,
-  EyeOff, SmartphoneNfc, UserCog, X
+  EyeOff, SmartphoneNfc, UserCog, X, Loader2, RefreshCw,
+  UserPlus, UserMinus, Gift, Calendar, LogIn, LogOut, Shield
 } from 'lucide-react';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { saveSecuritySettings } from '../lib/firestoreServices';
 import { grantAdminAccess, revokeAdminAccess, grantAppAccess, revokeAppAccess } from '../lib/securityAdmin';
 import { APPS } from '../config/apps';
@@ -286,21 +289,43 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
               </span>
             </div>
             <div className="divide-y divide-stone-100 max-h-[300px] overflow-y-auto">
-              <div className="p-4 bg-rose-50/30">
-                <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5"><EyeOff size={12}/> DLP Policy Triggered</p>
-                <p className="text-xs text-stone-600 mt-1">Blocked user &lsquo;S. Jenkins&rsquo; from emailing a spreadsheet containing credit card numbers externally.</p>
-                <p className="text-[10px] text-stone-400 mt-1">Today, 10:42 AM</p>
-              </div>
-              <div className="p-4">
-                <p className="text-xs font-bold text-stone-700 flex items-center gap-1.5"><ShieldCheck size={12}/> Successful Login (2FA)</p>
-                <p className="text-xs text-stone-600 mt-1">User &lsquo;J. Asiedu&rsquo; authenticated successfully from recognized IP address.</p>
-                <p className="text-[10px] text-stone-400 mt-1">Today, 8:15 AM</p>
-              </div>
-              <div className="p-4">
-                <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5"><SmartphoneNfc size={12}/> New Device Registered</p>
-                <p className="text-xs text-stone-600 mt-1">A new mobile device was registered to &lsquo;D. Chen&rsquo; via Endpoint Management.</p>
-                <p className="text-[10px] text-stone-400 mt-1">Yesterday, 4:30 PM</p>
-              </div>
+              {auditLoading ? (
+                <div className="p-6 flex justify-center"><Loader2 size={18} className="animate-spin text-stone-400" /></div>
+              ) : auditLogs.length === 0 ? (
+                <div className="p-6 text-center">
+                  <RefreshCw size={18} className="mx-auto text-stone-300 mb-2" />
+                  <p className="text-xs text-stone-400">No audit events recorded yet.</p>
+                  <p className="text-xs text-stone-400 mt-1">Events appear here as actions are taken.</p>
+                </div>
+              ) : (
+                auditLogs.map((log) => {
+                  const actionType = log.actionType ?? '';
+                  const isAlert = ['DELETE', 'DLP_BLOCK', 'REVOKE'].includes(actionType);
+                  const isWarning = ['UPDATE', 'CHECK_OUT', 'NEW_DEVICE'].includes(actionType);
+                  const color = isAlert ? 'text-rose-700' : isWarning ? 'text-amber-700' : 'text-stone-700';
+                  const bg = isAlert ? 'bg-rose-50/40' : isWarning ? 'bg-amber-50/30' : '';
+                  const IconMap = {
+                    CREATE: UserPlus, DELETE: UserMinus, UPDATE: Shield,
+                    CHECK_IN: LogIn, CHECK_OUT: LogOut, GIVING: Gift,
+                    EVENT_CREATE: Calendar, EVENT_DELETE: Calendar,
+                    NEW_DEVICE: SmartphoneNfc, DLP_BLOCK: EyeOff,
+                  };
+                  const Icon = IconMap[actionType] ?? ShieldCheck;
+                  const ts = log.timestamp ?? (log.createdAt?.toDate?.()?.toISOString()) ?? null;
+                  const timeLabel = ts ? new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+                  const label = `${actionType.replace(/_/g, ' ')} — ${log.entityType ?? ''}`;
+                  const detail = log.details
+                    ? Object.entries(log.details).map(([k, v]) => `${k}: ${v}`).join(' · ')
+                    : log.actorEmail ?? '';
+                  return (
+                    <div key={log.id} className={`p-4 ${bg}`}>
+                      <p className={`text-xs font-bold flex items-center gap-1.5 ${color}`}><Icon size={12}/> {label}</p>
+                      <p className="text-xs text-stone-600 mt-1 leading-relaxed">{detail}</p>
+                      <p className="text-[10px] text-stone-400 mt-1">{timeLabel} · {log.actorEmail ?? 'system'}</p>
+                    </div>
+                  );
+                })
+              )}
             </div>
             <div className="p-3 border-t border-stone-100 bg-stone-50 text-center">
               <button className="text-xs font-semibold text-stone-600 hover:text-stone-900">View Full Logs (Google Vault)</button>
