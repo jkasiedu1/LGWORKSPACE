@@ -225,103 +225,117 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
       ? `${filterFrom ? fmtDate(filterFrom) : 'Beginning'} – ${filterTo ? fmtDate(filterTo) : 'Present'}`
       : 'Year to Date';
 
-    const currency = '"$"#,##0.00';
-    const percent  = '0.00%';
-    const cellFmt  = (ws, row, col, fmt) => {
-      const addr = XLSX.utils.encode_cell({ r: row, c: col });
-      if (ws[addr]) ws[addr].z = fmt;
-    };
+    // Pre-format helpers — values are stored as display strings so every
+    // spreadsheet viewer (Apple Files, Numbers, Excel, Google Sheets) shows
+    // them correctly without relying on app-specific format codes.
+    const c = (n) => fmt$(n);                                      // "$1,234.56"
+    const p = (n) => `${(n * 100).toFixed(2)}%`;                   // "12.34%"
+    const BLANK_ROW = ['', '', '', '', '', ''];
 
     // ── SHEET 1: Summary ────────────────────────────────────────────────────
+    // 6 columns so the header merges span full page width
     const s1 = [
-      ['Lifegate Assembly of God Financial Report'],
-      [`Generated: ${reportDate}`],
-      [`Reporting Period: ${period}`],
-      [],
-      ['KEY PERFORMANCE INDICATORS', ''],
-      ['Metric', 'Amount'],
-      ['YTD Total Giving', ytdTotal],
-      ['This Month', thisMonthTotal],
-      ['Last Month', lastMonthTotal],
-      ['Unique Donors', uniqueDonors],
-      ['Total Transactions', parsedDonations.length],
-      ['Average Gift', avgGift],
-      ['Largest Single Gift', largestGift],
-      ['Annual Giving Goal', ANNUAL_GOAL],
-      ['Goal Progress (%)', ytdTotal / ANNUAL_GOAL],
-      [],
-      ['GIVING BY FUND', '', ''],
-      ['Fund', 'Total', '% of Giving'],
-      ...fundData.map(f => [f.name, f.value, ytdTotal > 0 ? f.value / ytdTotal : 0]),
-      [],
-      ['GIVING BY PAYMENT METHOD', '', ''],
-      ['Method', 'Total', '% of Giving'],
-      ...typeBreakdown.map(([t, v]) => [t, v, ytdTotal > 0 ? v / ytdTotal : 0]),
-      [],
-      ['TOP CONTRIBUTORS', '', '', ''],
-      ['Donor', 'Total Given', 'Gift Count', 'Average Gift'],
-      ...topDonors.map(d => [d.name, d.total, d.count, d.count > 0 ? d.total / d.count : 0]),
+      ['LIFEGATE ASSEMBLY OF GOD', '', '', '', '', ''],
+      ['Financial Report', '', '', '', '', ''],
+      [`Generated: ${reportDate}`, '', '', '', '', ''],
+      [`Reporting Period: ${period}`, '', '', '', '', ''],
+      BLANK_ROW,
+      ['KEY PERFORMANCE INDICATORS', '', '', '', '', ''],
+      ['Metric', '', 'Amount', '', '', ''],
+      ['YTD Total Giving',      '', c(ytdTotal),      '', '', ''],
+      ['This Month',            '', c(thisMonthTotal), '', '', ''],
+      ['Last Month',            '', c(lastMonthTotal), '', '', ''],
+      ['Month-over-Month Change','', lastMonthTotal > 0 ? p((thisMonthTotal - lastMonthTotal) / lastMonthTotal) : '—', '', '', ''],
+      ['Unique Donors',         '', uniqueDonors,      '', '', ''],
+      ['Total Transactions',    '', parsedDonations.length, '', '', ''],
+      ['Average Gift',          '', c(avgGift),        '', '', ''],
+      ['Largest Single Gift',   '', c(largestGift),    '', '', ''],
+      ['Annual Giving Goal',    '', c(ANNUAL_GOAL),    '', '', ''],
+      ['Goal Progress',         '', p(ytdTotal / ANNUAL_GOAL), '', '', ''],
+      BLANK_ROW,
+      ['GIVING BY FUND', '', '', '', '', ''],
+      ['Fund', '', 'Total Given', '', '% of Total', ''],
+      ...fundData.map(f => [f.name, '', c(f.value), '', ytdTotal > 0 ? p(f.value / ytdTotal) : '—', '']),
+      BLANK_ROW,
+      ['GIVING BY PAYMENT METHOD', '', '', '', '', ''],
+      ['Method', '', 'Total Given', '', '% of Total', ''],
+      ...typeBreakdown.map(([t, v]) => [t, '', c(v), '', ytdTotal > 0 ? p(v / ytdTotal) : '—', '']),
+      BLANK_ROW,
+      ['TOP CONTRIBUTORS', '', '', '', '', ''],
+      ['Donor', '', 'Total Given', 'Gift Count', 'Average Gift', ''],
+      ...topDonors.map(d => [d.name, '', c(d.total), d.count, c(d.count > 0 ? d.total / d.count : 0), '']),
     ];
     const ws1 = XLSX.utils.aoa_to_sheet(s1);
-    ws1['!cols'] = [{ wch: 34 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
-    ws1['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
-    [6, 7, 8, 11, 12, 13].forEach(r => cellFmt(ws1, r, 1, currency));
-    cellFmt(ws1, 14, 1, percent);
-    const fundStart = 17;
-    fundData.forEach((_, i) => { cellFmt(ws1, fundStart + i, 1, currency); cellFmt(ws1, fundStart + i, 2, percent); });
-    const typeStart = fundStart + fundData.length + 2;
-    typeBreakdown.forEach((_, i) => { cellFmt(ws1, typeStart + i, 1, currency); cellFmt(ws1, typeStart + i, 2, percent); });
-    const topStart = typeStart + typeBreakdown.length + 2;
-    topDonors.forEach((_, i) => { cellFmt(ws1, topStart + i, 1, currency); cellFmt(ws1, topStart + i, 3, currency); });
+    ws1['!cols'] = [{ wch: 36 }, { wch: 4 }, { wch: 22 }, { wch: 16 }, { wch: 18 }, { wch: 10 }];
+    ws1['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 5 } },
+    ];
     XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
 
     // ── SHEET 2: Monthly Trend ──────────────────────────────────────────────
+    const monthTotal = monthlyChartData.reduce((s, m) => s + m.total, 0);
     const s2 = [
-      ['Lifegate Assembly of God Financial Report'],
-      [`Generated: ${reportDate}  |  Period: ${period}`],
-      [],
-      ['MONTHLY GIVING TREND'],
-      ['Month', 'Total Giving'],
-      ...monthlyChartData.map(m => [m.month, m.total]),
-      [],
-      ['TOTAL', monthlyChartData.reduce((s, m) => s + m.total, 0)],
+      ['LIFEGATE ASSEMBLY OF GOD', '', '', '', ''],
+      ['Financial Report — Monthly Giving Trend', '', '', '', ''],
+      [`Generated: ${reportDate}  |  Period: ${period}`, '', '', '', ''],
+      BLANK_ROW.slice(0, 5),
+      ['MONTHLY GIVING TREND', '', '', '', ''],
+      ['Month', '', 'Total Giving', '', 'Running Total'],
+      ...(() => {
+        let running = 0;
+        return monthlyChartData.map(m => {
+          running += m.total;
+          return [m.month, '', c(m.total), '', c(running)];
+        });
+      })(),
+      ['', '', '', '', ''],
+      ['TOTAL', '', c(monthTotal), '', ''],
     ];
     const ws2 = XLSX.utils.aoa_to_sheet(s2);
-    ws2['!cols'] = [{ wch: 16 }, { wch: 18 }];
-    ws2['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
-    monthlyChartData.forEach((_, i) => cellFmt(ws2, 4 + i, 1, currency));
-    cellFmt(ws2, 4 + monthlyChartData.length + 1, 1, currency);
+    ws2['!cols'] = [{ wch: 18 }, { wch: 4 }, { wch: 24 }, { wch: 4 }, { wch: 24 }];
+    ws2['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+    ];
     XLSX.utils.book_append_sheet(wb, ws2, 'Monthly Trend');
 
     // ── SHEET 3: Transaction Ledger ─────────────────────────────────────────
     const filtersNote = activeFilterCount > 0
-      ? `Fund: "${filterFund || 'All'}"  Method: "${filterType || 'All'}"  From: "${filterFrom || 'Any'}"  To: "${filterTo || 'Any'}"`
+      ? `Fund: "${filterFund || 'All'}"   Method: "${filterType || 'All'}"   From: "${filterFrom || 'Any'}"   To: "${filterTo || 'Any'}"`
       : 'None';
     const s3 = [
-      ['Lifegate Assembly of God Financial Report'],
-      [`Generated: ${reportDate}`],
-      [`Period: ${period}`],
-      [`Filters Applied: ${filtersNote}`],
-      [],
+      ['LIFEGATE ASSEMBLY OF GOD', '', '', '', '', ''],
+      ['Financial Report — Transaction Ledger', '', '', '', '', ''],
+      [`Generated: ${reportDate}`, '', '', '', '', ''],
+      [`Period: ${period}`, '', '', '', '', ''],
+      [`Filters Applied: ${filtersNote}`, '', '', '', '', ''],
+      ['', '', '', '', '', ''],
       ['#', 'Date', 'Donor Name', 'Fund', 'Payment Method', 'Amount'],
       ...filteredDonations.map((d, i) => [
         i + 1,
-        d.date,
+        fmtDate(d.date),
         d.name || 'Anonymous',
         d.fund || '',
         d.type || '',
-        d.amountNum,
+        c(d.amountNum),
       ]),
-      [],
-      ['', '', '', '', 'SUBTOTAL', filteredTotal],
+      ['', '', '', '', '', ''],
+      ['', '', '', '', 'SUBTOTAL', c(filteredTotal)],
       ['', '', '', '', 'RECORDS',  filteredDonations.length],
     ];
     const ws3 = XLSX.utils.aoa_to_sheet(s3);
-    ws3['!cols'] = [{ wch: 5 }, { wch: 14 }, { wch: 28 }, { wch: 18 }, { wch: 18 }, { wch: 16 }];
-    ws3['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
-    const txStart = 5;
-    filteredDonations.forEach((_, i) => cellFmt(ws3, txStart + i, 5, currency));
-    cellFmt(ws3, txStart + filteredDonations.length + 1, 5, currency);
+    ws3['!cols'] = [{ wch: 5 }, { wch: 18 }, { wch: 30 }, { wch: 20 }, { wch: 20 }, { wch: 18 }];
+    ws3['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 5 } },
+      { s: { r: 4, c: 0 }, e: { r: 4, c: 5 } },
+    ];
     XLSX.utils.book_append_sheet(wb, ws3, 'Transaction Ledger');
 
     XLSX.writeFile(wb, `Lifegate-Financial-Report-${new Date().toISOString().slice(0, 10)}.xlsx`);
