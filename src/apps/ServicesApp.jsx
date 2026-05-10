@@ -211,9 +211,9 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
         </nav>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+      <div className="space-y-6">
         {activeTab === 'order' && (<>
-        <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
           <DndContext
             sensors={dndSensors}
             collisionDetection={closestCenter}
@@ -280,24 +280,24 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
         </div>
 
         {isAdmin && (
-          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden flex flex-col h-fit">
-            <div className={`${theme.bg} p-4 text-white flex justify-between items-center`}>
-              <div className="flex items-center gap-2"><Sparkles size={18} className="text-white/80" /><h3 className="font-semibold">AI Assistant</h3></div>
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+            <div className={`${theme.bg} px-5 py-3 text-white flex justify-between items-center`}>
+              <div className="flex items-center gap-2"><Sparkles size={16} className="text-white/80" /><h3 className="font-semibold text-sm">AI Assistant</h3></div>
               <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded uppercase tracking-wider">Gemini</span>
             </div>
-            <div className="p-4 flex flex-col gap-4">
-              <textarea className="w-full p-3 border border-stone-200 rounded-lg text-sm focus:ring-1 focus:ring-amber-500 outline-none resize-none bg-stone-50" placeholder="Topic, text, or theme..." rows="3" value={prompt} onChange={(e) => setPrompt(e.target.value)}></textarea>
-              <button onClick={handleGenerate} disabled={isGenerating || !prompt} className={`w-full py-2.5 ${theme.bg} text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex justify-center items-center gap-2 disabled:opacity-50`}>
+            <div className="p-4 flex items-start gap-4">
+              <textarea className="flex-1 p-3 border border-stone-200 rounded-lg text-sm focus:ring-1 focus:ring-amber-500 outline-none resize-none bg-stone-50" placeholder="Topic, text, or theme..." rows="2" value={prompt} onChange={(e) => setPrompt(e.target.value)}></textarea>
+              <button onClick={handleGenerate} disabled={isGenerating || !prompt} className={`shrink-0 px-5 py-2.5 ${theme.bg} text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50`}>
                 {isGenerating ? <Loader2 size={16} className="animate-spin" /> : 'Generate Guide'}
               </button>
-              {result && <div className="mt-2 p-4 bg-stone-50 border border-stone-100 rounded-lg text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">{result}</div>}
+              {result && <div className="flex-1 p-4 bg-stone-50 border border-stone-100 rounded-lg text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">{result}</div>}
             </div>
           </div>
         )}
         </>)}
 
         {activeTab === 'teams' && (
-          <div className="xl:col-span-3 bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
               <h3 className="font-semibold text-stone-800 flex items-center gap-2"><Users size={16}/> Service Team Assignments</h3>
               {isAdmin && (
@@ -367,7 +367,7 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
         )}
 
         {activeTab === 'times' && (
-          <div className="xl:col-span-3 space-y-4">
+          <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {serviceTimes.map(st => (
                 <div key={st.id} className="bg-white rounded-xl border border-stone-200 shadow-sm p-5 group relative">
