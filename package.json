@@ -29,7 +29,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "firebase": "^10.8.1",
     "html5-qrcode": "^2.3.8",
-    "lucide-react": "^1.14.0",
+    "lucide-react": "latest",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.15.0",
