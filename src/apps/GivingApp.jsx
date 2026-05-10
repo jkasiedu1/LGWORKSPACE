@@ -68,23 +68,35 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
   const [reportPrompt, setReportPrompt] = useState('');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
+  // ── Export options modal ───────────────────────────────────────────────────
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportOpts, setExportOpts] = useState({
+    summary: true,
+    monthlyTrend: true,
+    transactionLedger: true,
+  });
+  const toggleExportOpt = (key) => setExportOpts(prev => ({ ...prev, [key]: !prev[key] }));
+
   // ── Computed ───────────────────────────────────────────────────────────────
   const parsedDonations = useMemo(() => donations.map(d => ({
     ...d,
     amountNum: parseFloat(String(d.amount).replace(/[^0-9.]/g, '')) || 0,
   })), [donations]);
 
-  const ytdTotal      = useMemo(() => parsedDonations.reduce((s, d) => s + d.amountNum, 0), [parsedDonations]);
-  const uniqueDonors  = useMemo(() => new Set(parsedDonations.map(d => (d.name || '').toLowerCase().trim()).filter(Boolean)).size, [parsedDonations]);
-  const avgGift       = useMemo(() => parsedDonations.length > 0 ? ytdTotal / parsedDonations.length : 0, [ytdTotal, parsedDonations]);
-  const largestGift   = useMemo(() => parsedDonations.reduce((max, d) => Math.max(max, d.amountNum), 0), [parsedDonations]);
+  // YTD = Jan 1 of current year through today
+  const now = new Date();
+  const ytdStart = `${now.getFullYear()}-01-01`;
+  const ytdDonations  = useMemo(() => parsedDonations.filter(d => d.date >= ytdStart), [parsedDonations, ytdStart]);
+  const ytdTotal      = useMemo(() => ytdDonations.reduce((s, d) => s + d.amountNum, 0), [ytdDonations]);
+  const uniqueDonors  = useMemo(() => new Set(ytdDonations.map(d => (d.name || '').toLowerCase().trim()).filter(Boolean)).size, [ytdDonations]);
+  const avgGift       = useMemo(() => ytdDonations.length > 0 ? ytdTotal / ytdDonations.length : 0, [ytdTotal, ytdDonations]);
+  const largestGift   = useMemo(() => ytdDonations.reduce((max, d) => Math.max(max, d.amountNum), 0), [ytdDonations]);
 
   // Month-over-month
-  const now = new Date();
   const thisMonthKey  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastMonthKey  = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
-  const thisMonthTotal = useMemo(() => parsedDonations.filter(d => d.date?.startsWith(thisMonthKey)).reduce((s, d) => s + d.amountNum, 0), [parsedDonations, thisMonthKey]);
+  const thisMonthTotal = useMemo(() => ytdDonations.filter(d => d.date?.startsWith(thisMonthKey)).reduce((s, d) => s + d.amountNum, 0), [ytdDonations, thisMonthKey]);
   const lastMonthTotal = useMemo(() => parsedDonations.filter(d => d.date?.startsWith(lastMonthKey)).reduce((s, d) => s + d.amountNum, 0), [parsedDonations, lastMonthKey]);
   const monthTrend = lastMonthTotal > 0 ? ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100 : null;
 
@@ -105,24 +117,24 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
     return Object.values(months);
   }, [parsedDonations]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fund donut
+  // Fund donut (YTD only)
   const fundData = useMemo(() => {
     const acc = {};
-    parsedDonations.forEach(d => { const f = d.fund || 'Other'; acc[f] = (acc[f] || 0) + d.amountNum; });
+    ytdDonations.forEach(d => { const f = d.fund || 'Other'; acc[f] = (acc[f] || 0) + d.amountNum; });
     return Object.entries(acc).map(([name, value]) => ({ name, value }));
-  }, [parsedDonations]);
+  }, [ytdDonations]);
 
-  // Payment breakdown
+  // Payment breakdown (YTD only)
   const typeBreakdown = useMemo(() => {
     const acc = {};
-    parsedDonations.forEach(d => { const t = d.type || 'Other'; acc[t] = (acc[t] || 0) + d.amountNum; });
+    ytdDonations.forEach(d => { const t = d.type || 'Other'; acc[t] = (acc[t] || 0) + d.amountNum; });
     return Object.entries(acc).sort((a, b) => b[1] - a[1]);
-  }, [parsedDonations]);
+  }, [ytdDonations]);
 
-  // Top 5 contributors
+  // Top 5 contributors (YTD only)
   const topDonors = useMemo(() => {
     const acc = {};
-    parsedDonations.forEach(d => {
+    ytdDonations.forEach(d => {
       const name = (d.name || 'Anonymous').trim();
       if (!acc[name]) acc[name] = { total: 0, count: 0 };
       acc[name].total += d.amountNum;
@@ -130,7 +142,7 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
     });
     return Object.entries(acc).sort((a, b) => b[1].total - a[1].total).slice(0, 5)
       .map(([name, data]) => ({ name, ...data }));
-  }, [parsedDonations]);
+  }, [ytdDonations]);
 
   // Active filter count
   const activeFilterCount = [filterFund, filterType, filterFrom, filterTo].filter(Boolean).length;
@@ -218,7 +230,7 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
   };
 
   // ── Excel Export (Accounting Style) ───────────────────────────────────────
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback((opts = exportOpts) => {
     const wb = XLSX.utils.book_new();
     const reportDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     const period = filterFrom || filterTo
@@ -231,6 +243,12 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
     const c = (n) => fmt$(n);                                      // "$1,234.56"
     const p = (n) => `${(n * 100).toFixed(2)}%`;                   // "12.34%"
     const BLANK_ROW = ['', '', '', '', '', ''];
+    const yearLabel = `Jan 1, ${now.getFullYear()} – ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+    if (!opts.summary && !opts.monthlyTrend && !opts.transactionLedger) {
+      showToast('Select at least one section to export');
+      return;
+    }
 
     // ── SHEET 1: Summary ────────────────────────────────────────────────────
     // 6 columns so the header merges span full page width
@@ -239,6 +257,7 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
       ['Financial Report', '', '', '', '', ''],
       [`Generated: ${reportDate}`, '', '', '', '', ''],
       [`Reporting Period: ${period}`, '', '', '', '', ''],
+      [`YTD Period: ${yearLabel}`, '', '', '', '', ''],
       BLANK_ROW,
       ['KEY PERFORMANCE INDICATORS', '', '', '', '', ''],
       ['Metric', '', 'Amount', '', '', ''],
@@ -246,12 +265,13 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
       ['This Month',            '', c(thisMonthTotal), '', '', ''],
       ['Last Month',            '', c(lastMonthTotal), '', '', ''],
       ['Month-over-Month Change','', lastMonthTotal > 0 ? p((thisMonthTotal - lastMonthTotal) / lastMonthTotal) : '—', '', '', ''],
-      ['Unique Donors',         '', uniqueDonors,      '', '', ''],
-      ['Total Transactions',    '', parsedDonations.length, '', '', ''],
-      ['Average Gift',          '', c(avgGift),        '', '', ''],
-      ['Largest Single Gift',   '', c(largestGift),    '', '', ''],
+      ['Unique Donors (YTD)',   '', uniqueDonors,      '', '', ''],
+      ['Total Transactions (YTD)', '', ytdDonations.length, '', '', ''],
+      ['Average Gift (YTD)',    '', c(avgGift),        '', '', ''],
+      ['Largest Single Gift (YTD)', '', c(largestGift), '', '', ''],
       ['Annual Giving Goal',    '', c(ANNUAL_GOAL),    '', '', ''],
       ['Goal Progress',         '', p(ytdTotal / ANNUAL_GOAL), '', '', ''],
+      ['Remaining to Goal',     '', c(Math.max(0, ANNUAL_GOAL - ytdTotal)), '', '', ''],  
       BLANK_ROW,
       ['GIVING BY FUND', '', '', '', '', ''],
       ['Fund', '', 'Total Given', '', '% of Total', ''],
@@ -272,8 +292,9 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
       { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
       { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } },
       { s: { r: 3, c: 0 }, e: { r: 3, c: 5 } },
+      { s: { r: 4, c: 0 }, e: { r: 4, c: 5 } },
     ];
-    XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
+    if (opts.summary) XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
 
     // ── SHEET 2: Monthly Trend ──────────────────────────────────────────────
     const monthTotal = monthlyChartData.reduce((s, m) => s + m.total, 0);
@@ -301,7 +322,7 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
       { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
       { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
     ];
-    XLSX.utils.book_append_sheet(wb, ws2, 'Monthly Trend');
+    if (opts.monthlyTrend) XLSX.utils.book_append_sheet(wb, ws2, 'Monthly Trend');
 
     // ── SHEET 3: Transaction Ledger ─────────────────────────────────────────
     const filtersNote = activeFilterCount > 0
@@ -336,14 +357,15 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
       { s: { r: 3, c: 0 }, e: { r: 3, c: 5 } },
       { s: { r: 4, c: 0 }, e: { r: 4, c: 5 } },
     ];
-    XLSX.utils.book_append_sheet(wb, ws3, 'Transaction Ledger');
+    if (opts.transactionLedger) XLSX.utils.book_append_sheet(wb, ws3, 'Transaction Ledger');
 
     XLSX.writeFile(wb, `Lifegate-Financial-Report-${new Date().toISOString().slice(0, 10)}.xlsx`);
     showToast('Financial report exported');
+    setShowExportModal(false);
   }, [
-    filteredDonations, filteredTotal, parsedDonations, ytdTotal, thisMonthTotal, lastMonthTotal,
+    filteredDonations, filteredTotal, parsedDonations, ytdDonations, ytdTotal, thisMonthTotal, lastMonthTotal,
     uniqueDonors, avgGift, largestGift, fundData, typeBreakdown, topDonors, monthlyChartData,
-    filterFund, filterType, filterFrom, filterTo, activeFilterCount,
+    filterFund, filterType, filterFrom, filterTo, activeFilterCount, exportOpts, showToast,
   ]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -359,7 +381,7 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
           <p className="text-stone-500 text-sm mt-1">Track donations, reconcile Zelle, and export accounting reports.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={handleExport} className="px-4 py-2 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center gap-2">
+          <button onClick={() => setShowExportModal(true)} className="px-4 py-2 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center gap-2">
             <Download size={15} /> Export Report
           </button>
           <button onClick={() => setIsAdding(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
@@ -396,6 +418,54 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
         </div>
       )}
 
+      {/* Export Options Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+            <h2 className="text-lg font-bold text-stone-900 mb-1 flex items-center gap-2">
+              <Download size={17} className="text-teal-600" /> Export Report
+            </h2>
+            <p className="text-xs text-stone-400 mb-5">Choose which sections to include in the Excel file.</p>
+            <div className="space-y-3 mb-6">
+              {[
+                { key: 'summary',           label: 'Summary',             desc: 'KPIs, fund breakdown, top contributors' },
+                { key: 'monthlyTrend',      label: 'Monthly Trend',       desc: '12-month table with running total' },
+                { key: 'transactionLedger', label: 'Transaction Ledger',  desc: `All ${filteredDonations.length} transactions (current filters)` },
+              ].map(({ key, label, desc }) => (
+                <label key={key} className="flex items-start gap-3 cursor-pointer group">
+                  <div
+                    onClick={() => toggleExportOpt(key)}
+                    className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center transition-colors ${
+                      exportOpts[key] ? `${theme.bg} border-transparent` : 'border-stone-300 bg-white'
+                    }`}
+                  >
+                    {exportOpts[key] && (
+                      <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3">
+                        <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </div>
+                  <div onClick={() => toggleExportOpt(key)}>
+                    <p className="text-sm font-semibold text-stone-800 group-hover:text-teal-700 transition-colors">{label}</p>
+                    <p className="text-xs text-stone-400">{desc}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowExportModal(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
+              <button
+                onClick={() => handleExport(exportOpts)}
+                disabled={!exportOpts.summary && !exportOpts.monthlyTrend && !exportOpts.transactionLedger}
+                className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90 flex items-center gap-2 disabled:opacity-40`}
+              >
+                <Download size={14} /> Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* YTD + Goal Progress */}
@@ -412,7 +482,7 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
             <div className="w-full bg-stone-100 rounded-full h-1.5">
               <div className={`h-1.5 rounded-full ${theme.bg} transition-all`} style={{ width: `${goalPct}%` }} />
             </div>
-            <p className="text-xs text-stone-400 mt-1">{goalPct.toFixed(1)}% of annual goal</p>
+            <p className="text-xs text-stone-400 mt-1">{goalPct.toFixed(1)}% of annual goal · Jan 1 – today</p>
           </div>
         </div>
 
@@ -437,7 +507,7 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
             <div className="p-2 rounded-lg bg-teal-50 text-teal-600"><Users size={15} /></div>
           </div>
           <h3 className="text-xl font-bold text-stone-900">{uniqueDonors}</h3>
-          <p className="text-xs text-stone-400 mt-1">{parsedDonations.length} transactions</p>
+          <p className="text-xs text-stone-400 mt-1">{ytdDonations.length} transactions YTD</p>
         </div>
 
         {/* Avg / Largest */}
