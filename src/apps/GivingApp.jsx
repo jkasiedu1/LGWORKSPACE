@@ -13,7 +13,7 @@ import { callGeminiAI } from '../lib/gemini';
 import { createDonation, deleteDonation } from '../lib/firestoreServices';
 import { useAuth } from '../hooks/useAuth';
 
-const ANNUAL_GOAL = 150000;
+const GOAL_STORAGE_KEY = 'lifegate_annual_giving_goal';
 
 const FUND_COLORS = {
   'General Tithe': '#0d9488',
@@ -52,6 +52,29 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
     name: '', amount: '', fund: 'General Tithe', type: 'Zelle',
     date: new Date().toISOString().split('T')[0],
   });
+
+  // ── Annual goal (user-settable, persisted in localStorage) ────────────────
+  const [annualGoal, setAnnualGoal] = useState(() => {
+    const saved = localStorage.getItem(GOAL_STORAGE_KEY);
+    return saved ? parseFloat(saved) : 150000;
+  });
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
+  const [goalDraft, setGoalDraft] = useState('');
+
+  const commitGoal = () => {
+    const val = parseFloat(String(goalDraft).replace(/[^0-9.]/g, ''));
+    if (val > 0) {
+      setAnnualGoal(val);
+      localStorage.setItem(GOAL_STORAGE_KEY, String(val));
+      showToast('Annual giving goal updated');
+    }
+    setIsEditingGoal(false);
+  };
+
+  const openGoalEdit = () => {
+    setGoalDraft(String(annualGoal));
+    setIsEditingGoal(true);
+  };
 
   // ── Filters & sort ─────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
@@ -269,9 +292,9 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
       ['Total Transactions (YTD)', '', ytdDonations.length, '', '', ''],
       ['Average Gift (YTD)',    '', c(avgGift),        '', '', ''],
       ['Largest Single Gift (YTD)', '', c(largestGift), '', '', ''],
-      ['Annual Giving Goal',    '', c(ANNUAL_GOAL),    '', '', ''],
-      ['Goal Progress',         '', p(ytdTotal / ANNUAL_GOAL), '', '', ''],
-      ['Remaining to Goal',     '', c(Math.max(0, ANNUAL_GOAL - ytdTotal)), '', '', ''],  
+      ['Annual Giving Goal',    '', c(annualGoal),    '', '', ''],
+      ['Goal Progress',         '', p(ytdTotal / annualGoal), '', '', ''],
+      ['Remaining to Goal',     '', c(Math.max(0, annualGoal - ytdTotal)), '', '', ''],  
       BLANK_ROW,
       ['GIVING BY FUND', '', '', '', '', ''],
       ['Fund', '', 'Total Given', '', '% of Total', ''],
@@ -365,11 +388,11 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
   }, [
     filteredDonations, filteredTotal, parsedDonations, ytdDonations, ytdTotal, thisMonthTotal, lastMonthTotal,
     uniqueDonors, avgGift, largestGift, fundData, typeBreakdown, topDonors, monthlyChartData,
-    filterFund, filterType, filterFrom, filterTo, activeFilterCount, exportOpts, showToast,
+    filterFund, filterType, filterFrom, filterTo, activeFilterCount, exportOpts, showToast, annualGoal,
   ]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
-  const goalPct = Math.min((ytdTotal / ANNUAL_GOAL) * 100, 100);
+  const goalPct = Math.min((ytdTotal / annualGoal) * 100, 100);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 text-left">
@@ -477,7 +500,30 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
           <h3 className="text-3xl font-bold text-stone-900 tracking-tight tabular-nums">{fmt$(ytdTotal)}</h3>
           <div className="mt-3">
             <div className="flex justify-between text-xs text-stone-400 mb-1">
-              <span>Annual Goal</span><span>{fmt$(ANNUAL_GOAL)}</span>
+              <span>Annual Goal</span>
+              {isEditingGoal ? (
+                <span className="flex items-center gap-1">
+                  <span className="text-stone-400">$</span>
+                  <input
+                    autoFocus
+                    type="number"
+                    min="1"
+                    className="w-28 text-right text-xs text-stone-700 border border-teal-400 rounded px-1 outline-none bg-teal-50"
+                    value={goalDraft}
+                    onChange={e => setGoalDraft(e.target.value)}
+                    onBlur={commitGoal}
+                    onKeyDown={e => { if (e.key === 'Enter') commitGoal(); if (e.key === 'Escape') setIsEditingGoal(false); }}
+                  />
+                </span>
+              ) : (
+                <button
+                  onClick={openGoalEdit}
+                  title="Click to set your annual giving goal"
+                  className="font-medium text-stone-600 hover:text-teal-600 hover:underline transition-colors"
+                >
+                  {fmt$(annualGoal)}
+                </button>
+              )}
             </div>
             <div className="w-full bg-stone-100 rounded-full h-1.5">
               <div className={`h-1.5 rounded-full ${theme.bg} transition-all`} style={{ width: `${goalPct}%` }} />

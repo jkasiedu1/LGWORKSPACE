@@ -42,20 +42,20 @@ function SortablePlanRow({ item, theme, isAdmin, onDelete, onUpdate }) {
           ? <input className={cell} value={item.length} onChange={e => onUpdate(item.id, 'length', e.target.value)} placeholder="5 min" />
           : <span className="text-stone-500">{item.length}</span>}
       </td>
-      <td className="px-2 py-2">
-        {isAdmin ? (
-          <div className="flex items-center gap-1.5">
-            <select className="text-xs border border-transparent rounded bg-transparent outline-none focus:border-amber-400 focus:bg-amber-50 text-stone-500 py-1" value={item.type} onChange={e => onUpdate(item.id, 'type', e.target.value)}>
+      <td className="px-2 py-2 w-32">
+        {isAdmin
+          ? <select className="text-xs border border-transparent rounded bg-transparent outline-none focus:border-amber-400 focus:bg-amber-50 text-stone-500 py-1 w-full" value={item.type} onChange={e => onUpdate(item.id, 'type', e.target.value)}>
               {PLAN_ITEM_TYPES.map(t => <option key={t}>{t}</option>)}
             </select>
-            <input className={`${cell} font-medium`} value={item.title} onChange={e => onUpdate(item.id, 'title', e.target.value)} placeholder="Title" />
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            {item.type === 'Song' && <span className={`w-2 h-2 rounded-full ${theme.bg}`} />}
-            <span className="font-medium text-stone-900">{item.title}</span>
-          </div>
-        )}
+          : <span className="text-xs text-stone-500">{item.type}</span>}
+      </td>
+      <td className="px-2 py-2">
+        {isAdmin
+          ? <input className={`${cell} font-medium`} value={item.title} onChange={e => onUpdate(item.id, 'title', e.target.value)} placeholder="Title" />
+          : <div className="flex items-center gap-2">
+              {item.type === 'Song' && <span className={`w-2 h-2 rounded-full ${theme.bg}`} />}
+              <span className="font-medium text-stone-900">{item.title}</span>
+            </div>}
       </td>
       <td className="px-2 py-2">
         {isAdmin
@@ -231,8 +231,9 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
                   <th className="px-4 py-3 w-8"></th>
                   <th className="px-4 py-3 w-24">Time</th>
                   <th className="px-4 py-3 w-20">Length</th>
-                  <th className="px-4 py-3">Item</th>
-                  <th className="px-4 py-3 w-32">Person</th>
+                  <th className="px-4 py-3 w-32">Type</th>
+                  <th className="px-4 py-3">Title</th>
+                  <th className="px-4 py-3 w-36">Person</th>
                   <th className="px-4 py-3 w-8"></th>
                 </tr>
               </thead>
@@ -256,15 +257,13 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
           {isAdmin && (
             isAdding ? (
               <div className="p-4 border-t border-stone-100 bg-stone-50">
-                <div className="grid grid-cols-5 gap-2 mb-3">
+                <div className="grid grid-cols-6 gap-2 mb-3">
                   <input type="text" placeholder="Time"   className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.time}   onChange={e => setNewItem({...newItem, time: e.target.value})} />
                   <input type="text" placeholder="Length" className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.length} onChange={e => setNewItem({...newItem, length: e.target.value})} />
-                  <input type="text" placeholder="Title"  className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.title}  onChange={e => setNewItem({...newItem, title: e.target.value})} />
                   <select className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.type} onChange={e => setNewItem({...newItem, type: e.target.value})}>
-                    <option value="Element">Element</option>
-                    <option value="Song">Song</option>
-                    <option value="Sermon">Sermon</option>
+                    {PLAN_ITEM_TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
+                  <input type="text" placeholder="Title"  className="p-2 text-sm border border-stone-200 col-span-2 rounded outline-none focus:border-amber-500" value={newItem.title}  onChange={e => setNewItem({...newItem, title: e.target.value})} />
                   <input type="text" placeholder="Person" className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.person} onChange={e => setNewItem({...newItem, person: e.target.value})} />
                 </div>
                 <div className="flex justify-end gap-2">
