@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Sparkles, Loader2, GripVertical, AlertCircle, Plus, Save, Edit2, Clock, Users } from 'lucide-react';
+import { Sparkles, Loader2, GripVertical, Plus, Save, Clock, Users, Trash2 } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -17,29 +17,57 @@ import { CSS } from '@dnd-kit/utilities';
 import { callGeminiAI } from '../lib/gemini';
 import { saveServicePlan } from '../lib/firestoreServices';
 
-function SortablePlanRow({ item, theme, isAdmin, onDelete }) {
+const PLAN_ITEM_TYPES = ['Element', 'Song', 'Sermon', 'Prayer', 'Announcement', 'Offering'];
+
+function SortablePlanRow({ item, theme, isAdmin, onDelete, onUpdate }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  const cell = 'p-1 text-sm border border-transparent rounded outline-none focus:border-amber-400 focus:bg-amber-50 bg-transparent w-full';
   return (
     <tr ref={setNodeRef} style={style} className="hover:bg-stone-50 group">
-      <td className="px-4 py-3 text-stone-300">
+      <td className="px-2 py-2 text-stone-300">
         {isAdmin && (
           <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none focus:outline-none">
             <GripVertical size={16} className="group-hover:text-stone-500" />
           </button>
         )}
       </td>
-      <td className="px-4 py-3 font-medium text-stone-900">{item.time}</td>
-      <td className="px-4 py-3 text-stone-500">{item.length}</td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          {item.type === 'Song' && <span className={`w-2 h-2 rounded-full ${theme.bg}`}></span>}
-          <span className="font-medium text-stone-900">{item.title}</span>
-        </div>
+      <td className="px-2 py-2">
+        {isAdmin
+          ? <input className={cell} value={item.time} onChange={e => onUpdate(item.id, 'time', e.target.value)} placeholder="Time" />
+          : <span className="font-medium text-stone-900">{item.time}</span>}
       </td>
-      <td className="px-4 py-3 text-stone-500">{item.person}</td>
-      <td className="px-4 py-3 text-right">
-        {isAdmin && <button onClick={() => onDelete(item.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition-colors">Delete</button>}
+      <td className="px-2 py-2">
+        {isAdmin
+          ? <input className={cell} value={item.length} onChange={e => onUpdate(item.id, 'length', e.target.value)} placeholder="5 min" />
+          : <span className="text-stone-500">{item.length}</span>}
+      </td>
+      <td className="px-2 py-2">
+        {isAdmin ? (
+          <div className="flex items-center gap-1.5">
+            <select className="text-xs border border-transparent rounded bg-transparent outline-none focus:border-amber-400 focus:bg-amber-50 text-stone-500 py-1" value={item.type} onChange={e => onUpdate(item.id, 'type', e.target.value)}>
+              {PLAN_ITEM_TYPES.map(t => <option key={t}>{t}</option>)}
+            </select>
+            <input className={`${cell} font-medium`} value={item.title} onChange={e => onUpdate(item.id, 'title', e.target.value)} placeholder="Title" />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            {item.type === 'Song' && <span className={`w-2 h-2 rounded-full ${theme.bg}`} />}
+            <span className="font-medium text-stone-900">{item.title}</span>
+          </div>
+        )}
+      </td>
+      <td className="px-2 py-2">
+        {isAdmin
+          ? <input className={cell} value={item.person} onChange={e => onUpdate(item.id, 'person', e.target.value)} placeholder="Person" />
+          : <span className="text-stone-500">{item.person}</span>}
+      </td>
+      <td className="px-2 py-2 text-right">
+        {isAdmin && (
+          <button onClick={() => onDelete(item.id)} className="opacity-0 group-hover:opacity-100 p-1 text-rose-400 hover:text-rose-600 transition-all rounded">
+            <Trash2 size={14} />
+          </button>
+        )}
       </td>
     </tr>
   );
@@ -217,6 +245,7 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
                         theme={theme}
                         isAdmin={isAdmin}
                         onDelete={(id) => setPlanItems(planItems.filter(i => i.id !== id))}
+                        onUpdate={(id, field, val) => setPlanItems(prev => prev.map(i => i.id === id ? { ...i, [field]: val } : i))}
                       />
                     ))}
                   </tbody>
@@ -272,26 +301,66 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
           <div className="xl:col-span-3 bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex justify-between items-center">
               <h3 className="font-semibold text-stone-800 flex items-center gap-2"><Users size={16}/> Service Team Assignments</h3>
+              {isAdmin && (
+                <button
+                  onClick={() => setServiceTeamAssignments(prev => [...prev, { id: Date.now(), role: 'New Role', person: '', status: 'Pending' }])}
+                  className="text-xs font-medium text-stone-600 hover:text-stone-900 flex items-center gap-1 px-3 py-1.5 rounded-md border border-stone-200 bg-white hover:bg-stone-50"
+                >
+                  <Plus size={13}/> Add Role
+                </button>
+              )}
             </div>
             <div className="divide-y divide-stone-100">
               {serviceTeamAssignments.map((row) => (
-                <div key={row.id} className="px-5 py-4 flex items-center justify-between hover:bg-stone-50">
-                  <div>
-                    <p className="font-medium text-stone-900 text-sm">{row.role}</p>
+                <div key={row.id} className="px-5 py-3.5 flex items-center justify-between hover:bg-stone-50 group">
+                  <div className="flex-1 grid grid-cols-2 gap-3 mr-4">
                     {isAdmin ? (
                       <input
                         type="text"
-                        className="mt-1 text-xs text-stone-600 border border-stone-200 rounded px-2 py-1 outline-none focus:border-amber-500 w-64"
-                        value={row.person}
-                        onChange={(e) => setServiceTeamAssignments((prev) => prev.map((assignment) => (
-                          assignment.id === row.id ? { ...assignment, person: e.target.value } : assignment
-                        )))}
+                        className="text-sm font-semibold text-stone-900 border border-transparent rounded px-2 py-1 outline-none focus:border-amber-400 focus:bg-amber-50 bg-transparent"
+                        value={row.role}
+                        onChange={(e) => setServiceTeamAssignments(prev => prev.map(a => a.id === row.id ? { ...a, role: e.target.value } : a))}
                       />
                     ) : (
-                      <p className="text-xs text-stone-500 mt-0.5">{row.person}</p>
+                      <p className="text-sm font-semibold text-stone-900 px-2 py-1">{row.role}</p>
+                    )}
+                    {isAdmin ? (
+                      <input
+                        type="text"
+                        className="text-sm text-stone-600 border border-transparent rounded px-2 py-1 outline-none focus:border-amber-400 focus:bg-amber-50 bg-transparent"
+                        value={row.person}
+                        placeholder="Assign person…"
+                        onChange={(e) => setServiceTeamAssignments(prev => prev.map(a => a.id === row.id ? { ...a, person: e.target.value } : a))}
+                      />
+                    ) : (
+                      <p className="text-sm text-stone-500 px-2 py-1">{row.person}</p>
                     )}
                   </div>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded ${row.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{row.status}</span>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <button
+                      onClick={() => {
+                        const cycle = ['Confirmed', 'Pending', 'Unavailable'];
+                        const next = cycle[(cycle.indexOf(row.status) + 1) % cycle.length];
+                        setServiceTeamAssignments(prev => prev.map(a => a.id === row.id ? { ...a, status: next } : a));
+                      }}
+                      title="Click to change status"
+                      className={`text-xs font-bold px-2.5 py-1 rounded cursor-pointer transition-colors select-none ${
+                        row.status === 'Confirmed'   ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' :
+                        row.status === 'Unavailable' ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' :
+                                                        'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                      }`}
+                    >
+                      {row.status}
+                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => setServiceTeamAssignments(prev => prev.filter(a => a.id !== row.id))}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-rose-400 hover:text-rose-600 transition-all rounded"
+                      >
+                        <Trash2 size={14}/>
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -302,14 +371,63 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
           <div className="xl:col-span-3 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {serviceTimes.map(st => (
-                <div key={st.id} className="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+                <div key={st.id} className="bg-white rounded-xl border border-stone-200 shadow-sm p-5 group relative">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className={`p-2 rounded-lg ${theme.light} ${theme.color}`}><Clock size={18}/></div>
-                    <h3 className="font-bold text-stone-900">{st.label}</h3>
+                    <div className={`p-2 rounded-lg ${theme.light} ${theme.color} flex-shrink-0`}><Clock size={18}/></div>
+                    {isAdmin ? (
+                      <input
+                        className="font-bold text-stone-900 text-sm border border-transparent rounded px-1 outline-none focus:border-amber-400 focus:bg-amber-50 bg-transparent w-full"
+                        value={st.label}
+                        onChange={e => setServiceTimes(prev => prev.map(s => s.id === st.id ? { ...s, label: e.target.value } : s))}
+                      />
+                    ) : (
+                      <h3 className="font-bold text-stone-900">{st.label}</h3>
+                    )}
+                    {isAdmin && (
+                      <button
+                        onClick={() => setServiceTimes(prev => prev.filter(s => s.id !== st.id))}
+                        className="opacity-0 group-hover:opacity-100 ml-auto p-1 text-rose-400 hover:text-rose-600 transition-all rounded flex-shrink-0"
+                      >
+                        <Trash2 size={14}/>
+                      </button>
+                    )}
                   </div>
-                  <p className="text-2xl font-bold text-stone-900">{st.time}</p>
-                  <p className="text-xs text-stone-500 mt-1">{st.location}</p>
-                  <p className="text-xs text-stone-500 mt-2">{st.volunteers} volunteers scheduled</p>
+                  {isAdmin ? (
+                    <input
+                      className="text-2xl font-bold text-stone-900 border border-transparent rounded px-1 outline-none focus:border-amber-400 focus:bg-amber-50 bg-transparent w-full"
+                      value={st.time}
+                      onChange={e => setServiceTimes(prev => prev.map(s => s.id === st.id ? { ...s, time: e.target.value } : s))}
+                      placeholder="e.g. 8:00 AM"
+                    />
+                  ) : (
+                    <p className="text-2xl font-bold text-stone-900">{st.time}</p>
+                  )}
+                  {isAdmin ? (
+                    <input
+                      className="text-xs text-stone-500 mt-1 border border-transparent rounded px-1 outline-none focus:border-amber-400 focus:bg-amber-50 bg-transparent w-full"
+                      value={st.location}
+                      onChange={e => setServiceTimes(prev => prev.map(s => s.id === st.id ? { ...s, location: e.target.value } : s))}
+                      placeholder="Location"
+                    />
+                  ) : (
+                    <p className="text-xs text-stone-500 mt-1">{st.location}</p>
+                  )}
+                  <div className="flex items-center gap-1 mt-2">
+                    {isAdmin ? (
+                      <>
+                        <input
+                          type="number"
+                          min="0"
+                          className="text-xs text-stone-500 border border-transparent rounded px-1 outline-none focus:border-amber-400 focus:bg-amber-50 bg-transparent w-12 text-right"
+                          value={st.volunteers}
+                          onChange={e => setServiceTimes(prev => prev.map(s => s.id === st.id ? { ...s, volunteers: parseInt(e.target.value) || 0 } : s))}
+                        />
+                        <span className="text-xs text-stone-500">volunteers scheduled</span>
+                      </>
+                    ) : (
+                      <p className="text-xs text-stone-500">{st.volunteers} volunteers scheduled</p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
