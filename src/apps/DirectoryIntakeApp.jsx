@@ -50,7 +50,15 @@ export default function DirectoryIntakeApp() {
       setForm(INITIAL_FORM);
     } catch (error) {
       console.error('[DirectoryIntakeApp] Failed to submit intake form:', error);
-      setErrorMessage('We could not submit your information. Please try again in a moment.');
+      const errorCode = String(error?.code || '').toLowerCase();
+
+      if (errorCode.includes('permission-denied')) {
+        setErrorMessage('Submission is blocked by Firestore security rules. Please ask an admin to deploy the latest rules, then try again.');
+      } else if (errorCode.includes('unavailable') || errorCode.includes('network')) {
+        setErrorMessage('Network issue while submitting. Please check your connection and try again.');
+      } else {
+        setErrorMessage('We could not submit your information. Please try again in a moment.');
+      }
     } finally {
       setSubmitting(false);
     }
