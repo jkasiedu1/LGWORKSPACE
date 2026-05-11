@@ -38,6 +38,35 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && canDelete();
     }
 
+    match /directoryIntakeSubmissions/{submissionId} {
+      allow create: if request.resource.data.firstName is string
+        && request.resource.data.lastName is string
+        && request.resource.data.type is string
+        && request.resource.data.type in ['Member', 'Volunteer', 'First Time', 'Returning', 'Guest', 'Child']
+        && request.resource.data.firstName.size() > 0
+        && request.resource.data.lastName.size() > 0
+        && (
+          (
+            request.resource.data.type == 'Child'
+            && request.resource.data.parents is string
+            && request.resource.data.parents.size() > 0
+            && request.resource.data.parentPhone is string
+            && request.resource.data.parentPhone.size() > 0
+          )
+          ||
+          (
+            request.resource.data.type != 'Child'
+            && (
+              (request.resource.data.email is string && request.resource.data.email.size() > 0)
+              || (request.resource.data.phone is string && request.resource.data.phone.size() > 0)
+            )
+          )
+        );
+      allow read: if isAuthenticated() && canWrite();
+      allow update: if isAuthenticated() && canWrite();
+      allow delete: if false;
+    }
+
     match /events/{eventId} {
       allow create: if isAuthenticated() && canWrite();
       allow read: if isAuthenticated();

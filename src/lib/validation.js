@@ -1,5 +1,7 @@
 const VALID_PERSON_TYPES = new Set(['Member', 'Volunteer', 'Staff', 'First Time', 'Returning', 'Guest', 'Child']);
 
+const VALID_INTAKE_TYPES = new Set(['Member', 'Volunteer', 'First Time', 'Returning', 'Guest', 'Child']);
+
 export function validatePersonProfile(person) {
   if (!person?.firstName?.trim()) {
     return { valid: false, message: 'First name is required.' };
@@ -50,6 +52,40 @@ export function validateCalendarEvent(event) {
 
   if (event?.time && !/^\d{2}:\d{2}$/.test(event.time)) {
     return { valid: false, message: 'Event time must be in HH:MM format.' };
+  }
+
+  return { valid: true };
+}
+
+export function validateDirectoryIntakeSubmission(submission) {
+  if (!submission?.firstName?.trim()) {
+    return { valid: false, message: 'First name is required.' };
+  }
+
+  if (!submission?.lastName?.trim()) {
+    return { valid: false, message: 'Last name is required.' };
+  }
+
+  if (!VALID_INTAKE_TYPES.has(submission?.type)) {
+    return { valid: false, message: 'Please select a valid profile type.' };
+  }
+
+  if (submission?.type === 'Child') {
+    if (!submission?.parents?.trim()) {
+      return { valid: false, message: 'Parent or guardian name is required for child submissions.' };
+    }
+
+    if (!submission?.parentPhone?.trim()) {
+      return { valid: false, message: 'Parent phone number is required for child submissions.' };
+    }
+  }
+
+  if (submission?.type !== 'Child' && !submission?.phone?.trim() && !submission?.email?.trim()) {
+    return { valid: false, message: 'Please provide at least an email or phone number.' };
+  }
+
+  if (submission?.email && !/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/.test(submission.email)) {
+    return { valid: false, message: 'Email address format is invalid.' };
   }
 
   return { valid: true };

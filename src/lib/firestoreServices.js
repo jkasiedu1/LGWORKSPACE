@@ -119,6 +119,106 @@ export async function createPeopleBulk(people, actorEmail) {
   return createdPeople;
 }
 
+export async function createDirectoryIntakeSubmission(submission) {
+  if (!db) {
+    return { id: Date.now(), ...submission, status: 'pending' };
+  }
+
+  const payload = {
+    ...submission,
+    status: 'pending',
+    source: submission?.source || 'member-form',
+  };
+
+  const docRef = await withRetry(() => addDoc(collection(db, 'directoryIntakeSubmissions'), withAuditFields(payload)));
+  return { id: docRef.id, ...payload };
+}
+
+function generateSecurityCode() {
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const cap = Math.floor(256 / 36) * 36;
+  const buf = new Uint8Array(64);
+  let code = '';
+  while (code.length < 4) {
+    crypto.getRandomValues(buf);
+    for (let i = 0; i < buf.length && code.length < 4; i += 1) {
+      if (buf[i] < cap) code += chars[buf[i] % 36];
+    }
+  }
+  return code;
+}
+
+export async function approveDirectoryIntakeSubmission(submissionId, submissionData, actorEmail) {
+  if (!db) {
+    return {
+      id: submissionId,
+      linkedPersonId: Date.now(),
+      status: 'approved',
+    };
+  }
+
+  const isChildSubmission = submissionData.type === 'Child';
+  const personRef = doc(collection(db, 'people'));
+  const submissionRef = doc(db, 'directoryIntakeSubmissions', submissionId);
+  const personPayload = {
+    firstName: submissionData.firstName || '',
+    lastName: submissionData.lastName || '',
+    name: `${submissionData.firstName || ''} ${submissionData.lastName || ''}`.trim(),
+    email: isChildSubmission ? '' : (submissionData.email || ''),
+    phone: isChildSubmission ? '' : (submissionData.phone || ''),
+    address: submissionData.address || '',
+    type: submissionData.type || 'Member',
+    gender: submissionData.gender || 'Female',
+    bgCheck: isChildSubmission ? '' : 'N/A',
+    parents: submissionData.parents || '',
+    parentPhone: submissionData.parentPhone || '',
+    allergies: submissionData.allergies || '',
+    securityCode: isChildSubmission ? generateSecurityCode() : '',
+    checkInStatus: isChildSubmission ? 'Signed Out' : '',
+    intakeSource: 'member-template',
+  };
+
+  await withRetry(async () => {
+    const batch = writeBatch(db);
+    batch.set(personRef, withAuditFields(personPayload));
+    batch.update(submissionRef, {
+      status: 'approved',
+      linkedPersonId: personRef.id,
+      approvedBy: actorEmail || '',
+      approvedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+  });
+
+  if (actorEmail) {
+    logPersonCreated(actorEmail, personRef.id, personPayload).catch((err) =>
+      console.error('[approveDirectoryIntakeSubmission] Audit logging failed:', err)
+    );
+  }
+
+  return {
+    id: submissionId,
+    linkedPersonId: personRef.id,
+    status: 'approved',
+  };
+}
+
+export async function rejectDirectoryIntakeSubmission(submissionId, actorEmail) {
+  if (!db) {
+    return { id: submissionId, status: 'rejected', reviewedBy: actorEmail || '' };
+  }
+
+  await withRetry(() => updateDoc(doc(db, 'directoryIntakeSubmissions', submissionId), {
+    status: 'rejected',
+    reviewedBy: actorEmail || '',
+    reviewedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }));
+
+  return { id: submissionId, status: 'rejected' };
+}
+
 export async function updatePersonProfile(personId, updates) {
   if (!db) {
     return { id: personId, ...updates };

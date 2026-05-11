@@ -40,6 +40,7 @@ import TeamsApp from './apps/TeamsApp';
 import WorkflowsApp from './apps/WorkflowsApp';
 import SecurityApp from './apps/SecurityApp';
 import ReportingApp from './apps/ReportingApp';
+import DirectoryIntakeApp from './apps/DirectoryIntakeApp';
 import { configureGeminiPolicy } from './lib/gemini';
 
 const THEME_PRESETS = {
@@ -121,14 +122,15 @@ const THEME_KEYS = Object.keys(THEME_PRESETS);
 export default function App() {
   // Custom hooks handle auth state and firestore subscriptions
   const { user, loading: authLoading, isAuthenticated, roleAccess, logout } = useAuth();
-  const appData = useAppData(isAuthenticated);
 
   // Destructure role access
   const { isSeniorPastor, isAdmin } = roleAccess;
+  const appData = useAppData(isAuthenticated, isAdmin || isSeniorPastor);
 
   // Local UI state
   const navigate = useNavigate();
   const location = useLocation();
+  const isPublicDirectoryIntakeRoute = location.pathname === '/directory-intake';
   const activeApp = location.pathname.replace('/', '') || 'home';
   const setActiveApp = (appId) => navigate(appId === 'home' ? '/' : `/${appId}`);
   const [isAppSwitcherOpen, setIsAppSwitcherOpen] = useState(false);
@@ -622,6 +624,10 @@ export default function App() {
 
   const theme = APPS[activeApp] ?? APPS.home;
 
+  if (isPublicDirectoryIntakeRoute) {
+    return <DirectoryIntakeApp />;
+  }
+
   // Show loading spinner while auth check is in progress
   if (authLoading) {
     return (
@@ -922,7 +928,7 @@ export default function App() {
                 {activeApp === 'services' && <ServicesApp theme={theme} planItems={appData.planItems} setPlanItems={appData.setPlanItems} servicePlan={appData.servicePlan} setServicePlan={appData.setServicePlan} isAdmin={isAdmin} showToast={showToast} />}
                 {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} songs={appData.songs} setSongs={appData.setSongs} globalSearch={globalSearchQuery} showToast={showToast} />}
                 {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={appData.teamsList} setTeamsList={appData.setTeamsList} people={appData.people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} globalSearch={globalSearchQuery} />}
-                {activeApp === 'people' && <PeopleApp theme={theme} people={appData.people} setPeople={appData.setPeople} isAdmin={isAdmin} globalSearch={globalSearchQuery} showToast={showToast} loadingPeople={appData.loadingPeople} />}
+                {activeApp === 'people' && <PeopleApp theme={theme} people={appData.people} setPeople={appData.setPeople} isAdmin={isAdmin} globalSearch={globalSearchQuery} showToast={showToast} loadingPeople={appData.loadingPeople} intakeSubmissions={appData.intakeSubmissions} loadingIntakeSubmissions={appData.loadingIntakeSubmissions} />}
                 {activeApp === 'giving' && (isAdmin || roleAccess.appAccess?.includes('giving')) && <GivingApp theme={theme} donations={appData.donations} setDonations={appData.setDonations} showToast={showToast} />}
                 {activeApp === 'calendar' && <CalendarApp theme={theme} events={appData.events} setEvents={appData.setEvents} isAdmin={isAdmin} showToast={showToast} />}
                 {activeApp === 'workflows' && (isAdmin || roleAccess.appAccess?.includes('workflows')) && <WorkflowsApp theme={theme} workflows={appData.workflows} setWorkflows={appData.setWorkflows} showToast={showToast} />}

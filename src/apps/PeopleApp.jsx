@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search, UserPlus, AlertCircle, X, QrCode, UserCheck,
-  CheckCircle2, Printer, Upload, Download, Pencil, Trash2, ScanLine
+  CheckCircle2, Printer, Upload, Download, Pencil, Trash2, ScanLine, Copy
 } from 'lucide-react';
 import { db } from '../config/firebase';
-import { createPeopleBulk, createPerson, deletePerson, updatePersonCheckInStatus, updatePersonProfile } from '../lib/firestoreServices';
+import {
+  approveDirectoryIntakeSubmission,
+  createPeopleBulk,
+  createPerson,
+  deletePerson,
+  rejectDirectoryIntakeSubmission,
+  updatePersonCheckInStatus,
+  updatePersonProfile,
+} from '../lib/firestoreServices';
 import {
   downloadKidsDirectoryImportTemplate,
   downloadMainDirectoryImportTemplate,
@@ -29,7 +37,17 @@ function generateSecurityCode() {
   return code;
 }
 
-export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSearch, showToast, loadingPeople }) {
+export default function PeopleApp({
+  theme,
+  people,
+  setPeople,
+  isAdmin,
+  globalSearch,
+  showToast,
+  loadingPeople,
+  intakeSubmissions = [],
+  loadingIntakeSubmissions = false,
+}) {
   const { user } = useAuth();
   const mainImportInputRef = useRef(null);
   const kidsImportInputRef = useRef(null);
@@ -43,6 +61,7 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [processingSubmissionId, setProcessingSubmissionId] = useState(null);
   const [qrScanActive, setQrScanActive] = useState(false);
   const [qrScanResult, setQrScanResult] = useState(null);
   const [newPerson, setNewPerson] = useState({
@@ -119,6 +138,64 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
     if (activeTab === 'kids' || activeTab === 'checkin') return p.type === 'Child';
     return true;
   }), [people, searchQuery, activeTab]);
+
+  const filteredIntakeSubmissions = useMemo(() => intakeSubmissions.filter((submission) => {
+    const status = submission.status || 'pending';
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q || (
+      (`${submission.firstName || ''} ${submission.lastName || ''}`.toLowerCase().includes(q)) ||
+      (submission.email || '').toLowerCase().includes(q) ||
+      (submission.phone || '').toLowerCase().includes(q) ||
+      (submission.type || '').toLowerCase().includes(q) ||
+      (status || '').toLowerCase().includes(q)
+    );
+
+    if (!matchesSearch) return false;
+
+    if (activeTab === 'intake') {
+      return true;
+    }
+
+    return false;
+  }), [intakeSubmissions, searchQuery, activeTab]);
+
+  const copyIntakeLink = async () => {
+    if (typeof window === 'undefined') return;
+
+    const intakeUrl = `${window.location.origin}/directory-intake`;
+    try {
+      await navigator.clipboard.writeText(intakeUrl);
+      showToast('Intake form link copied to clipboard.');
+    } catch (_) {
+      showToast(`Share this link: ${intakeUrl}`);
+    }
+  };
+
+  const handleApproveIntake = async (submission) => {
+    setProcessingSubmissionId(submission.id);
+    try {
+      await approveDirectoryIntakeSubmission(submission.id, submission, user?.email);
+      showToast('Submission approved and added to directory.');
+    } catch (error) {
+      console.error('[PeopleApp] Failed to approve intake submission:', error);
+      showToast('Failed to approve submission.');
+    } finally {
+      setProcessingSubmissionId(null);
+    }
+  };
+
+  const handleRejectIntake = async (submission) => {
+    setProcessingSubmissionId(submission.id);
+    try {
+      await rejectDirectoryIntakeSubmission(submission.id, user?.email);
+      showToast('Submission rejected.');
+    } catch (error) {
+      console.error('[PeopleApp] Failed to reject intake submission:', error);
+      showToast('Failed to reject submission.');
+    } finally {
+      setProcessingSubmissionId(null);
+    }
+  };
 
   const handleAdd = async () => {
     const validationResult = validatePersonProfile(newPerson);
@@ -353,6 +430,11 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
             <p className="text-stone-500 text-sm mt-1 max-w-md">Manage profiles, backgrounds, and secure kids check-in.</p>
           </div>
           <div className="flex flex-wrap gap-3 xl:justify-end shrink-0">
+            {isAdmin && (
+              <button onClick={copyIntakeLink} className="px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center justify-center gap-2">
+                <Copy size={16}/> Copy Intake Form Link
+              </button>
+            )}
             <button onClick={() => setActiveTab('checkin')} className="px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center justify-center gap-2">
               <UserCheck size={16}/> Launch Check-in Station
             </button>
@@ -417,12 +499,13 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
 
       <div className="border-b border-stone-200 mb-6 overflow-x-auto">
         <nav className="-mb-px flex space-x-6 min-w-max pr-3">
-          {['directory', 'visitors', 'kids', 'checkin'].map(tab => (
+          {['directory', 'visitors', 'kids', 'checkin', ...(isAdmin ? ['intake'] : [])].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} className={`border-b-2 py-4 px-1 text-sm font-medium ${activeTab === tab ? `${theme.border} ${theme.color}` : 'border-transparent text-stone-500 hover:text-stone-700'}`}>
               {tab === 'directory' && 'General Directory'}
               {tab === 'visitors'  && 'Visitors'}
               {tab === 'kids'      && 'Lifegate Kids'}
               {tab === 'checkin'   && <><QrCode size={14} className="inline mr-1"/> Kids Check-in</>}
+              {tab === 'intake'    && 'Directory Intake'}
             </button>
           ))}
         </nav>
@@ -569,6 +652,7 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
             {activeTab === 'visitors'  && "Visitor Log"}
             {activeTab === 'kids'      && "Lifegate Kids Roster"}
             {activeTab === 'checkin'   && "Live Check-in Station"}
+            {activeTab === 'intake'    && "Member Intake Submissions"}
           </h3>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 h-4 w-4" />
@@ -635,8 +719,47 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
             );
           })}
 
-          {filteredPeople.length === 0 && (
+          {activeTab === 'intake' && (
+            <>
+              {loadingIntakeSubmissions && (
+                <div className="px-5 py-6 text-center text-stone-500 text-sm">Loading intake submissions...</div>
+              )}
+              {filteredIntakeSubmissions.map((submission) => {
+                const status = submission.status || 'pending';
+                const isProcessing = processingSubmissionId === submission.id;
+                const isChildSubmission = submission.type === 'Child';
+                return (
+                  <div key={`mi-${submission.id}`} className="rounded-xl border border-stone-200 p-3 bg-white">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-stone-900 text-sm">{submission.firstName} {submission.lastName}</p>
+                        <p className="text-xs text-stone-500 mt-1">
+                          {submission.type || 'Member'} • {isChildSubmission ? (submission.parents || 'No guardian listed') : (submission.email || 'No email')} • {isChildSubmission ? (submission.parentPhone || 'No guardian phone') : (submission.phone || 'No phone')}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${status === 'approved' ? 'bg-emerald-100 text-emerald-700' : status === 'rejected' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {status}
+                      </span>
+                    </div>
+                    {submission.address && <p className="text-xs text-stone-500 mt-2">{submission.address}</p>}
+                    {submission.notes && <p className="text-xs text-stone-600 mt-2">{submission.notes}</p>}
+                    {status === 'pending' && (
+                      <div className="mt-3 flex justify-end gap-2">
+                        <button disabled={isProcessing} onClick={() => handleRejectIntake(submission)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 disabled:opacity-60">Reject</button>
+                        <button disabled={isProcessing} onClick={() => handleApproveIntake(submission)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-white bg-emerald-600 disabled:opacity-60">Approve</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {activeTab !== 'intake' && filteredPeople.length === 0 && (
             <div className="px-5 py-8 text-center text-stone-500 text-sm">No records found matching your criteria.</div>
+          )}
+          {activeTab === 'intake' && !loadingIntakeSubmissions && filteredIntakeSubmissions.length === 0 && (
+            <div className="px-5 py-8 text-center text-stone-500 text-sm">No intake submissions found.</div>
           )}
         </div>
 
@@ -821,8 +944,64 @@ export default function PeopleApp({ theme, people, setPeople, isAdmin, globalSea
             </>
           )}
 
-          {filteredPeople.length === 0 && (
+          {activeTab === 'intake' && (
+            <div className="divide-y divide-stone-100">
+              <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_120px_180px] gap-4 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-stone-500 bg-white sticky top-0 z-10 border-b border-stone-100">
+                <div>Submission</div>
+                <div>Contact &amp; Notes</div>
+                <div>Status</div>
+                <div className="text-right">Review</div>
+              </div>
+              {loadingIntakeSubmissions && (
+                <div className="px-5 py-8 text-center text-stone-500">Loading intake submissions...</div>
+              )}
+              {filteredIntakeSubmissions.map((submission) => {
+                const status = submission.status || 'pending';
+                const isProcessing = processingSubmissionId === submission.id;
+                const isChildSubmission = submission.type === 'Child';
+                return (
+                  <div key={submission.id} className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_120px_180px] gap-4 px-5 py-4 items-center hover:bg-stone-50/70 transition-colors">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-stone-900 truncate">{submission.firstName} {submission.lastName}</p>
+                      <p className="text-xs text-stone-500 mt-1">{submission.type || 'Member'}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm text-stone-700 truncate">
+                        {isChildSubmission
+                          ? `${submission.parents || 'No guardian listed'} • ${submission.parentPhone || 'No guardian phone'}`
+                          : `${submission.email || 'No email'} • ${submission.phone || 'No phone'}`}
+                      </p>
+                      <p className="text-xs text-stone-500 mt-1 truncate">{submission.address || 'No address provided'}</p>
+                      {(submission.allergies || submission.notes) && (
+                        <p className="text-xs text-stone-600 mt-1 truncate">{submission.allergies ? `Allergies: ${submission.allergies}` : submission.notes}</p>
+                      )}
+                    </div>
+                    <div>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${status === 'approved' ? 'bg-emerald-100 text-emerald-700' : status === 'rejected' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {status}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      {status === 'pending' ? (
+                        <>
+                          <button disabled={isProcessing} onClick={() => handleRejectIntake(submission)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 disabled:opacity-60">Reject</button>
+                          <button disabled={isProcessing} onClick={() => handleApproveIntake(submission)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-white bg-emerald-600 disabled:opacity-60">Approve</button>
+                        </>
+                      ) : (
+                        <span className="text-xs text-stone-400">Reviewed</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {activeTab !== 'intake' && filteredPeople.length === 0 && (
             <div className="px-5 py-12 text-center text-stone-500">No records found matching your criteria.</div>
+          )}
+          {activeTab === 'intake' && !loadingIntakeSubmissions && filteredIntakeSubmissions.length === 0 && (
+            <div className="px-5 py-12 text-center text-stone-500">No intake submissions found.</div>
           )}
         </div>
       </div>

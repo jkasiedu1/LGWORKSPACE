@@ -15,9 +15,10 @@ import {
  * Custom hook for managing Firestore subscriptions and app-wide data
  * Handles live updates from events, people, donations, songs, teams
  * @param {boolean} isAuthenticated - Whether the user is authenticated
+ * @param {boolean} canReviewIntake - Whether the user can review intake submissions
  * @returns {Object} App data: { events, people, donations, songs, teams, planItems }
  */
-export function useAppData(isAuthenticated) {
+export function useAppData(isAuthenticated, canReviewIntake = false) {
   const [events, setEvents] = useState(UPCOMING_EVENTS);
   const [people, setPeople] = useState(PEOPLE_LIST);
   const [planItems, setPlanItems] = useState(PLAN_ITEMS);
@@ -29,6 +30,7 @@ export function useAppData(isAuthenticated) {
     { id: 2, title: 'Volunteer Reminder', trigger: '3 Days Before Scheduled Date', actions: 'Send Email', iconName: 'Mail' },
   ]);
   const [communityPosts, setCommunityPosts] = useState(COMMUNITY_POSTS);
+  const [intakeSubmissions, setIntakeSubmissions] = useState([]);
   const [securitySettings, setSecuritySettings] = useState({ is2FA: true, isDLP: true, isPII: true, isOptOut: true, isEndpoint: false });
   const [servicePlan, setServicePlan] = useState({
     headerData: { title: 'Ash Wednesday Gathering', date: '2026-02-18', time: '19:00', location: 'Main Auditorium' },
@@ -42,6 +44,7 @@ export function useAppData(isAuthenticated) {
   // Per-collection loading states
   const [loadingPeople, setLoadingPeople] = useState(true);
   const [loadingEvents, setLoadingEvents] = useState(true);
+  const [loadingIntakeSubmissions, setLoadingIntakeSubmissions] = useState(false);
 
   /**
    * Subscribe to Firestore collections when authenticated
@@ -60,6 +63,7 @@ export function useAppData(isAuthenticated) {
     let unsubTeams;
     let unsubWorkflows;
     let unsubCommunityPosts;
+    let unsubIntakeSubmissions;
     let unsubSecuritySettings;
     let unsubServicePlan;
 
@@ -104,6 +108,24 @@ export function useAppData(isAuthenticated) {
           }
         );
 
+        if (canReviewIntake) {
+          setLoadingIntakeSubmissions(true);
+          unsubIntakeSubmissions = onSnapshot(
+            query(collection(db, 'directoryIntakeSubmissions'), orderBy('createdAt', 'desc')),
+            (snapshot) => {
+              setIntakeSubmissions(snapshot.docs.map((submissionDoc) => ({ id: submissionDoc.id, ...submissionDoc.data() })));
+              setLoadingIntakeSubmissions(false);
+            },
+            (error) => {
+              console.error('[useAppData] Intake submissions subscription failed:', error);
+              setLoadingIntakeSubmissions(false);
+            }
+          );
+        } else {
+          setIntakeSubmissions([]);
+          setLoadingIntakeSubmissions(false);
+        }
+
         unsubSecuritySettings = onSnapshot(doc(db, 'settings', 'security'), (settingsDoc) => {
           if (settingsDoc.exists()) {
             setSecuritySettings((prev) => ({ ...prev, ...settingsDoc.data() }));
@@ -127,10 +149,11 @@ export function useAppData(isAuthenticated) {
       if (unsubTeams) unsubTeams();
       if (unsubWorkflows) unsubWorkflows();
       if (unsubCommunityPosts) unsubCommunityPosts();
+      if (unsubIntakeSubmissions) unsubIntakeSubmissions();
       if (unsubSecuritySettings) unsubSecuritySettings();
       if (unsubServicePlan) unsubServicePlan();
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, canReviewIntake]);
 
   return {
     events,
@@ -151,6 +174,9 @@ export function useAppData(isAuthenticated) {
     setWorkflows,
     communityPosts,
     setCommunityPosts,
+    intakeSubmissions,
+    setIntakeSubmissions,
+    loadingIntakeSubmissions,
     securitySettings,
     setSecuritySettings,
     servicePlan,
