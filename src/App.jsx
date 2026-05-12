@@ -162,6 +162,9 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [profileNameInput, setProfileNameInput] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
+  const [showUsernameOnboarding, setShowUsernameOnboarding] = useState(false);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [usernameSaving, setUsernameSaving] = useState(false);
   const profilePopoverRef = useRef(null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const notifRef = useRef(null);
@@ -263,6 +266,38 @@ export default function App() {
       setProfileSaving(false);
     }
   };
+
+  const handleCompleteUsername = async () => {
+    const username = usernameInput.trim();
+    const validUsername = /^[a-zA-Z0-9._-]{3,32}$/.test(username);
+    if (!validUsername || !user) return;
+
+    setUsernameSaving(true);
+    try {
+      await updateProfile(user, { displayName: username });
+      setShowUsernameOnboarding(false);
+      setUsernameInput('');
+      showToast('Username saved. Welcome to Lifegate Workspace.');
+    } catch (err) {
+      showToast(err?.message || 'Failed to save username.');
+    } finally {
+      setUsernameSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      setShowUsernameOnboarding(false);
+      return;
+    }
+
+    const displayName = String(user.displayName || '').trim();
+    if (!displayName) {
+      setShowUsernameOnboarding(true);
+    } else {
+      setShowUsernameOnboarding(false);
+    }
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     configureGeminiPolicy(appData.securitySettings);
@@ -681,6 +716,46 @@ export default function App() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-stone-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-4 fade-in">
           <CheckCircle2 size={18} className="text-emerald-400" />
           <span className="text-sm font-medium">{toastMsg}</span>
+        </div>
+      )}
+
+      {showUsernameOnboarding && (
+        <div className="fixed inset-0 bg-stone-900/65 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-stone-200 shadow-2xl p-6">
+            <h2 className="text-xl font-bold text-stone-900">Finish Account Setup</h2>
+            <p className="text-sm text-stone-600 mt-2">Set your username to complete first-time access. Use 3-32 characters: letters, numbers, dot, underscore, or dash.</p>
+            <p className="text-xs text-stone-500 mt-3">Signed in as {user?.email}</p>
+
+            <input
+              type="text"
+              autoFocus
+              value={usernameInput}
+              onChange={(event) => setUsernameInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  handleCompleteUsername();
+                }
+              }}
+              placeholder="Choose username"
+              className="w-full mt-3 border border-stone-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-teal-500"
+            />
+
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={logout}
+                className="flex-1 border border-stone-300 text-stone-700 text-sm font-semibold py-2.5 rounded-lg hover:bg-stone-50 transition-colors"
+              >
+                Sign Out
+              </button>
+              <button
+                onClick={handleCompleteUsername}
+                disabled={usernameSaving || !/^[a-zA-Z0-9._-]{3,32}$/.test(usernameInput.trim())}
+                className="flex-1 bg-stone-900 text-white text-sm font-semibold py-2.5 rounded-lg hover:bg-stone-800 disabled:opacity-60 transition-colors"
+              >
+                {usernameSaving ? 'Saving...' : 'Save Username'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

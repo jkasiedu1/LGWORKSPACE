@@ -7,7 +7,14 @@ import {
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { saveSecuritySettings } from '../lib/firestoreServices';
-import { grantAdminAccess, revokeAdminAccess, grantAppAccess, revokeAppAccess } from '../lib/securityAdmin';
+import {
+  grantAdminAccess,
+  revokeAdminAccess,
+  grantAppAccess,
+  revokeAppAccess,
+  inviteUser,
+  deleteUserByEmail,
+} from '../lib/securityAdmin';
 import { APPS } from '../config/apps';
 
 export default function SecurityApp({ theme, isSeniorPastor, securitySettings, setSecuritySettings, showToast }) {
@@ -22,6 +29,12 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
   const [selectedApps, setSelectedApps] = useState([]);
   const [revokeEmail, setRevokeEmail] = useState('');
   const [directorRole, setDirectorRole] = useState('full-admin');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteMode, setInviteMode] = useState('app-access');
+  const [inviteApps, setInviteApps] = useState([]);
+  const [isProvisioning, setIsProvisioning] = useState(false);
+  const [removeEmail, setRemoveEmail] = useState('');
+  const [isRemovingUser, setIsRemovingUser] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditLoading, setAuditLoading] = useState(true);
 
@@ -87,6 +100,67 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
     setSelectedApps((prev) =>
       prev.includes(appId) ? prev.filter((id) => id !== appId) : [...prev, appId]
     );
+  };
+
+  const toggleInviteAppSelection = (appId) => {
+    setInviteApps((prev) =>
+      prev.includes(appId) ? prev.filter((id) => id !== appId) : [...prev, appId]
+    );
+  };
+
+  const handleProvisionUser = async () => {
+    if (!inviteEmail.trim()) {
+      showToast('Please enter an email address');
+      return;
+    }
+
+    if (inviteMode === 'app-access' && inviteApps.length === 0) {
+      showToast('Select at least one app for app-scoped access');
+      return;
+    }
+
+    setIsProvisioning(true);
+    try {
+      const payload = {
+        email: inviteEmail.trim(),
+        role: inviteMode === 'full-admin' ? 'admin' : 'appAccess',
+        apps: inviteMode === 'app-access' ? inviteApps : [],
+        sendSetupEmail: true,
+      };
+
+      const result = await inviteUser(payload);
+      const actionLabel = result?.created ? 'created and invited' : 'updated and invited';
+      showToast(`User ${actionLabel}: ${inviteEmail.trim()}. Password setup email sent.`);
+      setInviteEmail('');
+      setInviteApps([]);
+    } catch (error) {
+      console.error('[SecurityApp] Failed to provision user:', error);
+      showToast(error?.message || 'Failed to invite user');
+    } finally {
+      setIsProvisioning(false);
+    }
+  };
+
+  const handleRemoveUser = async () => {
+    if (!removeEmail.trim()) {
+      showToast('Enter an email address to remove');
+      return;
+    }
+
+    const confirmed = window.confirm(`Remove user account ${removeEmail.trim()} from Firebase Auth? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setIsRemovingUser(true);
+    try {
+      await deleteUserByEmail(removeEmail.trim());
+      showToast(`User removed: ${removeEmail.trim()}`);
+      setRemoveEmail('');
+    } catch (error) {
+      console.error('[SecurityApp] Failed to remove user:', error);
+      showToast(error?.message || 'Failed to remove user');
+    } finally {
+      setIsRemovingUser(false);
+    }
   };
 
   const handleDirectorRoleChange = async (value) => {
@@ -171,6 +245,43 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
                 <span className="text-xs font-bold uppercase tracking-wider bg-violet-200 text-violet-800 px-2 py-1 rounded">App-Scoped</span>
               </div>
               <div className="pt-4 border-t border-stone-200 mt-4">
+                <label className="block text-xs font-semibold text-sky-600 mb-1.5 uppercase">Add User Account</label>
+                <p className="text-xs text-stone-500 mb-3">Create account from this panel and send secure password-setup email. User selects their own password on first setup.</p>
+                <div className="flex gap-2 mb-3">
+                  <button
+                    onClick={() => { setInviteMode('full-admin'); setInviteApps([]); }}
+                    className={`flex-1 py-1.5 rounded text-xs font-semibold border transition-colors ${inviteMode === 'full-admin' ? 'bg-stone-800 text-white border-stone-800' : 'bg-white text-stone-600 border-stone-300 hover:border-stone-500'}`}
+                  >Full Admin</button>
+                  <button
+                    onClick={() => setInviteMode('app-access')}
+                    className={`flex-1 py-1.5 rounded text-xs font-semibold border transition-colors ${inviteMode === 'app-access' ? 'bg-sky-600 text-white border-sky-600' : 'bg-white text-stone-600 border-stone-300 hover:border-sky-400'}`}
+                  >App-Scoped User</button>
+                </div>
+                {inviteMode === 'app-access' && (
+                  <div className="mb-3 p-3 bg-sky-50 border border-sky-100 rounded-lg">
+                    <p className="text-xs font-semibold text-sky-700 mb-2">Select allowed portals:</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {Object.values(APPS).filter(a => a.id !== 'home').map((app) => (
+                        <label key={`invite-${app.id}`} className={`flex items-center gap-2 p-1.5 rounded cursor-pointer text-xs font-medium border transition-colors ${inviteApps.includes(app.id) ? 'bg-sky-100 border-sky-300 text-sky-800' : 'bg-white border-stone-200 text-stone-600 hover:border-sky-200'}`}>
+                          <input
+                            type="checkbox"
+                            className="accent-sky-600"
+                            checked={inviteApps.includes(app.id)}
+                            onChange={() => toggleInviteAppSelection(app.id)}
+                          />
+                          {app.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="flex gap-2 mb-4">
+                  <input type="email" placeholder="new.user@lifegate.ag" className="flex-1 p-2 text-sm border border-stone-300 rounded outline-none focus:border-sky-500" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
+                  <button onClick={handleProvisionUser} disabled={isProvisioning} className="px-4 py-2 bg-sky-700 text-white rounded text-sm font-medium hover:bg-sky-800 disabled:opacity-60">{isProvisioning ? 'Working...' : 'Add User'}</button>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-stone-200 mt-4">
                 <label className="block text-xs font-semibold text-stone-500 mb-1.5 uppercase">Promote User to Admin</label>
                 <p className="text-xs text-stone-500 mb-3">User will gain full admin access immediately. No confirmation email is sent—share new access details separately.</p>
                 <div className="flex gap-2 mb-3">
@@ -215,6 +326,15 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
                     <option value="revoke">Revoke Admin</option>
                     <option value="revoke-app">Revoke App Access</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="border-t border-stone-200 pt-4">
+                <label className="block text-xs font-semibold text-rose-600 mb-1.5 uppercase">Remove User Account</label>
+                <p className="text-xs text-stone-500 mb-3">Deletes the Firebase login account. Use for offboarding or unauthorized accounts.</p>
+                <div className="flex gap-2">
+                  <input type="email" placeholder="remove.user@lifegate.ag" className="flex-1 p-2 text-sm border border-rose-200 rounded outline-none focus:border-rose-400" value={removeEmail} onChange={e => setRemoveEmail(e.target.value)} />
+                  <button onClick={handleRemoveUser} disabled={isRemovingUser} className="px-4 py-2 bg-rose-600 text-white rounded text-sm font-medium hover:bg-rose-700 disabled:opacity-60">{isRemovingUser ? 'Removing...' : 'Remove User'}</button>
                 </div>
               </div>
             </div>

@@ -87,6 +87,10 @@ export default function LoginScreen() {
               <AlertCircle size={16} />{errorMsg}
             </div>
           )}
+          <div className="rounded-lg border border-sky-100 bg-sky-50 p-3 text-xs text-sky-800">
+            <p className="font-semibold">First-time invited user?</p>
+            <p className="mt-1">Open the password setup email sent by your Super Admin, create your password, then sign in here with your email and new password.</p>
+          </div>
           <p className="text-xs text-stone-400 text-center">
             Current host: {typeof window !== 'undefined' ? window.location.hostname : 'unknown'}
           </p>

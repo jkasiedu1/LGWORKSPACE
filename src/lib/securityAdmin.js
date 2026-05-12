@@ -19,6 +19,62 @@ function deriveRoleAdminUrl() {
 
 const ROLE_ADMIN_API_URL = deriveRoleAdminUrl();
 
+function deriveUserAdminBaseUrl() {
+  const explicitBaseUrl = import.meta.env.VITE_USER_ADMIN_API_BASE_URL;
+  if (explicitBaseUrl) return explicitBaseUrl;
+
+  const signerUrl = import.meta.env.VITE_R2_SIGNER_URL;
+  if (!signerUrl) return '';
+
+  try {
+    const url = new URL(signerUrl);
+    url.pathname = '/users';
+    url.search = '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return '';
+  }
+}
+
+const USER_ADMIN_BASE_URL = deriveUserAdminBaseUrl();
+
+async function getAuthToken() {
+  const token = await auth?.currentUser?.getIdToken();
+  if (!token) {
+    throw new Error('You must be signed in to manage users and roles.');
+  }
+  return token;
+}
+
+async function postWithAuth(url, body, networkLabel, failureLabel) {
+  const token = await getAuthToken();
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    const message = error?.message || '';
+    throw new Error(
+      `${networkLabel} (${message || 'request failed'}). `
+      + `Confirm Cloudflare ALLOWED_ORIGINS contains ${window.location.origin} and the worker is deployed.`
+    );
+  }
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`${failureLabel} (${response.status}): ${details}`);
+  }
+
+  return response.json();
+}
+
 export async function grantAdminAccess(email) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   if (!normalizedEmail) {
@@ -29,35 +85,12 @@ export async function grantAdminAccess(email) {
     throw new Error('Role admin API is not configured. Set VITE_ROLE_ADMIN_API_URL.');
   }
 
-  const token = await auth?.currentUser?.getIdToken();
-  if (!token) {
-    throw new Error('You must be signed in to manage roles.');
-  }
-
-  let response;
-  try {
-    response = await fetch(ROLE_ADMIN_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ email: normalizedEmail, role: 'admin', enabled: true }),
-    });
-  } catch (error) {
-    const message = error?.message || '';
-    throw new Error(
-      `Role API network/CORS failure (${message || 'request failed'}). `
-      + `Confirm Cloudflare ALLOWED_ORIGINS contains ${window.location.origin} and the worker is deployed.`
-    );
-  }
-
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`Role grant failed (${response.status}): ${details}`);
-  }
-
-  return response.json();
+  return postWithAuth(
+    ROLE_ADMIN_API_URL,
+    { email: normalizedEmail, role: 'admin', enabled: true },
+    'Role API network/CORS failure',
+    'Role grant failed'
+  );
 }
 
 export async function grantAppAccess(email, apps) {
@@ -74,35 +107,12 @@ export async function grantAppAccess(email, apps) {
     throw new Error('Role admin API is not configured. Set VITE_ROLE_ADMIN_API_URL.');
   }
 
-  const token = await auth?.currentUser?.getIdToken();
-  if (!token) {
-    throw new Error('You must be signed in to manage roles.');
-  }
-
-  let response;
-  try {
-    response = await fetch(ROLE_ADMIN_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ email: normalizedEmail, role: 'appAccess', apps, enabled: true }),
-    });
-  } catch (error) {
-    const message = error?.message || '';
-    throw new Error(
-      `Role API network/CORS failure (${message || 'request failed'}). `
-      + `Confirm Cloudflare ALLOWED_ORIGINS contains ${window.location.origin} and the worker is deployed.`
-    );
-  }
-
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`App access grant failed (${response.status}): ${details}`);
-  }
-
-  return response.json();
+  return postWithAuth(
+    ROLE_ADMIN_API_URL,
+    { email: normalizedEmail, role: 'appAccess', apps, enabled: true },
+    'Role API network/CORS failure',
+    'App access grant failed'
+  );
 }
 
 export async function revokeAppAccess(email) {
@@ -115,35 +125,12 @@ export async function revokeAppAccess(email) {
     throw new Error('Role admin API is not configured. Set VITE_ROLE_ADMIN_API_URL.');
   }
 
-  const token = await auth?.currentUser?.getIdToken();
-  if (!token) {
-    throw new Error('You must be signed in to manage roles.');
-  }
-
-  let response;
-  try {
-    response = await fetch(ROLE_ADMIN_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ email: normalizedEmail, role: 'appAccess', enabled: false }),
-    });
-  } catch (error) {
-    const message = error?.message || '';
-    throw new Error(
-      `Role API network/CORS failure (${message || 'request failed'}). `
-      + `Confirm Cloudflare ALLOWED_ORIGINS contains ${window.location.origin} and the worker is deployed.`
-    );
-  }
-
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`App access revoke failed (${response.status}): ${details}`);
-  }
-
-  return response.json();
+  return postWithAuth(
+    ROLE_ADMIN_API_URL,
+    { email: normalizedEmail, role: 'appAccess', enabled: false },
+    'Role API network/CORS failure',
+    'App access revoke failed'
+  );
 }
 
 export async function revokeAdminAccess(email) {
@@ -156,33 +143,54 @@ export async function revokeAdminAccess(email) {
     throw new Error('Role admin API is not configured. Set VITE_ROLE_ADMIN_API_URL.');
   }
 
-  const token = await auth?.currentUser?.getIdToken();
-  if (!token) {
-    throw new Error('You must be signed in to manage roles.');
+  return postWithAuth(
+    ROLE_ADMIN_API_URL,
+    { email: normalizedEmail, role: 'admin', enabled: false },
+    'Role API network/CORS failure',
+    'Role revoke failed'
+  );
+}
+
+export async function inviteUser({ email, role = 'appAccess', apps = [], sendSetupEmail = true }) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error('Email is required.');
   }
 
-  let response;
-  try {
-    response = await fetch(ROLE_ADMIN_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ email: normalizedEmail, role: 'admin', enabled: false }),
-    });
-  } catch (error) {
-    const message = error?.message || '';
-    throw new Error(
-      `Role API network/CORS failure (${message || 'request failed'}). `
-      + `Confirm Cloudflare ALLOWED_ORIGINS contains ${window.location.origin} and the worker is deployed.`
-    );
+  if (!['admin', 'appAccess'].includes(role)) {
+    throw new Error('Unsupported invite role.');
   }
 
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`Role revoke failed (${response.status}): ${details}`);
+  if (role === 'appAccess' && (!Array.isArray(apps) || apps.length === 0)) {
+    throw new Error('Select at least one app for app-scoped users.');
   }
 
-  return response.json();
+  if (!USER_ADMIN_BASE_URL) {
+    throw new Error('User admin API is not configured. Set VITE_USER_ADMIN_API_BASE_URL or VITE_R2_SIGNER_URL.');
+  }
+
+  return postWithAuth(
+    `${USER_ADMIN_BASE_URL}/invite`,
+    { email: normalizedEmail, role, apps, sendSetupEmail: Boolean(sendSetupEmail) },
+    'User invite API network/CORS failure',
+    'User invite failed'
+  );
+}
+
+export async function deleteUserByEmail(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error('Email is required.');
+  }
+
+  if (!USER_ADMIN_BASE_URL) {
+    throw new Error('User admin API is not configured. Set VITE_USER_ADMIN_API_BASE_URL or VITE_R2_SIGNER_URL.');
+  }
+
+  return postWithAuth(
+    `${USER_ADMIN_BASE_URL}/delete`,
+    { email: normalizedEmail },
+    'User delete API network/CORS failure',
+    'Delete user failed'
+  );
 }

@@ -315,6 +315,28 @@ async function fetchIdentityToolkit(env, path, body) {
   return response.json();
 }
 
+async function fetchIdentityToolkitWithApiKey(env, path, body) {
+  if (!env.FIREBASE_WEB_API_KEY) {
+    throw new Error('FIREBASE_WEB_API_KEY is not configured.');
+  }
+
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1${path}?key=${encodeURIComponent(env.FIREBASE_WEB_API_KEY)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Identity Toolkit API-key request failed (${response.status}): ${details}`);
+  }
+
+  return response.json();
+}
+
 async function lookupUserByEmail(email, env) {
   const payload = await fetchIdentityToolkit(env, '/accounts:lookup', {
     email: [email],
@@ -326,6 +348,79 @@ async function lookupUserByEmail(email, env) {
   }
 
   return user;
+}
+
+function parseCustomClaims(customAttributes) {
+  if (!customAttributes) return {};
+
+  try {
+    return JSON.parse(customAttributes);
+  } catch (error) {
+    console.warn('[claims] Failed to parse customAttributes:', error);
+    return {};
+  }
+}
+
+function generateTemporaryPassword(length = 24) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*()-_=+?';
+  const random = new Uint32Array(length);
+  crypto.getRandomValues(random);
+  let password = '';
+  for (let index = 0; index < length; index += 1) {
+    password += alphabet[random[index] % alphabet.length];
+  }
+  return password;
+}
+
+async function createUserWithTemporaryPassword(email, env) {
+  const temporaryPassword = generateTemporaryPassword();
+  return fetchIdentityToolkitWithApiKey(env, '/accounts:signUp', {
+    email,
+    password: temporaryPassword,
+    returnSecureToken: false,
+  });
+}
+
+async function sendPasswordSetupEmail(email, env) {
+  return fetchIdentityToolkitWithApiKey(env, '/accounts:sendOobCode', {
+    requestType: 'PASSWORD_RESET',
+    email,
+  });
+}
+
+async function deleteUserByLocalId(localId, env) {
+  return fetchIdentityToolkit(env, '/accounts:delete', {
+    localId,
+  });
+}
+
+async function ensureUserByEmail(email, env) {
+  try {
+    const existing = await lookupUserByEmail(email, env);
+    return { user: existing, created: false };
+  } catch (error) {
+    const message = String(error?.message || '').toLowerCase();
+    if (!message.includes('no firebase auth user exists')) {
+      throw error;
+    }
+  }
+
+  const created = await createUserWithTemporaryPassword(email, env);
+  const localId = created?.localId;
+  if (!localId) {
+    throw new Error('User creation succeeded but localId was missing.');
+  }
+
+  const user = await lookupUserByEmail(email, env);
+  return { user, created: true };
+}
+
+async function applyRoleClaimsByEmail(email, role, enabled, apps, env) {
+  const user = await lookupUserByEmail(email, env);
+  const existingClaims = parseCustomClaims(user.customAttributes);
+  const nextClaims = buildUpdatedClaims(existingClaims, role, Boolean(enabled), apps);
+  await updateUserCustomClaims(user.localId, nextClaims, env);
+  return { user, claims: nextClaims };
 }
 
 async function updateUserCustomClaims(localId, nextClaims, env) {
@@ -490,14 +585,7 @@ export default {
 
         const user = await lookupUserByEmail(normalizedEmail, env);
 
-        let existingClaims = {};
-        if (user.customAttributes) {
-          try {
-            existingClaims = JSON.parse(user.customAttributes);
-          } catch (error) {
-            console.warn('[roles/grant] Failed to parse existing customAttributes:', error);
-          }
-        }
+        const existingClaims = parseCustomClaims(user.customAttributes);
 
         const nextClaims = buildUpdatedClaims(existingClaims, role, Boolean(enabled), apps);
         await updateUserCustomClaims(user.localId, nextClaims, env);
@@ -511,6 +599,97 @@ export default {
         }, 200, origin);
       } catch (err) {
         console.error('[roles/grant]', err);
+        return json({ error: String(err?.message || err) }, 500, origin);
+      }
+    }
+
+    // POST /users/invite — create user if needed, assign role claims, send password setup email
+    if (request.method === 'POST' && url.pathname === '/users/invite') {
+      try {
+        const authHeader = request.headers.get('Authorization') || '';
+        const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+        const requester = await verifyFirebaseToken(idToken, env);
+
+        if (!hasSeniorPastorClaims(requester.claims)) {
+          return json({ error: 'Only senior pastor accounts can invite users.' }, 403, origin);
+        }
+
+        const { email, role = 'appAccess', apps = [], sendSetupEmail = true } = await request.json();
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+
+        if (!normalizedEmail) {
+          return json({ error: 'Email is required.' }, 400, origin);
+        }
+
+        if (!['admin', 'appAccess'].includes(role)) {
+          return json({ error: 'Unsupported invite role. Use admin or appAccess.' }, 400, origin);
+        }
+
+        if (role === 'appAccess' && (!Array.isArray(apps) || apps.length === 0)) {
+          return json({ error: 'apps array is required for appAccess role.' }, 400, origin);
+        }
+
+        const ensured = await ensureUserByEmail(normalizedEmail, env);
+        const claimResult = await applyRoleClaimsByEmail(normalizedEmail, role, true, apps, env);
+
+        if (sendSetupEmail) {
+          await sendPasswordSetupEmail(normalizedEmail, env);
+        }
+
+        return json({
+          ok: true,
+          created: ensured.created,
+          email: normalizedEmail,
+          localId: claimResult.user.localId,
+          role,
+          claims: claimResult.claims,
+          setupEmailSent: Boolean(sendSetupEmail),
+        }, 200, origin);
+      } catch (err) {
+        console.error('[users/invite]', err);
+        return json({ error: String(err?.message || err) }, 500, origin);
+      }
+    }
+
+    // POST /users/delete — remove Firebase Auth user and clear claims
+    if (request.method === 'POST' && url.pathname === '/users/delete') {
+      try {
+        const authHeader = request.headers.get('Authorization') || '';
+        const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+        const requester = await verifyFirebaseToken(idToken, env);
+
+        if (!hasSeniorPastorClaims(requester.claims)) {
+          return json({ error: 'Only senior pastor accounts can delete users.' }, 403, origin);
+        }
+
+        const { email } = await request.json();
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+
+        if (!normalizedEmail) {
+          return json({ error: 'Email is required.' }, 400, origin);
+        }
+
+        if (requester.email && requester.email.toLowerCase() === normalizedEmail) {
+          return json({ error: 'You cannot delete your own account.' }, 400, origin);
+        }
+
+        const user = await lookupUserByEmail(normalizedEmail, env);
+        const claims = parseCustomClaims(user.customAttributes);
+
+        if (hasSeniorPastorClaims(claims)) {
+          return json({ error: 'Cannot delete another senior pastor account from this workflow.' }, 400, origin);
+        }
+
+        await deleteUserByLocalId(user.localId, env);
+
+        return json({
+          ok: true,
+          deleted: true,
+          email: normalizedEmail,
+          localId: user.localId,
+        }, 200, origin);
+      } catch (err) {
+        console.error('[users/delete]', err);
         return json({ error: String(err?.message || err) }, 500, origin);
       }
     }
