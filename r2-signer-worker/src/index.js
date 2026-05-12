@@ -46,7 +46,12 @@ function resolveCorsOrigin(origin, env) {
     return origin || '*';
   }
 
-  return allowedOrigins.includes(origin) ? origin : null;
+  // Normalise before comparing so trailing slashes / case differences don't block legit origins
+  const normalised = (origin || '').trim().toLowerCase().replace(/\/$/, '');
+  const match = allowedOrigins.find(
+    (o) => o.trim().toLowerCase().replace(/\/$/, '') === normalised
+  );
+  return match ? origin : null;
 }
 
 function hasSeniorPastorClaims(claims) {
@@ -494,15 +499,19 @@ function json(body, status = 200, origin) {
 export default {
   async fetch(request, env) {
     const requestOrigin = request.headers.get('Origin') || '';
-    const origin = resolveCorsOrigin(requestOrigin, env);
     const url = new URL(request.url);
+
+    // Handle CORS preflight BEFORE the origin check so cached preflight failures
+    // don't permanently block origins that are later added to the allowlist.
+    if (request.method === 'OPTIONS') {
+      const preflightOrigin = resolveCorsOrigin(requestOrigin, env) || requestOrigin || '*';
+      return new Response(null, { status: 204, headers: cors(preflightOrigin) });
+    }
+
+    const origin = resolveCorsOrigin(requestOrigin, env);
 
     if (!origin) {
       return json({ error: 'Origin not allowed.' }, 403, null);
-    }
-
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: cors(origin) });
     }
 
     // POST /sign-upload — generate signed R2 PUT URL
