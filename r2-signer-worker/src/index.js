@@ -387,13 +387,108 @@ async function createUserWithTemporaryPassword(email, env) {
 }
 
 async function sendPasswordSetupEmail(email, env) {
-  // Use the service-account (admin) path so this works regardless of whether
-  // FIREBASE_WEB_API_KEY is configured, and to bypass client-side rate limits.
-  // Omitting returnOobLink causes Firebase to send the email directly.
+  // If Resend is configured, generate the link from Firebase and send a
+  // properly formatted HTML email (avoids spam and ensures clickable links).
+  if (env.RESEND_API_KEY) {
+    const linkResponse = await fetchIdentityToolkit(env, '/accounts:sendOobCode', {
+      requestType: 'PASSWORD_RESET',
+      email,
+      returnOobLink: true,
+    });
+
+    const resetLink = linkResponse?.oobLink;
+    if (!resetLink) {
+      throw new Error('Firebase did not return a password setup link.');
+    }
+
+    return sendEmailViaResend(email, resetLink, env);
+  }
+
+  // Fallback: let Firebase send its own email via the admin path.
   return fetchIdentityToolkit(env, '/accounts:sendOobCode', {
     requestType: 'PASSWORD_RESET',
     email,
   });
+}
+
+async function sendEmailViaResend(toEmail, resetLink, env) {
+  const fromEmail = env.RESEND_FROM_EMAIL || 'noreply@lifegate.ag';
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Set up your Lifegate Workspace password</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f5f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f4;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;border:1px solid #e7e5e4;overflow:hidden;">
+          <tr>
+            <td style="background:#1c1917;padding:28px 40px;text-align:center;">
+              <p style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.3px;">Lifegate AG</p>
+              <p style="margin:6px 0 0;color:#a8a29e;font-size:13px;">Workspace &amp; Ministry Portal</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <h1 style="margin:0 0 12px;font-size:22px;font-weight:700;color:#1c1917;">You've been invited</h1>
+              <p style="margin:0 0 24px;font-size:15px;color:#57534e;line-height:1.6;">
+                Your Lifegate Workspace account has been created. Click the button below to set up your password and activate your account.
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding:8px 0 32px;">
+                    <a href="${resetLink}"
+                       style="display:inline-block;background:#1c1917;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 32px;border-radius:8px;letter-spacing:0.1px;">
+                      Set Up My Password
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0 0 8px;font-size:13px;color:#78716c;">
+                This link expires in <strong>24 hours</strong>. If you didn't expect this invitation, you can safely ignore this email.
+              </p>
+              <p style="margin:0;font-size:12px;color:#a8a29e;word-break:break-all;">
+                If the button above doesn't work, copy and paste this link into your browser:<br/>
+                <a href="${resetLink}" style="color:#0369a1;">${resetLink}</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#fafaf9;border-top:1px solid #e7e5e4;padding:20px 40px;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#a8a29e;">Lifegate AG · Ministry Portal</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+    },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: [toEmail],
+      subject: 'Set up your Lifegate Workspace password',
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Resend email failed (${response.status}): ${details}`);
+  }
+
+  return response.json();
 }
 
 async function deleteUserByLocalId(localId, env) {
