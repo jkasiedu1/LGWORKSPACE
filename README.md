@@ -49,6 +49,7 @@ Use `.env.example` as the source of truth.
 
 - `VITE_ROLE_ADMIN_API_URL`: Backend endpoint that grants admin claims. If omitted, the app derives `/roles/grant` from `VITE_R2_SIGNER_URL`.
 - `VITE_R2_SIGNER_URL`: Worker endpoint used to sign R2 uploads.
+- `VITE_USER_ADMIN_API_BASE_URL`: Optional explicit user lifecycle API base URL (for `/users/invite` and `/users/delete`). If omitted, the app derives `/users` from `VITE_ROLE_ADMIN_API_URL`, then falls back to `VITE_R2_SIGNER_URL`.
 - `VITE_GEMINI_API_KEY`: Gemini API key for AI features.
 
 For the R2 signer worker, configure:
@@ -64,6 +65,11 @@ RBAC is claims-first: production admin access should come from Firebase custom c
 ### Role Management Endpoint
 
 The existing Cloudflare worker now exposes `POST /roles/grant`.
+
+User lifecycle endpoints:
+
+- `POST /users/invite`
+- `POST /users/delete`
 
 - Caller must be authenticated with a Firebase ID token.
 - Caller must already have the `seniorPastor` or `isSeniorPastor` custom claim.

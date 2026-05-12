@@ -23,6 +23,18 @@ function deriveUserAdminBaseUrl() {
   const explicitBaseUrl = import.meta.env.VITE_USER_ADMIN_API_BASE_URL;
   if (explicitBaseUrl) return explicitBaseUrl;
 
+  const roleAdminUrl = import.meta.env.VITE_ROLE_ADMIN_API_URL;
+  if (roleAdminUrl) {
+    try {
+      const url = new URL(roleAdminUrl);
+      url.pathname = '/users';
+      url.search = '';
+      return url.toString().replace(/\/$/, '');
+    } catch {
+      // fall through to signer URL derivation
+    }
+  }
+
   const signerUrl = import.meta.env.VITE_R2_SIGNER_URL;
   if (!signerUrl) return '';
 
