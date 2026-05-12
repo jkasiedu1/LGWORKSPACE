@@ -8,10 +8,10 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "NODE_OPTIONS=--max-old-space-size=4096 vite build",
     "preview": "vite preview --host 0.0.0.0",
     "start": "npm run build && npm run preview",
-    "verify-deploy": "npm run build",
+    "verify-deploy": "NODE_OPTIONS=--max-old-space-size=4096 npm run build",
     "fb:login": "npx firebase-tools login",
     "fb:whoami": "npx firebase-tools login:list",
     "fb:project": "npx firebase-tools use lifegate-workspace-5dd48",
