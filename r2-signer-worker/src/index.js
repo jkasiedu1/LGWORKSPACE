@@ -387,7 +387,10 @@ async function createUserWithTemporaryPassword(email, env) {
 }
 
 async function sendPasswordSetupEmail(email, env) {
-  return fetchIdentityToolkitWithApiKey(env, '/accounts:sendOobCode', {
+  // Use the service-account (admin) path so this works regardless of whether
+  // FIREBASE_WEB_API_KEY is configured, and to bypass client-side rate limits.
+  // Omitting returnOobLink causes Firebase to send the email directly.
+  return fetchIdentityToolkit(env, '/accounts:sendOobCode', {
     requestType: 'PASSWORD_RESET',
     email,
   });
