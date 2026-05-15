@@ -247,7 +247,9 @@ Stats: YTD ${fmt$(ytdTotal)}, ${uniqueDonors} unique donors, avg gift ${fmt$(avg
 This month: ${fmt$(thisMonthTotal)} vs last month: ${fmt$(lastMonthTotal)}.
 Funds: ${fundData.map(f => `${f.name}: ${fmt$(f.value)}`).join(', ')}.
 Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
-    const result = await callGeminiAI(reportPrompt, context);
+    // Use the R1 reasoner model for financial analysis — it applies chain-of-thought
+    // reasoning to produce more accurate trend interpretations and forecasts.
+    const result = await callGeminiAI(reportPrompt, context, null, { useReasoner: true, maxTokens: 3000 });
     setReportResult(result);
     setIsGeneratingReport(false);
   };

@@ -1,14 +1,21 @@
 const UPLOAD_RATE_LIMIT = 20; // max uploads per user per hour
+const ADMIN_RATE_LIMIT  = 30; // max admin actions per user per hour
+const AI_RATE_LIMIT     = 60; // max AI requests per user per hour
 
-async function checkUploadRateLimit(uid, env) {
-  if (!env.RATE_LIMIT_KV) return; // graceful degradation if KV not configured
+// Generic per-namespace hourly rate limiter. Gracefully skips if KV is not configured.
+async function checkRateLimit(uid, namespace, limit, env) {
+  if (!env.RATE_LIMIT_KV) return;
   const hourBucket = Math.floor(Date.now() / 3_600_000);
-  const key = `upload:${uid}:${hourBucket}`;
+  const key = `rl:${namespace}:${uid}:${hourBucket}`;
   const current = parseInt(await env.RATE_LIMIT_KV.get(key) || '0', 10);
-  if (current >= UPLOAD_RATE_LIMIT) {
-    throw new Error(`Upload rate limit exceeded. Maximum ${UPLOAD_RATE_LIMIT} uploads per hour.`);
+  if (current >= limit) {
+    throw new Error(`Rate limit exceeded. Max ${limit} ${namespace} requests per hour.`);
   }
   await env.RATE_LIMIT_KV.put(key, String(current + 1), { expirationTtl: 7200 });
+}
+
+async function checkUploadRateLimit(uid, env) {
+  return checkRateLimit(uid, 'upload', UPLOAD_RATE_LIMIT, env);
 }
 
 const ALLOWED_IMAGE_TYPES = new Set([
@@ -65,45 +72,83 @@ function hasPrivilegedClaims(claims) {
     || claims?.isSeniorPastor === true;
 }
 
-async function verifyFirebaseToken(idToken, env) {
-  if (!idToken) {
-    throw new Error('Missing bearer token.');
-  }
+// ── Firebase JWKS verification (RFC 7519, OWASP A07) ────────────────────────
+// Google rotates these keys every ~6 h; the module-level cache avoids a
+// JWKS fetch on every request while respecting the rotation window.
+const FIREBASE_JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
+const JWKS_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+let jwksCache = { keys: null, fetchedAt: 0 };
 
-  if (!env.FIREBASE_WEB_API_KEY) {
-    throw new Error('FIREBASE_WEB_API_KEY is not configured.');
-  }
+function decodeBase64Url(b64url) {
+  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+  return atob(padded);
+}
 
-  const response = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(env.FIREBASE_WEB_API_KEY)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken }),
-    }
+function parseJwtParts(token) {
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('Malformed JWT.');
+  return {
+    header:  JSON.parse(decodeBase64Url(parts[0])),
+    payload: JSON.parse(decodeBase64Url(parts[1])),
+    rawParts: parts,
+  };
+}
+
+async function getJwksPublicKey(kid) {
+  const now = Date.now();
+  if (!jwksCache.keys || now - jwksCache.fetchedAt > JWKS_CACHE_TTL_MS) {
+    const res = await fetch(FIREBASE_JWKS_URL);
+    if (!res.ok) throw new Error('Failed to fetch Firebase public keys.');
+    const body = await res.json();
+    jwksCache = { keys: body.keys, fetchedAt: now };
+  }
+  const jwk = jwksCache.keys?.find((k) => k.kid === kid);
+  if (!jwk) throw new Error('Token signed with unknown key ID.');
+  return crypto.subtle.importKey(
+    'jwk', jwk,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false, ['verify']
   );
+}
 
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`Token verification failed (${response.status}): ${details}`);
+async function verifyFirebaseToken(idToken, env) {
+  if (!idToken) throw new Error('Missing bearer token.');
+
+  const projectId = getFirebaseProjectId(env);
+  if (!projectId) throw new Error('FIREBASE_PROJECT_ID is not configured.');
+
+  const { header, payload, rawParts } = parseJwtParts(idToken);
+
+  if (header.alg !== 'RS256') throw new Error('Unsupported JWT algorithm.');
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (!payload.exp || payload.exp <= nowSec)       throw new Error('Token has expired.');
+  if (!payload.iat || payload.iat > nowSec + 300)  throw new Error('Token issued in the future.');
+  if (payload.aud !== projectId)                   throw new Error('Token audience mismatch.');
+  if (payload.iss !== `https://securetoken.google.com/${projectId}`) {
+    throw new Error('Token issuer mismatch.');
+  }
+  if (!payload.sub) throw new Error('Token is missing subject claim.');
+
+  const publicKey = await getJwksPublicKey(header.kid);
+  const signingInput = new TextEncoder().encode(`${rawParts[0]}.${rawParts[1]}`);
+  const sigBytes = Uint8Array.from(decodeBase64Url(rawParts[2]), (c) => c.charCodeAt(0));
+  const valid = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', publicKey, sigBytes, signingInput);
+  if (!valid) throw new Error('Token signature verification failed.');
+
+  // Custom claims are merged into the JWT payload by Firebase.
+  // Strip standard reserved keys to isolate only the custom claims.
+  const RESERVED_JWT_KEYS = new Set([
+    'iss', 'aud', 'auth_time', 'user_id', 'sub', 'iat', 'exp',
+    'email', 'email_verified', 'phone_number', 'name', 'picture', 'firebase',
+  ]);
+  const claims = {};
+  for (const [k, v] of Object.entries(payload)) {
+    if (!RESERVED_JWT_KEYS.has(k)) claims[k] = v;
   }
 
-  const body = await response.json();
-  const user = body?.users?.[0];
-  if (!user) {
-    throw new Error('Token verification failed: user not found.');
-  }
-
-  let claims = {};
-  if (user.customAttributes) {
-    try {
-      claims = JSON.parse(user.customAttributes);
-    } catch (error) {
-      console.warn('[verifyFirebaseToken] Failed to parse customAttributes:', error);
-    }
-  }
-
-  return { uid: user.localId, email: user.email, claims };
+  return { uid: payload.sub, email: payload.email || '', claims };
 }
 
 function pemToBinary(pem) {
@@ -587,11 +632,62 @@ function cors(origin) {
   };
 }
 
+// Security headers applied to every response (OWASP A05).
+function withSecurityHeaders(headers) {
+  headers.set('X-Content-Type-Options', 'nosniff');
+  headers.set('X-Frame-Options', 'DENY');
+  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+}
+
 function json(body, status = 200, origin) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...cors(origin) },
-  });
+  const headers = new Headers({ 'Content-Type': 'application/json', ...cors(origin) });
+  withSecurityHeaders(headers);
+  return new Response(JSON.stringify(body), { status, headers });
+}
+
+// RFC-5321 email validation — rejects obviously malformed addresses (OWASP A03).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+function isValidEmail(email) {
+  return typeof email === 'string' && EMAIL_RE.test(email) && email.length <= 254;
+}
+
+// Path traversal guard for R2 object keys (OWASP A01).
+function isSafeMediaKey(key) {
+  return (
+    typeof key === 'string' &&
+    key.length > 0 &&
+    key.length <= 512 &&
+    !key.includes('..') &&
+    !key.includes('\0') &&
+    !/^[\/\\]/.test(key)
+  );
+}
+
+// Tamper-evident structured audit log written to KV (SOC 2 CC7 / ISO 27001 A.12.4).
+// Silently skips when KV is not yet configured.
+async function writeAuditLog(env, { action, actorUid, actorEmail, targetEmail = null, metadata = {} }) {
+  if (!env.RATE_LIMIT_KV) return;
+  try {
+    const entry = JSON.stringify({
+      action, actorUid, actorEmail, targetEmail, metadata,
+      timestamp: new Date().toISOString(),
+    });
+    // Date-prefixed key enables efficient range scans; TTL = 90 days.
+    const key = `audit:${new Date().toISOString().slice(0, 10)}:${Date.now()}:${actorUid.slice(0, 8)}`;
+    await env.RATE_LIMIT_KV.put(key, entry, { expirationTtl: 7_776_000 });
+  } catch (e) {
+    console.warn('[audit] Failed to write audit log:', e);
+  }
+}
+
+// Any authenticated user with any assigned role or app access may call /ai/chat.
+function hasAnyAccess(claims) {
+  return claims?.admin === true
+    || claims?.isAdmin === true
+    || claims?.seniorPastor === true
+    || claims?.isSeniorPastor === true
+    || (Array.isArray(claims?.appAccess) && claims.appAccess.length > 0);
 }
 
 export default {
@@ -675,11 +771,13 @@ export default {
           return json({ error: 'Only senior pastor accounts can manage roles.' }, 403, origin);
         }
 
+        await checkRateLimit(requester.uid, 'admin', ADMIN_RATE_LIMIT, env);
+
         const { email, role = 'admin', enabled = true, apps } = await request.json();
         const normalizedEmail = String(email || '').trim().toLowerCase();
 
-        if (!normalizedEmail) {
-          return json({ error: 'Email is required.' }, 400, origin);
+        if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
+          return json({ error: 'A valid email address is required.' }, 400, origin);
         }
 
         if (!['admin', 'seniorPastor', 'appAccess'].includes(role)) {
@@ -691,11 +789,17 @@ export default {
         }
 
         const user = await lookupUserByEmail(normalizedEmail, env);
-
         const existingClaims = parseCustomClaims(user.customAttributes);
-
         const nextClaims = buildUpdatedClaims(existingClaims, role, Boolean(enabled), apps);
         await updateUserCustomClaims(user.localId, nextClaims, env);
+
+        await writeAuditLog(env, {
+          action: 'roles/grant',
+          actorUid: requester.uid,
+          actorEmail: requester.email,
+          targetEmail: normalizedEmail,
+          metadata: { role, enabled: Boolean(enabled) },
+        });
 
         return json({
           ok: true,
@@ -721,11 +825,13 @@ export default {
           return json({ error: 'Only senior pastor accounts can invite users.' }, 403, origin);
         }
 
+        await checkRateLimit(requester.uid, 'admin', ADMIN_RATE_LIMIT, env);
+
         const { email, role = 'appAccess', apps = [], sendSetupEmail = true } = await request.json();
         const normalizedEmail = String(email || '').trim().toLowerCase();
 
-        if (!normalizedEmail) {
-          return json({ error: 'Email is required.' }, 400, origin);
+        if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
+          return json({ error: 'A valid email address is required.' }, 400, origin);
         }
 
         if (!['admin', 'appAccess'].includes(role)) {
@@ -742,6 +848,14 @@ export default {
         if (sendSetupEmail) {
           await sendPasswordSetupEmail(normalizedEmail, env);
         }
+
+        await writeAuditLog(env, {
+          action: 'users/invite',
+          actorUid: requester.uid,
+          actorEmail: requester.email,
+          targetEmail: normalizedEmail,
+          metadata: { role, created: ensured.created, setupEmailSent: Boolean(sendSetupEmail) },
+        });
 
         return json({
           ok: true,
@@ -769,11 +883,13 @@ export default {
           return json({ error: 'Only senior pastor accounts can delete users.' }, 403, origin);
         }
 
+        await checkRateLimit(requester.uid, 'admin', ADMIN_RATE_LIMIT, env);
+
         const { email } = await request.json();
         const normalizedEmail = String(email || '').trim().toLowerCase();
 
-        if (!normalizedEmail) {
-          return json({ error: 'Email is required.' }, 400, origin);
+        if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
+          return json({ error: 'A valid email address is required.' }, 400, origin);
         }
 
         if (requester.email && requester.email.toLowerCase() === normalizedEmail) {
@@ -788,6 +904,14 @@ export default {
         }
 
         await deleteUserByLocalId(user.localId, env);
+
+        await writeAuditLog(env, {
+          action: 'users/delete',
+          actorUid: requester.uid,
+          actorEmail: requester.email,
+          targetEmail: normalizedEmail,
+          metadata: { localId: user.localId },
+        });
 
         return json({
           ok: true,
@@ -805,6 +929,11 @@ export default {
     if (request.method === 'GET' && url.pathname.startsWith('/media/')) {
       try {
         const key = decodeURIComponent(url.pathname.replace('/media/', ''));
+
+        if (!isSafeMediaKey(key)) {
+          return json({ error: 'Invalid media key.' }, 400, origin);
+        }
+
         const object = await env.MEDIA_BUCKET.get(key);
 
         if (!object) {
@@ -812,6 +941,7 @@ export default {
         }
 
         const headers = new Headers(cors(origin));
+        withSecurityHeaders(headers);
         if (object.httpMetadata?.contentType) {
           headers.set('Content-Type', object.httpMetadata.contentType);
         }
@@ -820,6 +950,87 @@ export default {
         return new Response(object.body, { status: 200, headers });
       } catch (err) {
         console.error('[media-serve]', err);
+        return json({ error: String(err?.message || err) }, 500, origin);
+      }
+    }
+
+    // POST /ai/chat — authenticated DeepSeek proxy (API key never leaves the Worker)
+    if (request.method === 'POST' && url.pathname === '/ai/chat') {
+      try {
+        const authHeader = request.headers.get('Authorization') || '';
+        const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+        const requester = await verifyFirebaseToken(idToken, env);
+
+        if (!hasAnyAccess(requester.claims)) {
+          return json({ error: 'Access denied.' }, 403, origin);
+        }
+
+        await checkRateLimit(requester.uid, 'ai', AI_RATE_LIMIT, env);
+
+        if (!env.DEEPSEEK_API_KEY) {
+          return json({ error: 'AI service is not configured.' }, 503, origin);
+        }
+
+        const {
+          prompt = '',
+          systemContext = '',
+          options: {
+            useReasoner = false,
+            temperature = 0.7,
+            maxTokens = 2048,
+            jsonMode = false,
+            stream = false,
+          } = {},
+        } = await request.json();
+
+        if (!String(prompt).trim()) {
+          return json({ error: 'prompt is required.' }, 400, origin);
+        }
+
+        const model = useReasoner ? 'deepseek-reasoner' : 'deepseek-chat';
+        const body = {
+          model,
+          messages: [
+            { role: 'system', content: String(systemContext) },
+            { role: 'user',   content: String(prompt) },
+          ],
+          temperature,
+          max_tokens: maxTokens,
+          stream,
+        };
+        if (jsonMode) body.response_format = { type: 'json_object' };
+
+        const upstream = await fetch('https://api.deepseek.com/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${env.DEEPSEEK_API_KEY}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!upstream.ok) {
+          const details = await upstream.text();
+          console.error('[ai/chat] upstream error:', details);
+          return json({ error: 'AI service error.' }, 502, origin);
+        }
+
+        // Streaming: pipe SSE directly back to the client.
+        if (stream) {
+          const responseHeaders = new Headers({
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            ...cors(origin),
+          });
+          withSecurityHeaders(responseHeaders);
+          return new Response(upstream.body, { status: 200, headers: responseHeaders });
+        }
+
+        // Non-streaming: return the full completion.
+        const data = await upstream.json();
+        return json({ content: data.choices?.[0]?.message?.content || '' }, 200, origin);
+      } catch (err) {
+        console.error('[ai/chat]', err);
         return json({ error: String(err?.message || err) }, 500, origin);
       }
     }

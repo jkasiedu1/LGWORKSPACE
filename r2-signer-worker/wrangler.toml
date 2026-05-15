@@ -18,3 +18,8 @@ bucket_name = "lifegateworkspace"
 # [[kv_namespaces]]
 # binding = "RATE_LIMIT_KV"
 # id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+# ── Secrets (never add values to this file) ──────────────────────────────────
+# DeepSeek AI API key — run once per environment:
+#   wrangler secret put DEEPSEEK_API_KEY
+# (paste the key from https://platform.deepseek.com when prompted)
