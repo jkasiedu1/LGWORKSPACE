@@ -392,7 +392,7 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
               <div className="p-5 flex justify-between items-center hover:bg-stone-50 transition-colors">
                 <div>
                   <h4 className="font-bold text-stone-900 text-sm">PII Data Masking for AI</h4>
-                  <p className="text-xs text-stone-500 mt-1 max-w-md">Automatically redact names, phone numbers, and addresses before sending any context to Gemini AI.</p>
+                  <p className="text-xs text-stone-500 mt-1 max-w-md">Automatically redact names, phone numbers, and addresses before sending any context to the AI service.</p>
                 </div>
                 <div onClick={() => isSeniorPastor && setIsPII(!isPII)} className={isSeniorPastor ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}>
                   {isPII ? <ToggleRight size={36} className="text-emerald-500"/> : <ToggleLeft size={36} className="text-stone-300"/>}

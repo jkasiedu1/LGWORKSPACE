@@ -14,7 +14,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { callGeminiAI } from '../lib/gemini';
+import { callAI } from '../lib/gemini';
 import { saveServicePlan } from '../lib/firestoreServices';
 
 const PLAN_ITEM_TYPES = ['Element', 'Song', 'Sermon', 'Prayer', 'Announcement', 'Offering'];
@@ -126,7 +126,7 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
     setIsGenerating(true);
     setResult(null);
     const context = `You are a pastoral assistant helping plan a church service. Give a brief, insightful, 3-point teaching outline or service element note based on this prompt: "${prompt}". Keep it short and highly actionable.`;
-    const responseText = await callGeminiAI(prompt, context);
+    const responseText = await callAI(prompt, context);
     setResult(responseText);
     setIsGenerating(false);
   };
@@ -283,7 +283,7 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
             <div className={`${theme.bg} px-5 py-3 text-white flex justify-between items-center`}>
               <div className="flex items-center gap-2"><Sparkles size={16} className="text-white/80" /><h3 className="font-semibold text-sm">AI Assistant</h3></div>
-              <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded uppercase tracking-wider">Gemini</span>
+
             </div>
             <div className="p-4 flex items-start gap-4">
               <textarea className="flex-1 p-3 border border-stone-200 rounded-lg text-sm focus:ring-1 focus:ring-amber-500 outline-none resize-none bg-stone-50" placeholder="Topic, text, or theme..." rows="2" value={prompt} onChange={(e) => setPrompt(e.target.value)}></textarea>

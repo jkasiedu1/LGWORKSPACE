@@ -9,7 +9,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import * as XLSX from 'xlsx';
-import { callGeminiAI } from '../lib/gemini';
+import { callAI } from '../lib/gemini';
 import { createDonation, deleteDonation } from '../lib/firestoreServices';
 import { useAuth } from '../hooks/useAuth';
 
@@ -249,7 +249,7 @@ Funds: ${fundData.map(f => `${f.name}: ${fmt$(f.value)}`).join(', ')}.
 Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
     // Use the R1 reasoner model for financial analysis — it applies chain-of-thought
     // reasoning to produce more accurate trend interpretations and forecasts.
-    const result = await callGeminiAI(reportPrompt, context, null, { useReasoner: true, maxTokens: 3000 });
+    const result = await callAI(reportPrompt, context, null, { useReasoner: true, maxTokens: 3000 });
     setReportResult(result);
     setIsGeneratingReport(false);
   };
@@ -795,7 +795,7 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
             <Sparkles size={16} className="text-white/80" />
             <h3 className="font-semibold">AI Financial Analyst</h3>
           </div>
-          <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded uppercase tracking-wider">Gemini</span>
+
         </div>
         <div className="p-5">
           <div className="flex flex-wrap gap-2 mb-4">

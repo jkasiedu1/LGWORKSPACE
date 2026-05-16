@@ -41,7 +41,7 @@ import WorkflowsApp from './apps/WorkflowsApp';
 import SecurityApp from './apps/SecurityApp';
 import ReportingApp from './apps/ReportingApp';
 import DirectoryIntakeApp from './apps/DirectoryIntakeApp';
-import { configureGeminiPolicy } from './lib/gemini';
+import { configureAIPolicy } from './lib/gemini';
 
 const THEME_PRESETS = {
   stoneTeal: {
@@ -300,7 +300,7 @@ export default function App() {
   }, [isAuthenticated, user]);
 
   useEffect(() => {
-    configureGeminiPolicy(appData.securitySettings);
+    configureAIPolicy(appData.securitySettings);
   }, [appData.securitySettings]);
 
   // Close notifications panel on outside click

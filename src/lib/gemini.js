@@ -15,8 +15,7 @@ export function configureAIPolicy(nextPolicy = {}) {
   securityPolicy = normalizeSecuritySettings(nextPolicy);
 }
 
-// Legacy alias — existing callers continue to work without changes
-export const configureGeminiPolicy = configureAIPolicy;
+
 
 /**
  * Call DeepSeek AI via the authenticated Worker proxy.
@@ -139,5 +138,4 @@ export const callAI = async (prompt, systemContext, policyOverride = null, optio
   }
 };
 
-// Legacy alias — existing callers continue to work without changes
-export const callGeminiAI = callAI;
+

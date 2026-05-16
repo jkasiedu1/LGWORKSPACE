@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Sparkles, Loader2, Plus, Search, Send, MoreVertical, Workflow, Smartphone, Mail, X, Hash, Trash2, Pencil } from 'lucide-react';
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
-import { callGeminiAI } from '../lib/gemini';
+import { callAI } from '../lib/gemini';
 import WorkflowCard from '../components/WorkflowCard';
 import { createWorkflow, createWorkflowInboxMessage, deleteWorkflow, updateWorkflow, createWorkflowKeyword, deleteWorkflowKeyword } from '../lib/firestoreServices';
 import { db } from '../config/firebase';
@@ -81,7 +81,7 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
     if (!prompt) return;
     setIsGenerating(true);
     const context = `You are a church communications director writing a short, warm, and highly engaging SMS or email based on the prompt. Keep it under 2 sentences if it's a text.`;
-    const responseText = await callGeminiAI(prompt, context);
+    const responseText = await callAI(prompt, context);
     setPrompt(responseText);
     setIsGenerating(false);
   };

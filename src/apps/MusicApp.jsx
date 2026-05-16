@@ -4,7 +4,7 @@ import {
   FileText, FileAudio, Mic2, ListMusic, SkipBack, Play,
   Pause, SkipForward, X, Trash2
 } from 'lucide-react';
-import { callGeminiAI } from '../lib/gemini';
+import { callAI } from '../lib/gemini';
 import { createSong, deleteSong } from '../lib/firestoreServices';
 
 export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch, showToast }) {
@@ -31,7 +31,7 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
     setIsAnalyzingMusic(true);
     setMusicAnalysisResult(null);
     const context = `You are a professional church music director. The user is asking about the song or lyrics provided. Analyze it focusing on the '${analysisMode}' perspective. Be brief and highly practical. Provide chords, vocal ranges, or lyrical themes based on what is asked.`;
-    const responseText = await callGeminiAI(musicPrompt, context);
+    const responseText = await callAI(musicPrompt, context);
     setMusicAnalysisResult(responseText);
     setIsAnalyzingMusic(false);
   };
@@ -236,7 +236,7 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
               <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden h-fit flex flex-col">
                 <div className={`${theme.bg} p-4 text-white flex justify-between items-center`}>
                   <div className="flex items-center gap-2"><Sparkles size={18} className="text-white/80" /><h3 className="font-semibold">AI Music Analyzer</h3></div>
-                  <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded uppercase tracking-wider">Gemini</span>
+
                 </div>
                 <div className="p-4 bg-stone-50 border-b border-stone-200">
                   <div className="flex gap-2 bg-white p-1 rounded-lg border border-stone-200">
