@@ -64,21 +64,25 @@ export const callAI = async (prompt, systemContext, policyOverride = null, optio
     return 'AI features require you to be signed in.';
   }
 
-  const retryFetch = async (url, fetchOptions, retries = 5) => {
+  const retryFetch = async (url, fetchOptions, retries = 2) => {
     let delay = 1000;
     for (let i = 0; i < retries; i++) {
+      let res;
       try {
-        const res = await fetch(url, fetchOptions);
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`HTTP ${res.status}: ${errText}`);
-        }
-        return res;
-      } catch (e) {
-        if (i === retries - 1) throw e;
+        res = await fetch(url, fetchOptions);
+      } catch (networkErr) {
+        // Pure network failure — worth retrying once.
+        if (i === retries - 1) throw networkErr;
         await new Promise((r) => setTimeout(r, delay));
-        delay = Math.min(delay * 2, 16000);
+        delay = Math.min(delay * 2, 4000);
+        continue;
       }
+      // Don't retry on client/server errors — they won't self-heal.
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
+      return res;
     }
   };
 
@@ -133,8 +137,12 @@ export const callAI = async (prompt, systemContext, policyOverride = null, optio
     const data = await response.json();
     return data.content || 'Could not generate a response. Please try again.';
   } catch (error) {
-    console.error('[AI Error]', error);
-    return 'An error occurred while connecting to the AI service. Please check your connection.';
+    const msg = String(error?.message || error);
+    console.error('[AI Error]', msg);
+    if (msg.includes('503')) return 'AI service is temporarily unavailable. Please try again shortly.';
+    if (msg.includes('401') || msg.includes('403')) return 'AI access denied. Please sign out and sign back in.';
+    if (msg.includes('404')) return 'AI endpoint not found. The Worker may need to be redeployed.';
+    return `AI error: ${msg}`;
   }
 };
 
