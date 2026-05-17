@@ -93,6 +93,13 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow update: if isAuthenticated() && canWrite();
       allow delete: if isAuthenticated() && canDelete();
+
+      match /analyses/{analysisId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && canWrite();
+        allow delete: if isAuthenticated() && canWrite();
+        allow update: if false;
+      }
     }
 
     match /teams/{teamId} {

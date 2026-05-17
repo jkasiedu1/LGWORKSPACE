@@ -1,4 +1,4 @@
-import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, increment, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, deleteField, doc, increment, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import {
   logPersonCreated,
@@ -324,9 +324,60 @@ export async function createSong(song) {
   return { id: docRef.id, ...song };
 }
 
+export async function updateSong(songId, updates) {
+  if (!db) return { id: songId, ...updates };
+  await withRetry(() => updateDoc(doc(db, 'songs', songId), withUpdatedAuditFields(updates)));
+  return { id: songId, ...updates };
+}
+
 export async function deleteSong(songId) {
   if (!db) return;
   await withRetry(() => deleteDoc(doc(db, 'songs', songId)));
+}
+
+const VALID_VOCAL_PARTS = new Set(['soprano', 'alto', 'tenor', 'bass', 'fullMix']);
+
+export async function updateSongVocalPart(songId, part, partData) {
+  if (!db) return;
+  if (!VALID_VOCAL_PARTS.has(part)) throw new Error(`Invalid vocal part: ${part}`);
+  await withRetry(() =>
+    updateDoc(doc(db, 'songs', songId), withUpdatedAuditFields({ [`vocalParts.${part}`]: partData }))
+  );
+}
+
+export async function removeSongVocalPart(songId, part) {
+  if (!db) return;
+  if (!VALID_VOCAL_PARTS.has(part)) throw new Error(`Invalid vocal part: ${part}`);
+  await withRetry(() =>
+    updateDoc(doc(db, 'songs', songId), {
+      [`vocalParts.${part}`]: deleteField(),
+      updatedAt: serverTimestamp(),
+    })
+  );
+}
+
+export async function createSongAnalysis(songId, analysis) {
+  if (!db) return { id: Date.now(), ...analysis };
+  const docRef = await withRetry(() =>
+    addDoc(collection(db, 'songs', songId, 'analyses'), withAuditFields(analysis))
+  );
+  return { id: docRef.id, ...analysis };
+}
+
+export async function deleteSongAnalysis(songId, analysisId) {
+  if (!db) return;
+  await withRetry(() => deleteDoc(doc(db, 'songs', songId, 'analyses', analysisId)));
+}
+
+export function subscribeSongAnalyses(songId, callback) {
+  if (!db) { callback([]); return () => {}; }
+  const q = query(
+    collection(db, 'songs', songId, 'analyses'),
+    orderBy('createdAt', 'desc')
+  );
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+  });
 }
 
 export async function createWorkflow(workflow) {

@@ -94,3 +94,51 @@ export async function uploadMediaToR2(file, folder = 'community') {
     mediaMimeType: file.type,
   };
 }
+
+const ALLOWED_AUDIO_MIME_TYPES = new Set([
+  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4',
+  'audio/aac', 'audio/flac', 'audio/x-m4a', 'audio/webm',
+]);
+const MAX_AUDIO_BYTES = 50 * 1024 * 1024; // 50 MB
+
+function validateAudioFile(file) {
+  if (!ALLOWED_AUDIO_MIME_TYPES.has(file?.type)) {
+    throw new Error(`Audio type "${file?.type || 'unknown'}" is not supported. Use MP3, WAV, AAC, FLAC, OGG, or M4A.`);
+  }
+  if ((file?.size || 0) > MAX_AUDIO_BYTES) {
+    throw new Error(`Audio file is too large. Max 50 MB.`);
+  }
+}
+
+export async function uploadAudioToR2(file, folder = 'music') {
+  validateAudioFile(file);
+
+  const signedUpload = await requestUploadSignature(file, folder);
+  const { uploadUrl, fileUrl, headers = {} } = signedUpload;
+
+  if (!uploadUrl || !fileUrl) {
+    throw new Error('Invalid R2 upload signature response.');
+  }
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': file.type || 'audio/mpeg',
+      ...headers,
+    },
+    body: file,
+  });
+
+  if (!uploadResponse.ok) {
+    const details = await uploadResponse.text();
+    throw new Error(`R2 audio upload failed (${uploadResponse.status}): ${details}`);
+  }
+
+  return {
+    mediaUrl: fileUrl,
+    mediaType: 'audio',
+    mediaName: file.name,
+    mediaSizeBytes: file.size,
+    mediaMimeType: file.type,
+  };
+}

@@ -26,8 +26,14 @@ const ALLOWED_VIDEO_TYPES = new Set([
   'video/mp4', 'video/quicktime', 'video/webm', 'video/mov',
 ]);
 
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;  // 10 MB
-const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // 200 MB
+const ALLOWED_AUDIO_TYPES = new Set([
+  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4',
+  'audio/aac', 'audio/flac', 'audio/x-m4a', 'audio/webm',
+]);
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;   // 10 MB
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024;  // 200 MB
+const MAX_AUDIO_BYTES = 50 * 1024 * 1024;   // 50 MB
 const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const AWS_ALGORITHM = 'AWS4-HMAC-SHA256';
 const AWS_REGION = 'auto';
@@ -728,8 +734,9 @@ export default {
 
         const isVideo = ALLOWED_VIDEO_TYPES.has(fileType);
         const isImage = ALLOWED_IMAGE_TYPES.has(fileType);
+        const isAudio = ALLOWED_AUDIO_TYPES.has(fileType);
 
-        if (!isImage && !isVideo) {
+        if (!isImage && !isVideo && !isAudio) {
           return json({ error: `File type ${fileType} is not allowed.` }, 415, origin);
         }
 
@@ -739,6 +746,10 @@ export default {
 
         if (fileSize && isVideo && fileSize > MAX_VIDEO_BYTES) {
           return json({ error: 'Video exceeds 200 MB limit.' }, 413, origin);
+        }
+
+        if (fileSize && isAudio && fileSize > MAX_AUDIO_BYTES) {
+          return json({ error: 'Audio exceeds 50 MB limit.' }, 413, origin);
         }
 
         const key = `${folder}/${Date.now()}-${sanitize(fileName)}`;
