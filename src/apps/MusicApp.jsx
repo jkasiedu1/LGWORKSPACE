@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { callAI } from '../lib/gemini';
 import { createSong, deleteSong } from '../lib/firestoreServices';
+import MarkdownRenderer from '../components/MarkdownRenderer.jsx';
 
 export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch, showToast }) {
   const [musicPrompt, setMusicPrompt] = useState('');
@@ -30,7 +31,7 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
     if (!musicPrompt) return;
     setIsAnalyzingMusic(true);
     setMusicAnalysisResult(null);
-    const context = `You are a professional church music director. The user is asking about the song or lyrics provided. Analyze it focusing on the '${analysisMode}' perspective. Be brief and highly practical. Provide chords, vocal ranges, or lyrical themes based on what is asked.`;
+    const context = `You are a professional church music director. The user is asking about the song or lyrics provided. Analyze it focusing on the '${analysisMode}' perspective. Be brief and highly practical. Provide chords, vocal ranges, or lyrical themes based on what is asked. Format your response with markdown: use ## for main headers, ### for sub-headers, **bold** for key terms, and numbered lists or bullet points for structured analysis.`;
     const responseText = await callAI(musicPrompt, context);
     setMusicAnalysisResult(responseText);
     setIsAnalyzingMusic(false);
@@ -250,7 +251,11 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
                   <button onClick={handleMusicAnalysis} disabled={isAnalyzingMusic || !musicPrompt} className={`w-full py-2.5 ${theme.bg} text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex justify-center items-center gap-2 disabled:opacity-50`}>
                     {isAnalyzingMusic ? <Loader2 size={16} className="animate-spin" /> : 'Analyze Track'}
                   </button>
-                  {musicAnalysisResult && <div className="mt-2 p-4 bg-stone-50 border border-stone-100 rounded-lg text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">{musicAnalysisResult}</div>}
+                  {musicAnalysisResult && (
+                    <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl min-h-[160px]">
+                      <MarkdownRenderer content={musicAnalysisResult} />
+                    </div>
+                  )}
                 </div>
               </div>
             )

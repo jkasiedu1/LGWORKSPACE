@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Sparkles, Loader2, GripVertical, Plus, Save, Clock, Users, Trash2 } from 'lucide-react';
+import MarkdownRenderer from '../components/MarkdownRenderer.jsx';
 import {
   DndContext,
   closestCenter,
@@ -125,7 +126,7 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
     if (!prompt) return;
     setIsGenerating(true);
     setResult(null);
-    const context = `You are a pastoral assistant helping plan a church service. Give a brief, insightful, 3-point teaching outline or service element note based on this prompt: "${prompt}". Keep it short and highly actionable.`;
+    const context = `You are a pastoral assistant helping plan a church service. Give a brief, insightful, 3-point teaching outline or service element note based on this prompt: "${prompt}". Keep it short and highly actionable. Format your response with markdown: use ## for main headers, ### for sub-headers, **bold** for key terms, and numbered lists (1. 2. 3.) or bullet points (- ) for outlines.`;
     const responseText = await callAI(prompt, context);
     setResult(responseText);
     setIsGenerating(false);
@@ -285,12 +286,18 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
               <div className="flex items-center gap-2"><Sparkles size={16} className="text-white/80" /><h3 className="font-semibold text-sm">AI Assistant</h3></div>
 
             </div>
-            <div className="p-4 flex items-start gap-4">
-              <textarea className="flex-1 p-3 border border-stone-200 rounded-lg text-sm focus:ring-1 focus:ring-amber-500 outline-none resize-none bg-stone-50" placeholder="Topic, text, or theme..." rows="2" value={prompt} onChange={(e) => setPrompt(e.target.value)}></textarea>
-              <button onClick={handleGenerate} disabled={isGenerating || !prompt} className={`shrink-0 px-5 py-2.5 ${theme.bg} text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2 disabled:opacity-50`}>
-                {isGenerating ? <Loader2 size={16} className="animate-spin" /> : 'Generate Guide'}
-              </button>
-              {result && <div className="flex-1 p-4 bg-stone-50 border border-stone-100 rounded-lg text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">{result}</div>}
+            <div className="p-4 flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row gap-3 items-start">
+                <textarea className="w-full sm:flex-1 p-3 border border-stone-200 rounded-lg text-sm focus:ring-1 focus:ring-amber-500 outline-none resize-none bg-stone-50" placeholder="Topic, text, or theme..." rows="3" value={prompt} onChange={(e) => setPrompt(e.target.value)}></textarea>
+                <button onClick={handleGenerate} disabled={isGenerating || !prompt} className={`w-full sm:w-auto shrink-0 px-5 py-2.5 ${theme.bg} text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50`}>
+                  {isGenerating ? <Loader2 size={16} className="animate-spin" /> : 'Generate Guide'}
+                </button>
+              </div>
+              {result && (
+                <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl min-h-[160px]">
+                  <MarkdownRenderer content={result} />
+                </div>
+              )}
             </div>
           </div>
         )}

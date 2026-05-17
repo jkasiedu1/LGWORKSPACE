@@ -12,6 +12,7 @@ import * as XLSX from 'xlsx';
 import { callAI } from '../lib/gemini';
 import { createDonation, deleteDonation } from '../lib/firestoreServices';
 import { useAuth } from '../hooks/useAuth';
+import MarkdownRenderer from '../components/MarkdownRenderer.jsx';
 
 const GOAL_STORAGE_KEY = 'lifegate_annual_giving_goal';
 
@@ -246,7 +247,8 @@ export default function GivingApp({ theme, donations, setDonations, showToast })
 Stats: YTD ${fmt$(ytdTotal)}, ${uniqueDonors} unique donors, avg gift ${fmt$(avgGift)}, largest gift ${fmt$(largestGift)}.
 This month: ${fmt$(thisMonthTotal)} vs last month: ${fmt$(lastMonthTotal)}.
 Funds: ${fundData.map(f => `${f.name}: ${fmt$(f.value)}`).join(', ')}.
-Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
+Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.
+Format your response with markdown: use ## for main headers, ### for sub-headers, **bold** for key figures and insights, and bullet points or numbered lists for structured analysis.`;
     // Use the R1 reasoner model for financial analysis — it applies chain-of-thought
     // reasoning to produce more accurate trend interpretations and forecasts.
     const result = await callAI(reportPrompt, context, null, { useReasoner: true, maxTokens: 3000 });
@@ -824,8 +826,8 @@ Methods: ${typeBreakdown.map(([t, v]) => `${t}: ${fmt$(v)}`).join(', ')}.`;
             </button>
           </div>
           {reportResult && (
-            <div className="mt-4 p-4 bg-stone-50 border border-stone-100 rounded-lg text-xs text-stone-700 whitespace-pre-wrap leading-relaxed">
-              {reportResult}
+            <div className="mt-4 p-4 bg-stone-50 border border-stone-200 rounded-xl min-h-[160px]">
+              <MarkdownRenderer content={reportResult} />
             </div>
           )}
         </div>
