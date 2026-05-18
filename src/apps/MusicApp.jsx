@@ -369,9 +369,10 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
       ) : (
         analyses.map((a) => (
           <div key={a.id} className="border border-stone-200 rounded-xl overflow-hidden bg-white">
-            <div
-              className="flex items-center justify-between px-4 py-2.5 bg-stone-50 cursor-pointer hover:bg-stone-100 transition-colors"
-              onClick={() => setExpandedAnalysisId(expandedAnalysisId === a.id ? null : a.id)}
+            <button
+              type="button"
+              className="w-full flex items-center justify-between px-4 py-2.5 bg-stone-50 hover:bg-stone-100 transition-colors text-left"
+              onClick={() => setExpandedAnalysisId((prev) => (prev === a.id ? null : a.id))}
             >
               <div className="flex items-center gap-2 min-w-0">
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${MODE_COLORS[a.mode] || 'bg-stone-100 text-stone-600'}`}>
@@ -393,7 +394,7 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
                   ? <ChevronUp size={14} className="text-stone-400" />
                   : <ChevronDown size={14} className="text-stone-400" />}
               </div>
-            </div>
+            </button>
             {expandedAnalysisId === a.id && (
               <div className="border-t border-stone-100">
                 {a.prompt && (

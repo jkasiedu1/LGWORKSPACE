@@ -381,7 +381,7 @@ export function subscribeSongAnalyses(songId, callback) {
     orderBy('createdAt', 'desc')
   );
   return onSnapshot(q, (snapshot) => {
-    callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+    callback(snapshot.docs.map((d) => ({ ...d.data(), id: d.id })));
   });
 }
 
