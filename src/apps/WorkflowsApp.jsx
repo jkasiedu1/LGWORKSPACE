@@ -123,6 +123,7 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
   const [conversation, setConversation] = useState([]);
   const [conversationLoading, setConversationLoading] = useState(false);
   const [isDraftingReply, setIsDraftingReply] = useState(false);
+  const [mobileShowThread, setMobileShowThread] = useState(false);
   const msgEndRef = useRef(null);
 
   // ── Keywords ───────────────────────────────────────────────────────────────
@@ -326,7 +327,7 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
       {/* ── Header ── */}
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Comms &amp; Workflows</h1>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-stone-900 tracking-tight">Comms &amp; Workflows</h1>
           <p className="text-stone-500 text-sm mt-1">Automations, 2-way texting, and keywords.</p>
         </div>
         {activeSubTab === 'automations' && (
@@ -342,17 +343,20 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
       </div>
 
       {/* ── Stats bar ── */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {[
-          { label: 'Active Automations', value: activeCount, icon: Zap, color: 'text-violet-600 bg-violet-50' },
-          { label: 'Keywords', value: keywords.length, icon: Hash, color: 'text-teal-600 bg-teal-50' },
-          { label: 'Inbox Threads', value: 1, icon: MessageSquare, color: 'text-blue-600 bg-blue-50' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-white rounded-xl border border-stone-200 shadow-sm p-4 flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${color}`}><Icon size={16} /></div>
-            <div>
-              <p className="text-xl font-bold text-stone-900">{value}</p>
-              <p className="text-xs text-stone-500">{label}</p>
+          { label: 'Active Automations', short: 'Active', value: activeCount, icon: Zap, color: 'text-violet-600 bg-violet-50' },
+          { label: 'Keywords', short: 'Keywords', value: keywords.length, icon: Hash, color: 'text-teal-600 bg-teal-50' },
+          { label: 'Inbox Threads', short: 'Inbox', value: 1, icon: MessageSquare, color: 'text-blue-600 bg-blue-50' },
+        ].map(({ label, short, value, icon: Icon, color }) => (
+          <div key={label} className="bg-white rounded-xl border border-stone-200 shadow-sm p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <div className={`p-1.5 sm:p-2 rounded-lg shrink-0 ${color}`}><Icon size={14} /></div>
+            <div className="min-w-0">
+              <p className="text-lg sm:text-xl font-bold text-stone-900">{value}</p>
+              <p className="text-[10px] sm:text-xs text-stone-500 truncate">
+                <span className="sm:hidden">{short}</span>
+                <span className="hidden sm:inline">{label}</span>
+              </p>
             </div>
           </div>
         ))}
@@ -360,7 +364,7 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
 
       {/* ── Tab nav ── */}
       <div className="border-b border-stone-200">
-        <nav className="-mb-px flex space-x-8">
+        <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto">
           {[
             { id: 'automations', label: 'Automations' },
             { id: 'inbox', label: '2-Way Inbox', badge: 1 },
@@ -408,7 +412,7 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
       {activeSubTab === 'inbox' && (
         <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden h-[560px] flex animate-in fade-in duration-300">
           {/* Contact list */}
-          <div className="w-72 border-r border-stone-200 flex flex-col bg-stone-50/60 shrink-0">
+          <div className={`${mobileShowThread ? 'hidden' : 'flex'} sm:flex flex-col w-full sm:w-72 border-r border-stone-200 bg-stone-50/60 shrink-0`}>
             <div className="p-3 border-b border-stone-200">
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
@@ -420,7 +424,7 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
                 <button
                   key={thread.id}
                   type="button"
-                  onClick={() => setActiveThreadId(thread.id)}
+                  onClick={() => { setActiveThreadId(thread.id); setMobileShowThread(true); }}
                   className={`w-full flex items-center gap-3 p-3.5 text-left border-b border-stone-100 hover:bg-white transition-colors ${activeThreadId === thread.id ? 'bg-white border-l-2 border-l-violet-500' : ''}`}
                 >
                   <InitialsAvatar name={thread.name} />
@@ -440,8 +444,15 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
           </div>
 
           {/* Conversation pane */}
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className={`${mobileShowThread ? 'flex' : 'hidden'} sm:flex flex-1 flex-col min-w-0`}>
             <div className="px-4 py-3 border-b border-stone-200 flex items-center gap-3 bg-white">
+              <button
+                onClick={() => setMobileShowThread(false)}
+                className="sm:hidden p-1 -ml-1 text-stone-400 hover:text-stone-700"
+                aria-label="Back to contacts"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
               <InitialsAvatar name="Sarah Jenkins" size="sm" />
               <div>
                 <h3 className="font-bold text-stone-900 text-sm">Sarah Jenkins</h3>
