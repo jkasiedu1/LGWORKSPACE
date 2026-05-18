@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth } from '../config/firebase';
+import { db } from '../config/firebase';
 import { resolveRoleAccess } from '../config/accessControl';
 
 /**
@@ -32,6 +34,16 @@ export function useAuth() {
             setRoleAccess({ isSeniorPastor: false, isAdmin: false, appAccess: [] });
             }
             setUser(currentUser);
+            // Register/refresh this user's profile so others can DM them
+            if (db) {
+              const name = currentUser.displayName || currentUser.email?.split('@')[0] || 'User';
+              setDoc(doc(db, 'userProfiles', currentUser.uid), {
+                uid: currentUser.uid,
+                displayName: name,
+                email: currentUser.email || '',
+                lastSeen: serverTimestamp(),
+              }, { merge: true }).catch(() => {});
+            }
           } else {
             setUser(null);
             setRoleAccess({ isSeniorPastor: false, isAdmin: false, appAccess: [] });

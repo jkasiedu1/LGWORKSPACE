@@ -507,3 +507,28 @@ export async function createWorkflowInboxMessage(message) {
   const docRef = await withRetry(() => addDoc(collection(db, 'workflowInboxMessages'), withAuditFields(message)));
   return { id: docRef.id, ...message };
 }
+
+// ── Direct Message threads ────────────────────────────────────────────────────
+
+export async function upsertDmThread(threadId, participants, lastMessage, senderUid, senderName, recipientUid) {
+  if (!db) return;
+  await withRetry(() => setDoc(doc(db, 'dmThreads', threadId), {
+    participants,
+    lastMessage: String(lastMessage || '').slice(0, 200),
+    lastMessageAt: serverTimestamp(),
+    lastSenderUid: senderUid,
+    lastSenderName: senderName,
+    [`unreadFor.${recipientUid}`]: increment(1),
+  }, { merge: true }));
+}
+
+export async function clearDmUnread(threadId, uid) {
+  if (!db) return;
+  try {
+    await withRetry(() => updateDoc(doc(db, 'dmThreads', threadId), {
+      [`unreadFor.${uid}`]: 0,
+    }));
+  } catch {
+    // Thread document doesn't exist yet — nothing to clear
+  }
+}

@@ -15,6 +15,8 @@ import {
   removePostReaction,
   addCommentToPost,
   createStory,
+  upsertDmThread,
+  clearDmUnread,
 } from '../lib/firestoreServices';
 import { uploadMediaToR2 } from '../lib/mediaStorage';
 import { db } from '../config/firebase';
@@ -504,10 +506,58 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
   const [chatLoading, setChatLoading] = useState(false);
   const [stories, setStories] = useState([]);
   const [showDmSheet, setShowDmSheet] = useState(false);
+  const [dmContacts, setDmContacts] = useState([]);
+  const [dmThreads, setDmThreads] = useState({});
+  const [dmSearch, setDmSearch] = useState('');
+  const activeChatRef = useRef(null);
+  const prevDmThreadsRef = useRef({});
   const photoInputRef = useRef(null);
 
-  const contacts = people.filter(p => p.phone && p.type !== 'Child');
-  const MAX_CHARS = 1000;
+  const filteredDmContacts = dmContacts.filter(c =>
+    !dmSearch ||
+    (c.displayName || '').toLowerCase().includes(dmSearch.toLowerCase()) ||
+    (c.email || '').toLowerCase().includes(dmSearch.toLowerCase())
+  );
+  const totalUnread = Object.values(dmThreads).reduce((s, t) => s + (t.unread || 0), 0);
+
+  // Keep activeChatRef in sync for use inside subscriptions
+  useEffect(() => { activeChatRef.current = activeChat; }, [activeChat]);
+
+  // Subscribe to other users' profiles for the DM contact list
+  useEffect(() => {
+    if (!db || !uid) return;
+    const unsub = onSnapshot(collection(db, 'userProfiles'), snap => {
+      setDmContacts(snap.docs.map(d => d.data()).filter(u => u.uid !== uid));
+    });
+    return unsub;
+  }, [uid]);
+
+  // Subscribe to DM thread metadata for unread counts + in-app notifications
+  useEffect(() => {
+    if (!db || !uid) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'dmThreads'), where('participants', 'array-contains', uid)),
+      snap => {
+        const threads = {};
+        snap.docs.forEach(d => {
+          const data = d.data();
+          const unread = data.unreadFor?.[uid] || 0;
+          const prevUnread = prevDmThreadsRef.current[d.id]?.unread || 0;
+          threads[d.id] = { ...data, unread };
+          if (unread > prevUnread && data.lastSenderUid !== uid) {
+            const activeTid = activeChatRef.current?.uid
+              ? [uid, activeChatRef.current.uid].sort().join('_') : null;
+            if (d.id !== activeTid) {
+              showToast(`💬 New message from ${data.lastSenderName || 'Someone'}`);
+            }
+          }
+        });
+        prevDmThreadsRef.current = threads;
+        setDmThreads(threads);
+      }
+    );
+    return unsub;
+  }, [uid]);
 
   // Load stories from Firestore
   useEffect(() => {
@@ -524,9 +574,10 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
 
   // Chat subscription
   useEffect(() => {
-    if (!activeChat?.id || !db) return undefined;
+    if (!activeChat?.uid || !uid || !db) return undefined;
     setChatLoading(true);
-    const threadId = String(activeChat.id);
+    const threadId = [uid, activeChat.uid].sort().join('_');
+    clearDmUnread(threadId, uid).catch(() => {});
     const unsub = onSnapshot(
       query(collection(db, 'communityMessages'), where('threadId', '==', threadId), orderBy('createdAt', 'asc')),
       (snapshot) => {
@@ -535,16 +586,19 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
           [threadId]: snapshot.docs.map(d => {
             const data = d.data();
             const ts = data.createdAt?.toDate ? data.createdAt.toDate() : null;
-            return { id: d.id, text: data.text || '', fromUs: Boolean(data.fromUs),
+            const fromUs = data.senderUid === uid;
+            return { id: d.id, text: data.text || '', fromUs,
+              senderName: data.senderName || (fromUs ? displayName : activeChat.displayName),
               time: ts ? ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now' };
           }),
         }));
         setChatLoading(false);
+        clearDmUnread(threadId, uid).catch(() => {});
       },
       () => setChatLoading(false)
     );
     return unsub;
-  }, [activeChat?.id]);
+  }, [activeChat?.uid]);
 
   const handlePost = async () => {
     const content = newPostContent.trim();
@@ -659,13 +713,14 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
   const handleSendChat = async (e) => {
     e.preventDefault();
     const text = chatInput.trim();
-    if (!text || !activeChat?.id) return;
-    const threadId = String(activeChat.id);
+    if (!text || !activeChat?.uid || !uid) return;
+    const threadId = [uid, activeChat.uid].sort().join('_');
     const tempId = `temp-chat-${Date.now()}`;
-    setChatMessagesByContact(prev => ({ ...prev, [threadId]: [...(prev[threadId] || []), { id: tempId, text, fromUs: true, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }] }));
+    setChatMessagesByContact(prev => ({ ...prev, [threadId]: [...(prev[threadId] || []), { id: tempId, text, fromUs: true, senderName: displayName, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }] }));
     setChatInput('');
     try {
-      await createCommunityMessage({ threadId, contactId: threadId, contactName: activeChat.name, text, fromUs: true });
+      await createCommunityMessage({ threadId, text, senderUid: uid, senderName: displayName, recipientUid: activeChat.uid });
+      await upsertDmThread(threadId, [uid, activeChat.uid], text, uid, displayName, activeChat.uid);
       setChatMessagesByContact(prev => ({ ...prev, [threadId]: (prev[threadId] || []).filter(m => m.id !== tempId) }));
     } catch {
       setChatMessagesByContact(prev => ({ ...prev, [threadId]: (prev[threadId] || []).filter(m => m.id !== tempId) }));
@@ -687,6 +742,7 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
           className={`lg:hidden flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white shadow ${theme.bg}`}
         >
           <MessageCircle size={15}/> Messages
+          {totalUnread > 0 && <span className="bg-white/30 rounded-full px-1.5 py-0.5">{totalUnread}</span>}
         </button>
       </div>
 
@@ -775,24 +831,32 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
             <div className="p-2 bg-stone-50 border-b border-stone-200">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 h-3.5 w-3.5"/>
-                <input type="text" placeholder="Search…" className="w-full pl-8 pr-3 py-1.5 bg-white border border-stone-200 rounded-lg text-xs outline-none focus:border-teal-500"/>
+                <input type="text" placeholder="Search people…" value={dmSearch} onChange={e => setDmSearch(e.target.value)} className="w-full pl-8 pr-3 py-1.5 bg-white border border-stone-200 rounded-lg text-xs outline-none focus:border-teal-500"/>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto divide-y divide-stone-100">
-              {contacts.length === 0 && <p className="text-xs text-stone-400 p-4 text-center">No contacts with phone numbers yet.</p>}
-              {contacts.map(contact => (
-                <div key={contact.id} onClick={() => setActiveChat(contact)}
-                  className={`p-3 flex items-center gap-3 cursor-pointer transition-colors ${activeChat?.id === contact.id ? `${theme.light}` : 'hover:bg-stone-50'}`}>
-                  <div className="relative shrink-0">
-                    <Avatar name={contact.name} size={9}/>
-                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border-2 border-white rounded-full"/>
+              {dmContacts.length === 0 && <p className="text-xs text-stone-400 p-4 text-center">No other users have signed in yet.</p>}
+              {filteredDmContacts.map(contact => {
+                const threadId = [uid, contact.uid].sort().join('_');
+                const unread = dmThreads[threadId]?.unread || 0;
+                const preview = dmThreads[threadId]?.lastMessage || contact.email || '';
+                return (
+                  <div key={contact.uid} onClick={() => { setActiveChat(contact); clearDmUnread(threadId, uid).catch(() => {}); }}
+                    className={`p-3 flex items-center gap-3 cursor-pointer transition-colors ${activeChat?.uid === contact.uid ? `${theme.light}` : 'hover:bg-stone-50'}`}>
+                    <div className="relative shrink-0">
+                      <Avatar name={contact.displayName} size={9}/>
+                      <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border-2 border-white rounded-full"/>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-stone-900 truncate">{contact.displayName}</p>
+                      <p className="text-[11px] text-stone-500 truncate">{preview}</p>
+                    </div>
+                    {unread > 0 && (
+                      <span className={`text-[10px] font-bold text-white ${theme.bg} rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shrink-0`}>{unread}</span>
+                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-stone-900 truncate">{contact.name}</p>
-                    <p className="text-[11px] text-stone-500 font-mono truncate">{contact.phone}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -812,26 +876,32 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
           <div className="p-3 border-b border-stone-100">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 h-3.5 w-3.5"/>
-              <input type="text" placeholder="Search…" className="w-full pl-8 pr-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm outline-none focus:border-teal-500"/>
+              <input type="text" placeholder="Search people…" value={dmSearch} onChange={e => setDmSearch(e.target.value)} className="w-full pl-8 pr-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm outline-none focus:border-teal-500"/>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-stone-100">
-            {contacts.length === 0 && <p className="text-sm text-stone-400 p-6 text-center">No contacts with phone numbers yet.</p>}
-            {contacts.map(contact => (
-              <div key={contact.id}
-                onClick={() => { setActiveChat(contact); setShowDmSheet(false); }}
-                className="p-4 flex items-center gap-3 active:bg-stone-50 cursor-pointer">
-                <div className="relative shrink-0">
-                  <Avatar name={contact.name} size={10}/>
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-white rounded-full"/>
+            {dmContacts.length === 0 && <p className="text-sm text-stone-400 p-6 text-center">No other users have signed in yet.</p>}
+            {filteredDmContacts.map(contact => {
+              const threadId = [uid, contact.uid].sort().join('_');
+              const unread = dmThreads[threadId]?.unread || 0;
+              return (
+                <div key={contact.uid}
+                  onClick={() => { setActiveChat(contact); clearDmUnread(threadId, uid).catch(() => {}); setShowDmSheet(false); }}
+                  className="p-4 flex items-center gap-3 active:bg-stone-50 cursor-pointer">
+                  <div className="relative shrink-0">
+                    <Avatar name={contact.displayName} size={10}/>
+                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-white rounded-full"/>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-stone-900">{contact.displayName}</p>
+                    <p className="text-xs text-stone-500 truncate">{contact.email}</p>
+                  </div>
+                  {unread > 0
+                    ? <span className={`text-[10px] font-bold text-white ${theme.bg} rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shrink-0`}>{unread}</span>
+                    : <MessageCircle size={16} className="text-stone-300"/>}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-stone-900">{contact.name}</p>
-                  <p className="text-xs text-stone-500 font-mono">{contact.phone}</p>
-                </div>
-                <MessageCircle size={16} className="text-stone-300"/>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -842,20 +912,23 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
       <div className="fixed bottom-0 left-0 right-0 sm:bottom-4 sm:right-4 sm:left-auto sm:w-[340px] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-stone-200 z-50 flex flex-col overflow-hidden">
           <div className={`${theme.bg} p-3 text-white flex justify-between items-center`}>
             <div className="flex items-center gap-2">
-              <Avatar name={activeChat.name} size={8}/>
+              <Avatar name={activeChat.displayName} size={8}/>
               <div>
-                <p className="font-bold text-sm">{activeChat.name}</p>
-                <p className="text-[10px] opacity-80 font-mono">{activeChat.phone}</p>
+                <p className="font-bold text-sm">{activeChat.displayName}</p>
+                <p className="text-[10px] opacity-70">{activeChat.email}</p>
               </div>
             </div>
             <button onClick={() => setActiveChat(null)} className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/20"><X size={18}/></button>
           </div>
-          <div className="h-64 sm:h-72 bg-[#e5ddd5] p-3 overflow-y-auto flex flex-col gap-2">
-            <div className="text-[9px] text-center text-stone-500 uppercase tracking-widest mb-1 font-semibold">End-to-end encrypted</div>
-            {(chatMessagesByContact[String(activeChat.id)] || []).map(msg => (
-              <div key={msg.id} className={`max-w-[82%] text-sm px-3 py-2 rounded-2xl shadow-sm ${msg.fromUs ? `self-end ${theme.light} ${theme.color} rounded-tr-none` : 'self-start bg-white text-stone-800 rounded-tl-none'}`}>
-                {msg.text}
-                <div className="text-[9px] opacity-60 mt-0.5 text-right">{msg.time}</div>
+          <div className="h-64 sm:h-72 bg-stone-50 p-3 overflow-y-auto flex flex-col gap-2">
+            <div className="text-[9px] text-center text-stone-400 uppercase tracking-widest mb-1 font-semibold">In-app messages · private</div>
+            {(chatMessagesByContact[[uid, activeChat.uid].sort().join('_')] || []).map(msg => (
+              <div key={msg.id} className={`flex flex-col gap-0.5 max-w-[82%] ${msg.fromUs ? 'self-end items-end' : 'self-start items-start'}`}>
+                <span className="text-[9px] font-semibold text-stone-400 px-1">{msg.senderName || (msg.fromUs ? displayName : activeChat.displayName)}</span>
+                <div className={`text-sm px-3 py-2 rounded-2xl shadow-sm ${msg.fromUs ? `${theme.light} ${theme.color} rounded-tr-none` : 'bg-white text-stone-800 border border-stone-100 rounded-tl-none'}`}>
+                  {msg.text}
+                  <div className="text-[9px] opacity-60 mt-0.5 text-right">{msg.time}</div>
+                </div>
               </div>
             ))}
           </div>
