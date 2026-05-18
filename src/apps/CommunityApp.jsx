@@ -519,6 +519,7 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
     (c.email || '').toLowerCase().includes(dmSearch.toLowerCase())
   );
   const totalUnread = Object.values(dmThreads).reduce((s, t) => s + (t.unread || 0), 0);
+  const MAX_CHARS = 1000;
 
   // Keep activeChatRef in sync for use inside subscriptions
   useEffect(() => { activeChatRef.current = activeChat; }, [activeChat]);
