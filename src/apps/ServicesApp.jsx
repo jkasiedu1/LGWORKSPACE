@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Sparkles, Loader2, GripVertical, Plus, Save, Clock, Users, Trash2 } from 'lucide-react';
+import { Sparkles, Loader2, GripVertical, Plus, Save, Clock, Users, Trash2, Copy, Check, Pencil, X, History, ChevronDown, ChevronUp } from 'lucide-react';
 import MarkdownRenderer from '../components/MarkdownRenderer.jsx';
 import {
   DndContext,
@@ -78,6 +78,13 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState(null);
+  const [isEditingResult, setIsEditingResult] = useState(false);
+  const [editedResult, setEditedResult] = useState('');
+  const [copiedResult, setCopiedResult] = useState(false);
+  const [aiHistory, setAiHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('services-ai-history') || '[]'); } catch { return []; }
+  });
+  const [expandedHistoryId, setExpandedHistoryId] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newItem, setNewItem] = useState({ time: '', length: '', title: '', type: 'Element', person: '' });
   const [isEditingHeader, setIsEditingHeader] = useState(false);
@@ -126,10 +133,35 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
     if (!prompt) return;
     setIsGenerating(true);
     setResult(null);
+    setIsEditingResult(false);
     const context = `You are a pastoral assistant helping plan a church service. Give a brief, insightful, 3-point teaching outline or service element note based on this prompt: "${prompt}". Keep it short and highly actionable. Format your response with markdown: use ## for main headers, ### for sub-headers, **bold** for key terms, and numbered lists (1. 2. 3.) or bullet points (- ) for outlines.`;
     const responseText = await callAI(prompt, context);
     setResult(responseText);
     setIsGenerating(false);
+    if (responseText && !responseText.startsWith('AI ')) {
+      const entry = { id: Date.now(), prompt, result: responseText, createdAt: new Date().toISOString() };
+      setAiHistory((prev) => {
+        const next = [entry, ...prev].slice(0, 20);
+        try { localStorage.setItem('services-ai-history', JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+  };
+
+  const handleCopyResult = (text, isHistory = false) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedResult(isHistory ? `hist-${text.slice(0, 8)}` : 'current');
+      setTimeout(() => setCopiedResult(false), 2000);
+    });
+  };
+
+  const handleDeleteHistoryEntry = (id) => {
+    setAiHistory((prev) => {
+      const next = prev.filter((e) => e.id !== id);
+      try { localStorage.setItem('services-ai-history', JSON.stringify(next)); } catch {}
+      return next;
+    });
+    if (expandedHistoryId === id) setExpandedHistoryId(null);
   };
 
   const handleSavePlan = async () => {
@@ -284,7 +316,6 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
           <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
             <div className={`${theme.bg} px-5 py-3 text-white flex justify-between items-center`}>
               <div className="flex items-center gap-2"><Sparkles size={16} className="text-white/80" /><h3 className="font-semibold text-sm">AI Assistant</h3></div>
-
             </div>
             <div className="p-4 flex flex-col gap-3">
               <div className="flex flex-col sm:flex-row gap-3 items-start">
@@ -294,8 +325,104 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
                 </button>
               </div>
               {result && (
-                <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl min-h-[160px]">
-                  <MarkdownRenderer content={result} />
+                <div className="bg-stone-50 border border-stone-200 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-end gap-1.5 px-3 py-2 border-b border-stone-200 bg-white">
+                    {isEditingResult ? (
+                      <>
+                        <button
+                          onClick={() => { setResult(editedResult); setIsEditingResult(false); }}
+                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-amber-600 rounded-lg hover:bg-amber-700"
+                        >
+                          <Save size={12} /> Save
+                        </button>
+                        <button
+                          onClick={() => setIsEditingResult(false)}
+                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-stone-600 bg-stone-100 rounded-lg hover:bg-stone-200"
+                        >
+                          <X size={12} /> Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => { setEditedResult(result); setIsEditingResult(true); }}
+                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-stone-600 bg-stone-100 rounded-lg hover:bg-stone-200"
+                        >
+                          <Pencil size={12} /> Edit
+                        </button>
+                        <button
+                          onClick={() => handleCopyResult(isEditingResult ? editedResult : result)}
+                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-stone-600 bg-stone-100 rounded-lg hover:bg-stone-200"
+                        >
+                          {copiedResult === 'current' ? <><Check size={12} className="text-green-500" /> Copied</> : <><Copy size={12} /> Copy</>}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <div className="p-4 min-h-[120px]">
+                    {isEditingResult ? (
+                      <textarea
+                        className="w-full p-3 border border-stone-200 rounded-lg text-sm focus:ring-1 focus:ring-amber-500 outline-none resize-none bg-white leading-relaxed font-mono"
+                        rows={10}
+                        value={editedResult}
+                        onChange={(e) => setEditedResult(e.target.value)}
+                      />
+                    ) : (
+                      <MarkdownRenderer content={result} />
+                    )}
+                  </div>
+                </div>
+              )}
+              {aiHistory.length > 0 && (
+                <div className="pt-2 border-t border-stone-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <History size={13} className="text-stone-400" />
+                    <span className="text-xs font-semibold text-stone-500">History</span>
+                    <span className="ml-auto text-xs text-stone-400">{aiHistory.length} saved</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {aiHistory.map((entry) => (
+                      <div key={entry.id} className="border border-stone-200 rounded-xl overflow-hidden bg-white">
+                        <div
+                          className="flex items-center justify-between px-3 py-2 bg-stone-50 cursor-pointer hover:bg-stone-100 transition-colors"
+                          onClick={() => setExpandedHistoryId(expandedHistoryId === entry.id ? null : entry.id)}
+                        >
+                          <p className="text-xs text-stone-600 truncate flex-1 mr-2">{entry.prompt.slice(0, 80)}{entry.prompt.length > 80 ? '…' : ''}</p>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className="text-[10px] text-stone-400">{new Date(entry.createdAt).toLocaleDateString()}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteHistoryEntry(entry.id); }}
+                              className="p-1 text-stone-300 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                            {expandedHistoryId === entry.id ? <ChevronUp size={13} className="text-stone-400" /> : <ChevronDown size={13} className="text-stone-400" />}
+                          </div>
+                        </div>
+                        {expandedHistoryId === entry.id && (
+                          <div className="border-t border-stone-100">
+                            <div className="flex justify-end gap-1.5 px-3 py-2 border-b border-stone-100 bg-stone-50/50">
+                              <button
+                                onClick={() => handleCopyResult(entry.result, true)}
+                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-stone-600 bg-stone-100 rounded-lg hover:bg-stone-200"
+                              >
+                                {copiedResult === `hist-${entry.result.slice(0, 8)}` ? <><Check size={11} className="text-green-500" /> Copied</> : <><Copy size={11} /> Copy</>}
+                              </button>
+                              <button
+                                onClick={() => { setPrompt(entry.prompt); setResult(entry.result); setIsEditingResult(false); setExpandedHistoryId(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-stone-600 bg-stone-100 rounded-lg hover:bg-stone-200"
+                              >
+                                Restore
+                              </button>
+                            </div>
+                            <div className="px-4 py-3">
+                              <MarkdownRenderer content={entry.result} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

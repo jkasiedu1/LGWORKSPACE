@@ -364,6 +364,11 @@ export async function createSongAnalysis(songId, analysis) {
   return { id: docRef.id, ...analysis };
 }
 
+export async function updateSongAnalysis(songId, analysisId, updates) {
+  if (!db) return;
+  await withRetry(() => updateDoc(doc(db, 'songs', songId, 'analyses', analysisId), withAuditFields(updates)));
+}
+
 export async function deleteSongAnalysis(songId, analysisId) {
   if (!db) return;
   await withRetry(() => deleteDoc(doc(db, 'songs', songId, 'analyses', analysisId)));

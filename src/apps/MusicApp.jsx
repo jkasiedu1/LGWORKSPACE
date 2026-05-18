@@ -4,12 +4,13 @@ import {
   FileText, FileAudio, Mic2, ListMusic, Play, Pause,
   X, Trash2, ChevronDown, ChevronUp, MonitorPlay,
   History, BookOpen, Plus, SkipBack, SkipForward,
+  Copy, Check, Pencil, Save,
 } from 'lucide-react';
 import { callAI } from '../lib/gemini';
 import {
   createSong, deleteSong,
   updateSongVocalPart, removeSongVocalPart,
-  createSongAnalysis, deleteSongAnalysis, subscribeSongAnalyses,
+  createSongAnalysis, deleteSongAnalysis, subscribeSongAnalyses, updateSongAnalysis,
 } from '../lib/firestoreServices';
 import { uploadAudioToR2 } from '../lib/mediaStorage';
 import MarkdownRenderer from '../components/MarkdownRenderer.jsx';
@@ -89,9 +90,15 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
   const [isAnalyzingMusic, setIsAnalyzingMusic]   = useState(false);
   const [analysisResult, setAnalysisResult]       = useState(null);
   const [saveAnalysisEnabled, setSaveAnalysisEnabled] = useState(true);
+  const [isEditingCurrentResult, setIsEditingCurrentResult] = useState(false);
+  const [editedCurrentResult, setEditedCurrentResult] = useState('');
+  const [copiedCurrentResult, setCopiedCurrentResult] = useState(false);
   // Analysis history (live Firestore)
   const [analyses, setAnalyses]                   = useState([]);
   const [expandedAnalysisId, setExpandedAnalysisId] = useState(null);
+  const [editingAnalysisId, setEditingAnalysisId] = useState(null);
+  const [editingAnalysisText, setEditingAnalysisText] = useState('');
+  const [copiedAnalysisId, setCopiedAnalysisId]   = useState(null);
   // Music Stand
   const [isStandMode, setIsStandMode] = useState(false);
 
@@ -266,10 +273,37 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
     try {
       await deleteSongAnalysis(selectedSong.id, analysisId);
       if (expandedAnalysisId === analysisId) setExpandedAnalysisId(null);
+      if (editingAnalysisId === analysisId) setEditingAnalysisId(null);
       showToast('Analysis deleted');
     } catch {
       showToast('Failed to delete analysis');
     }
+  };
+
+  const handleSaveAnalysisEdit = async (analysisId) => {
+    if (!selectedSong) return;
+    try {
+      await updateSongAnalysis(selectedSong.id, analysisId, { result: editingAnalysisText });
+      setEditingAnalysisId(null);
+      showToast('Analysis updated');
+    } catch {
+      showToast('Failed to update analysis');
+    }
+  };
+
+  const handleCopyAnalysis = (text, id) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedAnalysisId(id);
+      setTimeout(() => setCopiedAnalysisId(null), 2000);
+    });
+  };
+
+  const handleCopyCurrentResult = () => {
+    const text = isEditingCurrentResult ? editedCurrentResult : analysisResult;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedCurrentResult(true);
+      setTimeout(() => setCopiedCurrentResult(false), 2000);
+    });
   };
 
   // ── Sub-renderers ──────────────────────────────────────────────────────────
@@ -361,13 +395,61 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
               </div>
             </div>
             {expandedAnalysisId === a.id && (
-              <div className="px-4 py-4 border-t border-stone-100">
+              <div className="border-t border-stone-100">
                 {a.prompt && (
-                  <p className="text-xs text-stone-400 italic mb-3 pb-3 border-b border-stone-100 leading-relaxed">
+                  <p className="text-xs text-stone-400 italic px-4 pt-3 pb-3 border-b border-stone-100 leading-relaxed">
                     "{a.prompt.slice(0, 140)}{a.prompt.length > 140 ? '…' : ''}"
                   </p>
                 )}
-                <MarkdownRenderer content={a.result} />
+                <div className="flex items-center gap-1.5 justify-end px-3 py-2 border-b border-stone-100 bg-stone-50/50">
+                  {editingAnalysisId === a.id ? (
+                    <>
+                      <button
+                        onClick={() => handleSaveAnalysisEdit(a.id)}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-rose-500 rounded-lg hover:bg-rose-600"
+                      >
+                        <Save size={11} /> Save
+                      </button>
+                      <button
+                        onClick={() => setEditingAnalysisId(null)}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-stone-600 bg-stone-100 rounded-lg hover:bg-stone-200"
+                      >
+                        <X size={11} /> Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {isAdmin && (
+                        <button
+                          onClick={() => { setEditingAnalysisId(a.id); setEditingAnalysisText(a.result); }}
+                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-stone-600 bg-stone-100 rounded-lg hover:bg-stone-200"
+                          title="Edit"
+                        >
+                          <Pencil size={11} /> Edit
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleCopyAnalysis(a.result, a.id)}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-stone-600 bg-stone-100 rounded-lg hover:bg-stone-200"
+                        title="Copy to clipboard"
+                      >
+                        {copiedAnalysisId === a.id ? <><Check size={11} className="text-green-500" /> Copied</> : <><Copy size={11} /> Copy</>}
+                      </button>
+                    </>
+                  )}
+                </div>
+                <div className="px-4 py-4">
+                  {editingAnalysisId === a.id ? (
+                    <textarea
+                      className="w-full p-3 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-rose-400 outline-none resize-none bg-white leading-relaxed font-mono"
+                      rows={10}
+                      value={editingAnalysisText}
+                      onChange={(e) => setEditingAnalysisText(e.target.value)}
+                    />
+                  ) : (
+                    <MarkdownRenderer content={a.result} />
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -444,8 +526,54 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
 
       {/* Current result */}
       {analysisResult && (
-        <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl">
-          <MarkdownRenderer content={analysisResult} />
+        <div className="bg-stone-50 border border-stone-200 rounded-xl overflow-hidden">
+          <div className="flex items-center justify-end gap-1.5 px-3 py-2 border-b border-stone-200 bg-white">
+            {isEditingCurrentResult ? (
+              <>
+                <button
+                  onClick={() => { setAnalysisResult(editedCurrentResult); setIsEditingCurrentResult(false); }}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-rose-500 rounded-lg hover:bg-rose-600"
+                >
+                  <Save size={12} /> Save
+                </button>
+                <button
+                  onClick={() => setIsEditingCurrentResult(false)}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-stone-600 bg-stone-100 rounded-lg hover:bg-stone-200"
+                >
+                  <X size={12} /> Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => { setEditedCurrentResult(analysisResult); setIsEditingCurrentResult(true); }}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-stone-600 bg-stone-100 rounded-lg hover:bg-stone-200"
+                  title="Edit"
+                >
+                  <Pencil size={12} /> Edit
+                </button>
+                <button
+                  onClick={handleCopyCurrentResult}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-stone-600 bg-stone-100 rounded-lg hover:bg-stone-200"
+                  title="Copy to clipboard"
+                >
+                  {copiedCurrentResult ? <><Check size={12} className="text-green-500" /> Copied</> : <><Copy size={12} /> Copy</>}
+                </button>
+              </>
+            )}
+          </div>
+          <div className="p-4">
+            {isEditingCurrentResult ? (
+              <textarea
+                className="w-full p-3 border border-stone-200 rounded-lg text-sm focus:ring-2 focus:ring-rose-400 outline-none resize-none bg-white leading-relaxed font-mono"
+                rows={12}
+                value={editedCurrentResult}
+                onChange={(e) => setEditedCurrentResult(e.target.value)}
+              />
+            ) : (
+              <MarkdownRenderer content={analysisResult} />
+            )}
+          </div>
         </div>
       )}
 
