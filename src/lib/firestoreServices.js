@@ -491,6 +491,34 @@ export async function createTeamMessage(message) {
   return { id: docRef.id, ...message };
 }
 
+export async function editTeamMessage(messageId, text) {
+  if (!db) return;
+  await withRetry(() => updateDoc(doc(db, 'teamMessages', messageId), {
+    text: String(text || '').slice(0, 2000),
+    edited: true,
+    updatedAt: serverTimestamp(),
+  }));
+}
+
+export async function deleteTeamMessage(messageId) {
+  if (!db) return;
+  await withRetry(() => deleteDoc(doc(db, 'teamMessages', messageId)));
+}
+
+export async function editCommunityMessage(messageId, text) {
+  if (!db) return;
+  await withRetry(() => updateDoc(doc(db, 'communityMessages', messageId), {
+    text: String(text || '').slice(0, 2000),
+    edited: true,
+    updatedAt: serverTimestamp(),
+  }));
+}
+
+export async function deleteCommunityMessage(messageId) {
+  if (!db) return;
+  await withRetry(() => deleteDoc(doc(db, 'communityMessages', messageId)));
+}
+
 export async function createWorkflowKeyword(keyword) {
   if (!db) return { id: Date.now(), ...keyword };
   const docRef = await withRetry(() => addDoc(collection(db, 'workflowKeywords'), withAuditFields(keyword)));

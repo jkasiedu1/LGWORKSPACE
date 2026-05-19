@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Globe, Users, Calendar as CalendarIcon, Plus, Search, MoreHorizontal,
   MessageCircle, Image as ImageIcon, Send, X, ChevronDown, ChevronUp,
-  Heart, ThumbsUp, Link as LinkIcon, Play, BookOpen, Smile
+  Heart, ThumbsUp, Link as LinkIcon, Play, BookOpen, Smile, Pencil, Trash2, Save
 } from 'lucide-react';
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import {
@@ -17,6 +17,8 @@ import {
   createStory,
   upsertDmThread,
   clearDmUnread,
+  editCommunityMessage,
+  deleteCommunityMessage,
 } from '../lib/firestoreServices';
 import { uploadMediaToR2 } from '../lib/mediaStorage';
 import { db } from '../config/firebase';
@@ -504,6 +506,8 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
   const [chatMessagesByContact, setChatMessagesByContact] = useState({});
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [editingDmMsgId, setEditingDmMsgId] = useState(null);
+  const [editingDmText, setEditingDmText] = useState('');
   const [stories, setStories] = useState([]);
   const [showDmSheet, setShowDmSheet] = useState(false);
   const [dmContacts, setDmContacts] = useState([]);
@@ -589,7 +593,9 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
             const ts = data.createdAt?.toDate ? data.createdAt.toDate() : null;
             const fromUs = data.senderUid === uid;
             return { id: d.id, text: data.text || '', fromUs,
+              senderUid: data.senderUid || '',
               senderName: data.senderName || (fromUs ? displayName : activeChat.displayName),
+              edited: data.edited || false,
               time: ts ? ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now' };
           }),
         }));
@@ -717,7 +723,7 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
     if (!text || !activeChat?.uid || !uid) return;
     const threadId = [uid, activeChat.uid].sort().join('_');
     const tempId = `temp-chat-${Date.now()}`;
-    setChatMessagesByContact(prev => ({ ...prev, [threadId]: [...(prev[threadId] || []), { id: tempId, text, fromUs: true, senderName: displayName, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }] }));
+    setChatMessagesByContact(prev => ({ ...prev, [threadId]: [...(prev[threadId] || []), { id: tempId, text, fromUs: true, senderUid: uid, senderName: displayName, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }] }));
     setChatInput('');
     try {
       await createCommunityMessage({ threadId, text, senderUid: uid, senderName: displayName, recipientUid: activeChat.uid });
@@ -726,6 +732,38 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
     } catch {
       setChatMessagesByContact(prev => ({ ...prev, [threadId]: (prev[threadId] || []).filter(m => m.id !== tempId) }));
       showToast('Message failed');
+    }
+  };
+
+  const handleEditDmMsg = (msg) => {
+    setEditingDmMsgId(msg.id);
+    setEditingDmText(msg.text);
+  };
+
+  const handleSaveDmEdit = async (msgId, threadId) => {
+    const text = editingDmText.trim();
+    if (!text) { setEditingDmMsgId(null); return; }
+    setEditingDmMsgId(null);
+    setChatMessagesByContact(prev => ({
+      ...prev,
+      [threadId]: (prev[threadId] || []).map(m => m.id === msgId ? { ...m, text, edited: true } : m),
+    }));
+    try {
+      await editCommunityMessage(msgId, text);
+    } catch {
+      showToast('Failed to edit message');
+    }
+  };
+
+  const handleDeleteDmMsg = async (msgId, threadId) => {
+    setChatMessagesByContact(prev => ({
+      ...prev,
+      [threadId]: (prev[threadId] || []).filter(m => m.id !== msgId),
+    }));
+    try {
+      await deleteCommunityMessage(msgId);
+    } catch {
+      showToast('Failed to delete message');
     }
   };
 
@@ -923,15 +961,47 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
           </div>
           <div className="h-[45dvh] sm:h-72 bg-stone-50 p-3 overflow-y-auto flex flex-col gap-2">
             <div className="text-[9px] text-center text-stone-400 uppercase tracking-widest mb-1 font-semibold">In-app messages · private</div>
-            {(chatMessagesByContact[[uid, activeChat.uid].sort().join('_')] || []).map(msg => (
-              <div key={msg.id} className={`flex flex-col gap-0.5 max-w-[82%] ${msg.fromUs ? 'self-end items-end' : 'self-start items-start'}`}>
-                <span className="text-[9px] font-semibold text-stone-400 px-1">{msg.senderName || (msg.fromUs ? displayName : activeChat.displayName)}</span>
-                <div className={`text-sm px-3 py-2 rounded-2xl shadow-sm ${msg.fromUs ? `${theme.light} ${theme.color} rounded-tr-none` : 'bg-white text-stone-800 border border-stone-100 rounded-tl-none'}`}>
-                  {msg.text}
-                  <div className="text-[9px] opacity-60 mt-0.5 text-right">{msg.time}</div>
+            {(chatMessagesByContact[[uid, activeChat.uid].sort().join('_')] || []).map(msg => {
+              const threadId = [uid, activeChat.uid].sort().join('_');
+              const canDelete = msg.fromUs || isPrivileged;
+              const isEditing = editingDmMsgId === msg.id;
+              return (
+                <div key={msg.id} className={`group/dm flex flex-col gap-0.5 max-w-[82%] ${msg.fromUs ? 'self-end items-end' : 'self-start items-start'}`}>
+                  <span className="text-[9px] font-semibold text-stone-400 px-1">{msg.senderName || (msg.fromUs ? displayName : activeChat.displayName)}</span>
+                  {isEditing ? (
+                    <form onSubmit={e => { e.preventDefault(); handleSaveDmEdit(msg.id, threadId); }} className="flex items-center gap-1">
+                      <input
+                        value={editingDmText}
+                        onChange={e => setEditingDmText(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Escape') setEditingDmMsgId(null); }}
+                        className="px-3 py-2 text-sm rounded-2xl border-2 border-blue-300 outline-none bg-white min-w-[120px]"
+                        autoFocus
+                      />
+                      <button type="submit" className="p-1.5 text-blue-500 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-colors" title="Save"><Save size={12}/></button>
+                      <button type="button" onClick={() => setEditingDmMsgId(null)} className="p-1.5 text-stone-400 hover:text-stone-600 rounded-lg hover:bg-stone-100 transition-colors" title="Cancel"><X size={12}/></button>
+                    </form>
+                  ) : (
+                    <div className={`text-sm px-3 py-2 rounded-2xl shadow-sm ${msg.fromUs ? `${theme.light} ${theme.color} rounded-tr-none` : 'bg-white text-stone-800 border border-stone-100 rounded-tl-none'}`}>
+                      {msg.text}
+                      {msg.edited && <span className="text-[9px] opacity-50 ml-1.5 italic">(edited)</span>}
+                      <div className="text-[9px] opacity-60 mt-0.5 text-right">{msg.time}</div>
+                    </div>
+                  )}
+                  {!isEditing && canDelete && (
+                    <div className={`flex gap-0.5 opacity-0 group-hover/dm:opacity-100 focus-within:opacity-100 transition-opacity ${msg.fromUs ? 'self-end' : 'self-start'}`}>
+                      {msg.fromUs && (
+                        <button onClick={() => handleEditDmMsg(msg)} className="p-1 text-stone-300 hover:text-stone-600 hover:bg-stone-200 rounded transition-colors" title="Edit message">
+                          <Pencil size={10}/>
+                        </button>
+                      )}
+                      <button onClick={() => handleDeleteDmMsg(msg.id, threadId)} className="p-1 text-stone-300 hover:text-rose-500 hover:bg-rose-50 rounded transition-colors" title="Delete message">
+                        <Trash2 size={10}/>
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <form onSubmit={handleSendChat} className="p-2 bg-stone-50 border-t border-stone-100 flex gap-2 items-center">
             <input type="text" className="flex-1 px-3 py-2 border border-stone-200 rounded-full text-sm outline-none focus:border-teal-500"

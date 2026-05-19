@@ -126,13 +126,35 @@ service cloud.firestore {
     match /communityMessages/{messageId} {
       allow create: if isAuthenticated();
       allow read: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && canWrite();
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.senderUid
+        || canWrite()
+      );
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.senderUid
+        || isAdmin()
+        || isSeniorPastor()
+      );
     }
 
     match /teamMessages/{messageId} {
       allow create: if isAuthenticated();
       allow read: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && canWrite();
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.senderUid
+        || canWrite()
+      );
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.senderUid
+        || isAdmin()
+        || isSeniorPastor()
+        || (
+          resource.data.teamId is string
+          && resource.data.teamId.size() > 0
+          && exists(/databases/$(database)/documents/teams/$(resource.data.teamId))
+          && get(/databases/$(database)/documents/teams/$(resource.data.teamId)).data.leadUid == request.auth.uid
+        )
+      );
     }
 
     match /workflowInboxMessages/{messageId} {
