@@ -291,7 +291,7 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
   if (activePortal) {
     return (
       <div className="space-y-6 animate-in fade-in duration-500 text-left">
-        <div className="flex justify-between items-end mb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 mb-6">
           <div>
             <button onClick={() => setActivePortal(null)} className="text-stone-400 hover:text-stone-600 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1 transition-colors">
               <ChevronRight className="rotate-180" size={14}/> Back to Portals
@@ -313,7 +313,7 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
               </span>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0 flex-wrap">
             <button onClick={() => setIsChatOpen(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
               <MessageSquare size={16}/> Team Chat
             </button>

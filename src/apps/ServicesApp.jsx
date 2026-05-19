@@ -290,14 +290,14 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
           {isAdmin && (
             isAdding ? (
               <div className="p-4 border-t border-stone-100 bg-stone-50">
-                <div className="grid grid-cols-6 gap-2 mb-3">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-3">
                   <input type="text" placeholder="Time"   className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.time}   onChange={e => setNewItem({...newItem, time: e.target.value})} />
                   <input type="text" placeholder="Length" className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.length} onChange={e => setNewItem({...newItem, length: e.target.value})} />
-                  <select className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.type} onChange={e => setNewItem({...newItem, type: e.target.value})}>
+                  <select className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500 col-span-2 sm:col-span-1" value={newItem.type} onChange={e => setNewItem({...newItem, type: e.target.value})}>
                     {PLAN_ITEM_TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
                   <input type="text" placeholder="Title"  className="p-2 text-sm border border-stone-200 col-span-2 rounded outline-none focus:border-amber-500" value={newItem.title}  onChange={e => setNewItem({...newItem, title: e.target.value})} />
-                  <input type="text" placeholder="Person" className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500" value={newItem.person} onChange={e => setNewItem({...newItem, person: e.target.value})} />
+                  <input type="text" placeholder="Person" className="p-2 text-sm border border-stone-200 rounded outline-none focus:border-amber-500 col-span-2 sm:col-span-1" value={newItem.person} onChange={e => setNewItem({...newItem, person: e.target.value})} />
                 </div>
                 <div className="flex justify-end gap-2">
                   <button onClick={() => setIsAdding(false)} className="px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-200 rounded">Cancel</button>

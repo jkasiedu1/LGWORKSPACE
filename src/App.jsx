@@ -775,7 +775,7 @@ export default function App() {
       <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full blur-3xl ambient-blob" style={{ backgroundColor: 'var(--blob-a)' }} />
       <div className="absolute top-24 -right-20 w-72 h-72 rounded-full blur-3xl ambient-blob" style={{ backgroundColor: 'var(--blob-b)', animationDelay: '1.2s' }} />
       {toastMsg && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-stone-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-4 fade-in">
+        <div className="fixed bottom-[88px] lg:bottom-6 left-1/2 -translate-x-1/2 z-[55] bg-stone-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-4 fade-in">
           <CheckCircle2 size={18} className="text-emerald-400" />
           <span className="text-sm font-medium">{toastMsg}</span>
         </div>
@@ -941,7 +941,7 @@ export default function App() {
                 )}
               </button>
               {isNotifOpen && (
-                <div className="absolute right-0 top-9 w-80 bg-white border border-stone-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                <div className="fixed sm:absolute top-14 sm:top-9 left-2 right-2 sm:left-auto sm:right-0 sm:w-80 bg-white border border-stone-200 rounded-xl shadow-xl z-[60] overflow-hidden">
                   <div className="px-4 py-3 border-b border-stone-100 flex justify-between items-center">
                     <h3 className="text-sm font-bold text-stone-900">Notifications</h3>
                     <button onClick={() => setIsNotifOpen(false)} className="text-stone-400 hover:text-stone-600"><X size={14}/></button>
@@ -1047,7 +1047,7 @@ export default function App() {
             </button>
           </div>
         </div>
-        <div className="lg:hidden px-4 pb-3 flex items-center gap-2 overflow-x-auto">
+        <div className="lg:hidden px-4 pb-3 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             onClick={cycleThemePreset}
             className="inline-flex items-center gap-2 rounded-full bg-white/70 border border-white/60 px-3 py-1.5 min-w-max text-xs font-semibold text-stone-700"
@@ -1072,7 +1072,7 @@ export default function App() {
         </div>
       </header>
 
-      <main id="main-content" className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-6 flex-1 relative z-10 pt-20 lg:pt-20" role="main">
+      <main id="main-content" className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-28 lg:pb-6 flex-1 relative z-10 pt-[100px] lg:pt-20" role="main">
         <div className="grid grid-cols-1 xl:grid-cols-[72px_minmax(0,1fr)_290px] gap-5">
           <aside className="hidden xl:flex flex-col glass-surface rounded-2xl p-2 h-[calc(100vh-7.5rem)] sticky top-20">
             {visibleApps.slice(0, 8).map((app) => {
