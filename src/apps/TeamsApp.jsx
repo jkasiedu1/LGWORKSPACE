@@ -7,8 +7,6 @@ import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestor
 import { createTeamMessage, createTeamPortal, updateTeamPortal } from '../lib/firestoreServices';
 import { db } from '../config/firebase';
 
-export default function TeamsApp({ theme, teamsList, setTeamsList, people, setActiveApp, isAdmin, showToast, globalSearch, user }) {
-  const displayName = user?.displayName || user?.email?.split('@')[0] || 'Team Member';\n
 function formatDateLabel(date) {
   const now = new Date();
   const d = new Date(date);
@@ -30,6 +28,9 @@ function hashColor(str) {
   let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
   return palette[h % palette.length];
 }
+
+export default function TeamsApp({ theme, teamsList, setTeamsList, people, setActiveApp, isAdmin, showToast, globalSearch, user }) {
+  const displayName = user?.displayName || user?.email?.split('@')[0] || 'Team Member';
   const [activePortal, setActivePortal] = useState(null);
   const [activeTab, setActiveTab] = useState('roster');
   const [isAddingMember, setIsAddingMember] = useState(false);
@@ -47,7 +48,8 @@ function hashColor(str) {
   const fileInputRef = useRef(null);
   const chatBottomRef = useRef(null);
 
-  useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);\n
+  useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);
+
   // Auto-scroll to bottom when chat opens or new messages arrive
   useEffect(() => {
     if (isChatOpen) {
