@@ -1,10 +1,10 @@
 import { useRef, useState, useEffect } from 'react';
 import {
   FolderLock, ChevronRight, MessageSquare, Music, UserPlus,
-  UploadCloud, File, ShieldAlert, Users, Lock, Plus, Search, X, Send, Pencil, Save, Trash2
+  UploadCloud, File, ShieldAlert, Users, Lock, Plus, Search, X, Send, Pencil, Save, Trash2, ShieldCheck
 } from 'lucide-react';
-import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
-import { createTeamMessage, createTeamPortal, updateTeamPortal } from '../lib/firestoreServices';
+import { collection, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { createTeamMessage, editTeamMessage, deleteTeamMessage, createTeamPortal, updateTeamPortal } from '../lib/firestoreServices';
 import { db } from '../config/firebase';
 
 function formatDateLabel(date) {
@@ -44,9 +44,13 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
   const [chatInput, setChatInput] = useState('');
   const [chatMessagesByTeam, setChatMessagesByTeam] = useState({});
   const [chatLoading, setChatLoading] = useState(false);
+  const [editingChatMsgId, setEditingChatMsgId] = useState(null);
+  const [editingChatMsgText, setEditingChatMsgText] = useState('');
+  const [userProfiles, setUserProfiles] = useState([]);
   const [portalFiles, setPortalFiles] = useState([{ id: 1, name: 'Q1 Volunteer Handbook.pdf', date: '2 days ago' }]);
   const fileInputRef = useRef(null);
   const chatBottomRef = useRef(null);
+  const editChatInputRef = useRef(null);
 
   useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);
 
@@ -97,6 +101,7 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
             text: data.text || '',
             from: data.from || 'Team Member',
             senderUid: data.senderUid || '',
+            edited: data.edited || false,
             time: createdAt
               ? createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : data.time || 'Now',
@@ -154,8 +159,15 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
       name: activePortal.name || '',
       desc: activePortal.desc || '',
       lead: activePortal.lead || '',
+      leadUid: activePortal.leadUid || '',
     });
     setIsEditingPortal(true);
+    // Load registered users for lead assignment
+    if (isAdmin && db) {
+      getDocs(collection(db, 'userProfiles')).then(snap => {
+        setUserProfiles(snap.docs.map(d => d.data()));
+      }).catch(() => {});
+    }
   };
 
   const handleRemoveMember = async (memberId) => {
@@ -186,6 +198,7 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
       name: editingPortal.name.trim(),
       desc: editingPortal.desc.trim(),
       lead: editingPortal.lead.trim() || 'Unassigned',
+      leadUid: editingPortal.leadUid || '',
     };
 
     try {
@@ -232,6 +245,42 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
     } catch (error) {
       console.error('[TeamsApp] Failed to create portal:', error);
       showToast('Failed to create portal');
+    }
+  };
+
+  const handleEditChatMsg = (msg) => {
+    setEditingChatMsgId(msg.id);
+    setEditingChatMsgText(msg.text);
+    setTimeout(() => editChatInputRef.current?.focus(), 50);
+  };
+
+  const handleSaveChatEdit = async () => {
+    const text = editingChatMsgText.trim();
+    if (!editingChatMsgId || !text) { setEditingChatMsgId(null); return; }
+    const teamId = String(activePortal.id);
+    const msgId = editingChatMsgId;
+    setEditingChatMsgId(null);
+    setChatMessagesByTeam(prev => ({
+      ...prev,
+      [teamId]: (prev[teamId] || []).map(m => m.id === msgId ? { ...m, text, edited: true } : m),
+    }));
+    try {
+      await editTeamMessage(msgId, text);
+    } catch {
+      showToast('Failed to edit message');
+    }
+  };
+
+  const handleDeleteChatMsg = async (msgId) => {
+    const teamId = String(activePortal.id);
+    setChatMessagesByTeam(prev => ({
+      ...prev,
+      [teamId]: (prev[teamId] || []).filter(m => m.id !== msgId),
+    }));
+    try {
+      await deleteTeamMessage(msgId);
+    } catch {
+      showToast('Failed to delete message');
     }
   };
 
@@ -289,6 +338,9 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
   };
 
   if (activePortal) {
+    const isPortalLead = Boolean(activePortal.leadUid && activePortal.leadUid === user?.uid);
+    const canModerateChat = isAdmin || isPortalLead;
+
     return (
       <div className="space-y-6 animate-in fade-in duration-500 text-left">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 mb-6">
@@ -308,9 +360,18 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
             <div className="flex items-center gap-2 mt-2">
               <span className="text-stone-500 text-sm font-medium">Team Lead: {activePortal.lead}</span>
               <span className="text-stone-300">•</span>
-              <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded ${isAdmin ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                Your Access: {isAdmin ? 'Full Admin' : 'View Only'}
+              <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                isAdmin ? 'bg-emerald-100 text-emerald-700'
+                : isPortalLead ? 'bg-indigo-100 text-indigo-700'
+                : 'bg-amber-100 text-amber-700'
+              }`}>
+                {isAdmin ? 'Full Admin' : isPortalLead ? 'Portal Director' : 'View Only'}
               </span>
+              {isPortalLead && !isAdmin && (
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                  <ShieldCheck size={10}/> Chat Moderator
+                </span>
+              )}
             </div>
           </div>
           <div className="flex gap-2 shrink-0 flex-wrap">
@@ -434,7 +495,7 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
                 )}
                 {!chatLoading && (() => {
                   const msgs = chatMessagesByTeam[String(activePortal.id)] || [];
-                  const GROUP_GAP_MS = 5 * 60 * 1000; // 5 min gap breaks grouping
+                  const GROUP_GAP_MS = 5 * 60 * 1000;
                   return msgs.map((msg, idx) => {
                     const isMe = msg.senderUid ? msg.senderUid === user?.uid : msg.from === displayName;
                     const prev = msgs[idx - 1];
@@ -447,8 +508,10 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
                       (next.createdAtMs - msg.createdAtMs) >= GROUP_GAP_MS;
                     const showDateSep = !prev || prev.dateLabel !== msg.dateLabel;
                     const colorClass = hashColor(msg.from);
+                    const canAct = isMe || canModerateChat;
+                    const isEditing = editingChatMsgId === msg.id;
                     return (
-                      <div key={msg.id}>
+                      <div key={msg.id} className="group/msg">
                         {showDateSep && msg.dateLabel && (
                           <div className="flex items-center gap-3 my-4">
                             <div className="flex-1 h-px bg-stone-200"/>
@@ -457,7 +520,6 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
                           </div>
                         )}
                         <div className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'} ${isSameGroup ? 'mt-0.5' : 'mt-3'}`}>
-                          {/* Avatar — only on last message of group, or own messages skip avatar */}
                           {!isMe && (
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 ${isLastInGroup ? colorClass : 'invisible'}`}>
                               {getInitials(msg.from)}
@@ -471,13 +533,41 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
                             {!isSameGroup && isMe && (
                               <p className="text-[11px] font-semibold mb-1 px-1 text-stone-400">{displayName}</p>
                             )}
-                            <div className={`px-3 py-2 text-sm leading-relaxed break-words ${isMe
-                              ? `${theme.bg} text-white ${isLastInGroup ? 'rounded-l-2xl rounded-tr-2xl rounded-br-sm' : 'rounded-2xl'}`
-                              : `bg-white text-stone-800 border border-stone-100 shadow-sm ${isLastInGroup ? 'rounded-r-2xl rounded-tl-2xl rounded-bl-sm' : 'rounded-2xl'}`
-                            }`}>
-                              {msg.text}
-                            </div>
-                            {isLastInGroup && (
+                            {isEditing ? (
+                              <form onSubmit={e => { e.preventDefault(); handleSaveChatEdit(); }} className="flex items-center gap-1 w-full">
+                                <input
+                                  ref={editChatInputRef}
+                                  value={editingChatMsgText}
+                                  onChange={e => setEditingChatMsgText(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Escape') setEditingChatMsgId(null); }}
+                                  className="flex-1 px-3 py-2 text-sm rounded-xl border-2 border-blue-300 outline-none min-w-[140px] bg-white"
+                                  autoFocus
+                                />
+                                <button type="submit" className="p-1.5 text-blue-500 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-colors" title="Save"><Save size={13}/></button>
+                                <button type="button" onClick={() => setEditingChatMsgId(null)} className="p-1.5 text-stone-400 hover:text-stone-600 rounded-lg hover:bg-stone-100 transition-colors" title="Cancel"><X size={13}/></button>
+                              </form>
+                            ) : (
+                              <div className={`px-3 py-2 text-sm leading-relaxed break-words ${isMe
+                                ? `${theme.bg} text-white ${isLastInGroup ? 'rounded-l-2xl rounded-tr-2xl rounded-br-sm' : 'rounded-2xl'}`
+                                : `bg-white text-stone-800 border border-stone-100 shadow-sm ${isLastInGroup ? 'rounded-r-2xl rounded-tl-2xl rounded-bl-sm' : 'rounded-2xl'}`
+                              }`}>
+                                {msg.text}
+                                {msg.edited && <span className="text-[9px] opacity-50 ml-1.5 italic">(edited)</span>}
+                              </div>
+                            )}
+                            {!isEditing && canAct && (
+                              <div className={`flex gap-0.5 mt-0.5 opacity-0 group-hover/msg:opacity-100 focus-within:opacity-100 transition-opacity ${isMe ? 'self-end' : 'self-start'}`}>
+                                {isMe && (
+                                  <button onClick={() => handleEditChatMsg(msg)} className="p-1 text-stone-300 hover:text-stone-600 hover:bg-stone-200 rounded transition-colors" title="Edit message">
+                                    <Pencil size={11}/>
+                                  </button>
+                                )}
+                                <button onClick={() => handleDeleteChatMsg(msg.id)} className="p-1 text-stone-300 hover:text-rose-500 hover:bg-rose-50 rounded transition-colors" title={isMe ? 'Delete message' : 'Remove message'}>
+                                  <Trash2 size={11}/>
+                                </button>
+                              </div>
+                            )}
+                            {isLastInGroup && !isEditing && (
                               <p className="text-[9px] text-stone-400 mt-0.5 px-1">{msg.time}</p>
                             )}
                           </div>
@@ -597,6 +687,27 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
               <input type="text" placeholder="Portal Name" className="w-full p-2 border border-stone-200 rounded-md text-sm outline-none focus:border-indigo-500" value={editingPortal.name} onChange={e => setEditingPortal({ ...editingPortal, name: e.target.value })} />
               <input type="text" placeholder="Description" className="w-full p-2 border border-stone-200 rounded-md text-sm outline-none focus:border-indigo-500" value={editingPortal.desc} onChange={e => setEditingPortal({ ...editingPortal, desc: e.target.value })} />
               <input type="text" placeholder="Team Lead Name" className="w-full p-2 border border-stone-200 rounded-md text-sm outline-none focus:border-indigo-500" value={editingPortal.lead} onChange={e => setEditingPortal({ ...editingPortal, lead: e.target.value })} />
+              <div>
+                <label className="text-xs font-semibold text-stone-500 uppercase tracking-wider block mb-1">Assign Portal Director (chat moderator)</label>
+                <select
+                  className="w-full p-2 border border-stone-200 rounded-md text-sm outline-none focus:border-indigo-500 bg-white"
+                  value={editingPortal.leadUid || ''}
+                  onChange={e => {
+                    const selected = userProfiles.find(u => u.uid === e.target.value);
+                    setEditingPortal(prev => ({
+                      ...prev,
+                      leadUid: e.target.value,
+                      lead: selected ? (selected.displayName || prev.lead) : prev.lead,
+                    }));
+                  }}
+                >
+                  <option value="">— No director assigned —</option>
+                  {userProfiles.map(u => (
+                    <option key={u.uid} value={u.uid}>{u.displayName || u.email} ({u.email})</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-stone-400 mt-1 flex items-center gap-1"><ShieldCheck size={10}/> The assigned director can delete inappropriate messages in this portal's chat.</p>
+              </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setIsEditingPortal(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
