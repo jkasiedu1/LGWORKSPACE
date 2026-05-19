@@ -7,7 +7,29 @@ import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestor
 import { createTeamMessage, createTeamPortal, updateTeamPortal } from '../lib/firestoreServices';
 import { db } from '../config/firebase';
 
-export default function TeamsApp({ theme, teamsList, setTeamsList, people, setActiveApp, isAdmin, showToast, globalSearch }) {
+export default function TeamsApp({ theme, teamsList, setTeamsList, people, setActiveApp, isAdmin, showToast, globalSearch, user }) {
+  const displayName = user?.displayName || user?.email?.split('@')[0] || 'Team Member';\n
+function formatDateLabel(date) {
+  const now = new Date();
+  const d = new Date(date);
+  const isToday = d.toDateString() === now.toDateString();
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+  if (isToday) return 'Today';
+  if (isYesterday) return 'Yesterday';
+  return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+function getInitials(name) {
+  return (name || '?').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+}
+
+function hashColor(str) {
+  const palette = ['bg-violet-100 text-violet-700','bg-sky-100 text-sky-700','bg-emerald-100 text-emerald-700',
+    'bg-amber-100 text-amber-700','bg-rose-100 text-rose-700','bg-indigo-100 text-indigo-700','bg-teal-100 text-teal-700'];
+  let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length];
+}
   const [activePortal, setActivePortal] = useState(null);
   const [activeTab, setActiveTab] = useState('roster');
   const [isAddingMember, setIsAddingMember] = useState(false);
@@ -23,8 +45,15 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
   const [chatLoading, setChatLoading] = useState(false);
   const [portalFiles, setPortalFiles] = useState([{ id: 1, name: 'Q1 Volunteer Handbook.pdf', date: '2 days ago' }]);
   const fileInputRef = useRef(null);
+  const chatBottomRef = useRef(null);
 
-  useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);
+  useEffect(() => { if (globalSearch !== undefined) setSearchQuery(globalSearch); }, [globalSearch]);\n
+  // Auto-scroll to bottom when chat opens or new messages arrive
+  useEffect(() => {
+    if (isChatOpen) {
+      setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
+    }
+  }, [isChatOpen, chatMessagesByTeam]);
 
   const filteredTeams = teamsList.filter(team =>
     team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -64,14 +93,18 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
           return {
             id: messageDoc.id,
             text: data.text || '',
-            from: data.from || 'Team Lead',
+            from: data.from || 'Team Member',
+            senderUid: data.senderUid || '',
             time: createdAt
               ? createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
               : data.time || 'Now',
+            dateLabel: createdAt ? formatDateLabel(createdAt) : null,
+            createdAtMs: createdAt ? createdAt.getTime() : 0,
           };
         });
         setChatMessagesByTeam((prev) => ({ ...prev, [teamId]: messages }));
         setChatLoading(false);
+        setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       },
       (error) => {
         console.error('[TeamsApp] Failed to subscribe to team chat:', error);
@@ -210,7 +243,8 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
     const optimisticMessage = {
       id: tempId,
       text,
-      from: 'You',
+      from: displayName,
+      senderUid: user?.uid || '',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
@@ -224,7 +258,8 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
       await createTeamMessage({
         teamId,
         teamName: activePortal.name,
-        from: 'You',
+        from: displayName,
+        senderUid: user?.uid || '',
         text,
       });
       setChatMessagesByTeam((prev) => ({
@@ -369,23 +404,104 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
 
         {/* Team Chat Modal */}
         {isChatOpen && (
-          <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-200" style={{ height: '480px' }}>
-              <div className={`${theme.bg} p-4 text-white flex justify-between items-center`}>
-                <h2 className="font-bold flex items-center gap-2"><MessageSquare size={18}/> {activePortal.name} — Team Chat</h2>
-                <button onClick={() => setIsChatOpen(false)} className="text-white/80 hover:text-white"><X size={18}/></button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-stone-50">
-                {(chatMessagesByTeam[String(activePortal.id)] || []).map(msg => (
-                  <div key={msg.id} className={`flex flex-col ${msg.from === 'You' ? 'items-end' : 'items-start'}`}>
-                    <p className="text-[10px] text-stone-400 mb-0.5">{msg.from} · {msg.time}</p>
-                    <div className={`px-3 py-2 rounded-xl text-sm max-w-[80%] ${msg.from === 'You' ? 'bg-indigo-600 text-white' : 'bg-white text-stone-800 border border-stone-200'}`}>{msg.text}</div>
+          <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-200" style={{ height: '90dvh', maxHeight: '600px' }}>
+              {/* Header */}
+              <div className={`${theme.bg} px-4 py-3 text-white flex justify-between items-center shrink-0`}>
+                <div className="flex items-center gap-2">
+                  <MessageSquare size={16}/>
+                  <div>
+                    <p className="font-bold text-sm">{activePortal.name}</p>
+                    <p className="text-[10px] opacity-75">{(chatMessagesByTeam[String(activePortal.id)] || []).length} messages · {(activePortal.roster || []).length} members</p>
                   </div>
-                ))}
+                </div>
+                <button onClick={() => setIsChatOpen(false)} className="text-white/80 hover:text-white rounded-full hover:bg-white/20 p-1"><X size={18}/></button>
               </div>
-              <form onSubmit={handleSendChat} className="p-3 border-t border-stone-200 bg-white flex gap-2">
-                <input type="text" placeholder={chatLoading ? 'Loading messages...' : 'Message the team…'} className="flex-1 p-2 border border-stone-300 rounded-md text-sm outline-none focus:border-indigo-500" value={chatInput} onChange={e => setChatInput(e.target.value)} />
-                <button type="submit" className="px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"><Send size={16}/></button>
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1 bg-stone-50">
+                {chatLoading && (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-xs text-stone-400 animate-pulse">Loading messages…</div>
+                  </div>
+                )}
+                {!chatLoading && (chatMessagesByTeam[String(activePortal.id)] || []).length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full gap-2 text-stone-400">
+                    <MessageSquare size={32} className="opacity-30"/>
+                    <p className="text-sm">No messages yet. Start the conversation!</p>
+                  </div>
+                )}
+                {!chatLoading && (() => {
+                  const msgs = chatMessagesByTeam[String(activePortal.id)] || [];
+                  const GROUP_GAP_MS = 5 * 60 * 1000; // 5 min gap breaks grouping
+                  return msgs.map((msg, idx) => {
+                    const isMe = msg.senderUid ? msg.senderUid === user?.uid : msg.from === displayName;
+                    const prev = msgs[idx - 1];
+                    const isSameGroup = prev &&
+                      prev.senderUid === msg.senderUid &&
+                      (msg.createdAtMs - prev.createdAtMs) < GROUP_GAP_MS;
+                    const next = msgs[idx + 1];
+                    const isLastInGroup = !next ||
+                      next.senderUid !== msg.senderUid ||
+                      (next.createdAtMs - msg.createdAtMs) >= GROUP_GAP_MS;
+                    const showDateSep = !prev || prev.dateLabel !== msg.dateLabel;
+                    const colorClass = hashColor(msg.from);
+                    return (
+                      <div key={msg.id}>
+                        {showDateSep && msg.dateLabel && (
+                          <div className="flex items-center gap-3 my-4">
+                            <div className="flex-1 h-px bg-stone-200"/>
+                            <span className="text-[10px] text-stone-400 font-semibold uppercase tracking-wider px-1">{msg.dateLabel}</span>
+                            <div className="flex-1 h-px bg-stone-200"/>
+                          </div>
+                        )}
+                        <div className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'} ${isSameGroup ? 'mt-0.5' : 'mt-3'}`}>
+                          {/* Avatar — only on last message of group, or own messages skip avatar */}
+                          {!isMe && (
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 ${isLastInGroup ? colorClass : 'invisible'}`}>
+                              {getInitials(msg.from)}
+                            </div>
+                          )}
+                          {isMe && <div className="w-8 shrink-0"/>}
+                          <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[72%]`}>
+                            {!isSameGroup && !isMe && (
+                              <p className={`text-[11px] font-semibold mb-1 px-1 ${colorClass.split(' ')[1]}`}>{msg.from}</p>
+                            )}
+                            {!isSameGroup && isMe && (
+                              <p className="text-[11px] font-semibold mb-1 px-1 text-stone-400">{displayName}</p>
+                            )}
+                            <div className={`px-3 py-2 text-sm leading-relaxed break-words ${isMe
+                              ? `${theme.bg} text-white ${isLastInGroup ? 'rounded-l-2xl rounded-tr-2xl rounded-br-sm' : 'rounded-2xl'}`
+                              : `bg-white text-stone-800 border border-stone-100 shadow-sm ${isLastInGroup ? 'rounded-r-2xl rounded-tl-2xl rounded-bl-sm' : 'rounded-2xl'}`
+                            }`}>
+                              {msg.text}
+                            </div>
+                            {isLastInGroup && (
+                              <p className="text-[9px] text-stone-400 mt-0.5 px-1">{msg.time}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+                <div ref={chatBottomRef}/>
+              </div>
+              {/* Input */}
+              <form onSubmit={handleSendChat} className="px-3 py-2.5 border-t border-stone-200 bg-white flex gap-2 items-center shrink-0">
+                <input
+                  type="text"
+                  placeholder={chatLoading ? 'Loading messages…' : `Message ${activePortal.name}…`}
+                  className="flex-1 px-4 py-2.5 bg-stone-100 border border-transparent rounded-full text-sm outline-none focus:bg-white focus:border-stone-300 transition-all"
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  disabled={!chatInput.trim()}
+                  className={`${theme.bg} text-white p-2.5 rounded-full disabled:opacity-40 transition-opacity shrink-0`}
+                >
+                  <Send size={15}/>
+                </button>
               </form>
             </div>
           </div>

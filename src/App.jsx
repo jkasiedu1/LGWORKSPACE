@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { updateProfile } from 'firebase/auth';
+import { collection, onSnapshot, query, where, orderBy, limit } from 'firebase/firestore';
+import { db } from './config/firebase';
 import {
   Accessibility,
   Activity,
@@ -167,6 +169,8 @@ export default function App() {
   const [usernameSaving, setUsernameSaving] = useState(false);
   const profilePopoverRef = useRef(null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [dmNotifs, setDmNotifs] = useState([]);       // { threadId, senderName, lastMessage, unread }
+  const [teamNotifs, setTeamNotifs] = useState([]);   // { teamId, teamName, from, text, time }
   const notifRef = useRef(null);
 
   const themePreset = THEME_PRESETS[themePresetKey] ?? THEME_PRESETS.stoneTeal;
@@ -302,6 +306,64 @@ export default function App() {
   useEffect(() => {
     configureAIPolicy(appData.securitySettings);
   }, [appData.securitySettings]);
+
+  // Subscribe to DM thread unread counts
+  useEffect(() => {
+    if (!isAuthenticated || !user?.uid || !db) return;
+    const uid = user.uid;
+    const unsub = onSnapshot(
+      query(collection(db, 'dmThreads'), where('participants', 'array-contains', uid)),
+      snap => {
+        const notifs = [];
+        snap.docs.forEach(d => {
+          const data = d.data();
+          const unread = data.unreadFor?.[uid] || 0;
+          if (unread > 0) {
+            notifs.push({
+              threadId: d.id,
+              senderName: data.lastSenderName || 'Someone',
+              lastMessage: data.lastMessage || '',
+              unread,
+            });
+          }
+        });
+        setDmNotifs(notifs.sort((a, b) => b.unread - a.unread));
+      }
+    );
+    return unsub;
+  }, [isAuthenticated, user?.uid]);
+
+  // Subscribe to recent team messages (last 20 across all teams)
+  useEffect(() => {
+    if (!isAuthenticated || !user?.uid || !db) return;
+    const uid = user.uid;
+    const unsub = onSnapshot(
+      query(collection(db, 'teamMessages'), orderBy('createdAt', 'desc'), limit(20)),
+      snap => {
+        const seen = new Set();
+        const notifs = [];
+        snap.docs.forEach(d => {
+          const data = d.data();
+          if (data.senderUid === uid) return; // skip own messages
+          const key = data.teamId;
+          if (seen.has(key)) return;
+          seen.add(key);
+          const ts = data.createdAt?.toDate ? data.createdAt.toDate() : null;
+          const elapsed = ts ? Date.now() - ts.getTime() : Infinity;
+          if (elapsed > 24 * 60 * 60 * 1000) return; // only last 24h
+          notifs.push({
+            teamId: data.teamId,
+            teamName: data.teamName || 'Team',
+            from: data.from || 'Member',
+            text: data.text || '',
+            time: ts ? ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+          });
+        });
+        setTeamNotifs(notifs);
+      }
+    );
+    return unsub;
+  }, [isAuthenticated, user?.uid]);
 
   // Close notifications panel on outside click
   useEffect(() => {
@@ -871,7 +933,12 @@ export default function App() {
                 title="Notifications"
               >
                 <Bell className="h-5 w-5" />
-                <span className="absolute top-0 right-0 h-2 w-2 bg-amber-500 border border-white rounded-full"></span>
+                {(dmNotifs.length > 0 || teamNotifs.length > 0) && (
+                  <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 bg-rose-500 border-2 border-white rounded-full animate-pulse"></span>
+                )}
+                {(dmNotifs.length === 0 && teamNotifs.length === 0) && (
+                  <span className="absolute top-0 right-0 h-2 w-2 bg-amber-400 border border-white rounded-full"></span>
+                )}
               </button>
               {isNotifOpen && (
                 <div className="absolute right-0 top-9 w-80 bg-white border border-stone-200 rounded-xl shadow-xl z-50 overflow-hidden">
@@ -880,14 +947,39 @@ export default function App() {
                     <button onClick={() => setIsNotifOpen(false)} className="text-stone-400 hover:text-stone-600"><X size={14}/></button>
                   </div>
                   <ul className="divide-y divide-stone-50 max-h-96 overflow-y-auto">
+                    {/* Live DM notifications */}
+                    {dmNotifs.map(n => (
+                      <li key={n.threadId} className="px-4 py-3 hover:bg-stone-50 cursor-pointer" onClick={() => { setActiveApp('community'); setIsNotifOpen(false); }}>
+                        <div className="flex gap-3">
+                          <span className="text-lg shrink-0">💬</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-stone-800">{n.senderName} messaged you</p>
+                            <p className="text-xs text-stone-500 mt-0.5 truncate">{n.lastMessage}</p>
+                          </div>
+                          <span className="text-[10px] font-bold text-white bg-rose-500 rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shrink-0">{n.unread}</span>
+                        </div>
+                      </li>
+                    ))}
+                    {/* Live team chat notifications */}
+                    {teamNotifs.map(n => (
+                      <li key={n.teamId} className="px-4 py-3 hover:bg-stone-50 cursor-pointer" onClick={() => { setActiveApp('teams'); setIsNotifOpen(false); }}>
+                        <div className="flex gap-3">
+                          <span className="text-lg shrink-0">👥</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-stone-800">{n.from} in {n.teamName}</p>
+                            <p className="text-xs text-stone-500 mt-0.5 truncate">{n.text}</p>
+                          </div>
+                          <span className="text-[10px] text-stone-400 shrink-0 pt-0.5">{n.time}</span>
+                        </div>
+                      </li>
+                    ))}
+                    {/* Static app notifications */}
                     {[
                       { icon: '📅', title: 'Upcoming Event', body: `${appData.events?.[0]?.title ?? 'Sunday Service'} is coming up soon.`, time: 'Today' },
-                      { icon: '👥', title: 'Pending Team Assignment', body: 'Some team members have not confirmed availability.', time: '1h ago' },
                       { icon: '💰', title: 'New Donation Recorded', body: `${appData.donations?.length ?? 0} donations this month. Review in Giving.`, time: '2h ago' },
-                      { icon: '🎵', title: 'Service Plan Updated', body: 'The worship order has been updated for this week.', time: 'Yesterday' },
                       { icon: '🔔', title: 'Workflow Triggered', body: 'Post-Service Guest Text workflow ran successfully.', time: 'Yesterday' },
                     ].map((n, i) => (
-                      <li key={i} className="px-4 py-3 hover:bg-stone-50 cursor-pointer">
+                      <li key={`static-${i}`} className="px-4 py-3 hover:bg-stone-50 cursor-pointer">
                         <div className="flex gap-3">
                           <span className="text-lg shrink-0">{n.icon}</span>
                           <div className="flex-1 min-w-0">
@@ -898,9 +990,12 @@ export default function App() {
                         </div>
                       </li>
                     ))}
+                    {dmNotifs.length === 0 && teamNotifs.length === 0 && (
+                      <li className="px-4 py-2 text-xs text-stone-400 text-center">No new messages</li>
+                    )}
                   </ul>
                   <div className="px-4 py-2.5 border-t border-stone-100 text-center">
-                    <button onClick={() => setIsNotifOpen(false)} className="text-xs text-stone-500 hover:text-stone-800 font-medium">Mark all as read</button>
+                    <button onClick={() => setIsNotifOpen(false)} className="text-xs text-stone-500 hover:text-stone-800 font-medium">Dismiss</button>
                   </div>
                 </div>
               )}
@@ -1002,7 +1097,7 @@ export default function App() {
                 {activeApp === 'community' && <CommunityApp theme={theme} people={appData.people} posts={appData.communityPosts} setPosts={appData.setCommunityPosts} showToast={showToast} user={user} roleAccess={roleAccess} />}
                 {activeApp === 'services' && <ServicesApp theme={theme} planItems={appData.planItems} setPlanItems={appData.setPlanItems} servicePlan={appData.servicePlan} setServicePlan={appData.setServicePlan} isAdmin={isAdmin} showToast={showToast} />}
                 {activeApp === 'music' && <MusicApp theme={theme} isAdmin={isAdmin} songs={appData.songs} setSongs={appData.setSongs} globalSearch={globalSearchQuery} showToast={showToast} />}
-                {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={appData.teamsList} setTeamsList={appData.setTeamsList} people={appData.people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} globalSearch={globalSearchQuery} />}
+                {activeApp === 'teams' && <TeamsApp theme={theme} teamsList={appData.teamsList} setTeamsList={appData.setTeamsList} people={appData.people} setActiveApp={setActiveApp} isAdmin={isAdmin} showToast={showToast} globalSearch={globalSearchQuery} user={user} />}
                 {activeApp === 'people' && <PeopleApp theme={theme} people={appData.people} setPeople={appData.setPeople} isAdmin={isAdmin} globalSearch={globalSearchQuery} showToast={showToast} loadingPeople={appData.loadingPeople} intakeSubmissions={appData.intakeSubmissions} loadingIntakeSubmissions={appData.loadingIntakeSubmissions} />}
                 {activeApp === 'giving' && (isAdmin || roleAccess.appAccess?.includes('giving')) && <GivingApp theme={theme} donations={appData.donations} setDonations={appData.setDonations} showToast={showToast} />}
                 {activeApp === 'calendar' && <CalendarApp theme={theme} events={appData.events} setEvents={appData.setEvents} isAdmin={isAdmin} showToast={showToast} />}

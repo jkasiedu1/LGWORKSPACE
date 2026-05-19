@@ -910,7 +910,7 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
 
     {/* Chat popup — portalled to body so position:fixed escapes CSS transform ancestor */}
     {activeChat && createPortal(
-      <div className="fixed bottom-0 left-0 right-0 sm:bottom-4 sm:right-4 sm:left-auto sm:w-[340px] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-stone-200 z-50 flex flex-col overflow-hidden">
+      <div className="fixed bottom-[76px] left-0 right-0 sm:bottom-4 sm:right-4 sm:left-auto sm:w-[340px] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-stone-200 z-[60] flex flex-col overflow-hidden">
           <div className={`${theme.bg} p-3 text-white flex justify-between items-center`}>
             <div className="flex items-center gap-2">
               <Avatar name={activeChat.displayName} size={8}/>
