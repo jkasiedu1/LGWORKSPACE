@@ -867,8 +867,8 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
 
     {/* Mobile DM bottom sheet — portalled to body to escape CSS transform ancestor */}
     {showDmSheet && createPortal(
-      <div className="fixed inset-0 z-40 lg:hidden" style={{background:'rgba(0,0,0,0.4)'}} onClick={() => setShowDmSheet(false)}>
-        <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl max-h-[75vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="fixed inset-0 z-[70] lg:hidden" style={{background:'rgba(0,0,0,0.5)'}} onClick={() => setShowDmSheet(false)}>
+        <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl flex flex-col" style={{maxHeight:'85dvh'}} onClick={e => e.stopPropagation()}>
           <div className="w-10 h-1 bg-stone-300 rounded-full mx-auto mt-3 mb-1"/>
           <div className={`px-4 py-3 flex justify-between items-center border-b border-stone-100`}>
             <h2 className="font-bold text-stone-900 flex items-center gap-2"><MessageCircle size={16} className={theme.color}/> Direct Messages</h2>
@@ -910,7 +910,7 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
 
     {/* Chat popup — portalled to body so position:fixed escapes CSS transform ancestor */}
     {activeChat && createPortal(
-      <div className="fixed bottom-[76px] left-0 right-0 sm:bottom-4 sm:right-4 sm:left-auto sm:w-[340px] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-stone-200 z-[60] flex flex-col overflow-hidden">
+      <div className="fixed bottom-[72px] left-0 right-0 sm:bottom-4 sm:right-4 sm:left-auto sm:w-[340px] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-stone-200 z-[65] flex flex-col overflow-hidden">
           <div className={`${theme.bg} p-3 text-white flex justify-between items-center`}>
             <div className="flex items-center gap-2">
               <Avatar name={activeChat.displayName} size={8}/>
@@ -921,7 +921,7 @@ export default function CommunityApp({ theme, people, posts = [], setPosts, show
             </div>
             <button onClick={() => setActiveChat(null)} className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/20"><X size={18}/></button>
           </div>
-          <div className="h-64 sm:h-72 bg-stone-50 p-3 overflow-y-auto flex flex-col gap-2">
+          <div className="h-[45dvh] sm:h-72 bg-stone-50 p-3 overflow-y-auto flex flex-col gap-2">
             <div className="text-[9px] text-center text-stone-400 uppercase tracking-widest mb-1 font-semibold">In-app messages · private</div>
             {(chatMessagesByContact[[uid, activeChat.uid].sort().join('_')] || []).map(msg => (
               <div key={msg.id} className={`flex flex-col gap-0.5 max-w-[82%] ${msg.fromUs ? 'self-end items-end' : 'self-start items-start'}`}>
