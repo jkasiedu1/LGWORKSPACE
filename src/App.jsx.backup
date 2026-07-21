@@ -92,7 +92,7 @@ export default function App() {
     return <LoginScreen />;
   }
 
-  // Legacy theme for apps that still use it
+  // Get legacy theme for apps that still use it
   const legacyTheme = {
     name: 'Modern',
     color: 'text-primary-600',
@@ -100,25 +100,15 @@ export default function App() {
   };
 
   return (
-    <div className={`modern-app ${mobileMenuOpen ? 'sidebar-open' : ''}`}>
+    <div className="modern-app">
       <Sidebar
-        className={mobileMenuOpen ? 'mobile-open' : ''}
         activeApp={activeApp}
-        setActiveApp={(appId) => {
-          setActiveApp(appId);
-          if (window.innerWidth <= 1023) setMobileMenuOpen(false);
-        }}
+        setActiveApp={setActiveApp}
         user={user}
         onLogout={logout}
         isAdmin={isAdmin}
         isSeniorPastor={isSeniorPastor}
       />
-      {mobileMenuOpen && window.innerWidth <= 1023 && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
 
       <div className="modern-main">
         <Header
@@ -246,6 +236,35 @@ export default function App() {
           </ErrorBoundary>
         </main>
       </div>
+    </div>
+  );
+}
+              ))}
+              {filteredCommandActions.length === 0 && (
+                <p className="px-3 py-3 text-sm ws3-muted">No commands found.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <nav className="xl:hidden ws3-mobile-dock fixed bottom-3 left-1/2 -translate-x-1/2 z-50 rounded-2xl px-2 py-2 w-[calc(100%-1rem)] max-w-md">
+        <div className="grid grid-cols-5 gap-1">
+          {mobileDockApps.map((app) => {
+            const Icon = app.id === 'home' ? Home : app.icon;
+            return (
+              <button
+                key={`dock-${app.id}`}
+                onClick={() => setActiveApp(app.id)}
+                className={`h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 ${activeApp === app.id ? 'ws3-dock-active' : 'ws3-dock-item'}`}
+              >
+                <Icon size={15} />
+                <span className="text-[9px] font-semibold uppercase tracking-wider">{app.name.slice(0, 6)}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }

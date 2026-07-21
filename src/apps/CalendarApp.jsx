@@ -105,7 +105,7 @@ export default function CalendarApp({ theme, events, setEvents, isAdmin, showToa
           </div>
         </div>
         {isAdmin && (
-          <button onClick={() => setIsAdding(true)} className={`px-4 py-2.5 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center justify-center gap-2 w-full sm:w-auto`}>
+          <button onClick={() => setIsAdding(true)} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center justify-center gap-2 w-full sm:w-auto">
             <Plus size={16}/> New Event
           </button>
         )}
@@ -151,7 +151,7 @@ export default function CalendarApp({ theme, events, setEvents, isAdmin, showToa
                 <button onClick={() => { setIsAdding(false); setEditingEvent(null); }} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
                 <button
                   onClick={editingEvent ? handleSaveEdit : handleAddEvent}
-                  className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}
+                  className="px-4 py-2 bg-stone-900 text-white rounded-md font-medium text-sm hover:opacity-90"
                 >
                   {editingEvent ? 'Save Changes' : 'Save Event'}
                 </button>

@@ -517,7 +517,7 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
         <button
           onClick={handleMusicAnalysis}
           disabled={isAnalyzingMusic || !musicPrompt.trim()}
-          className={`flex-1 py-2.5 ${theme.bg} text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity flex justify-center items-center gap-2 disabled:opacity-40`}
+          className="flex-1 py-2.5 bg-stone-900 text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity flex justify-center items-center gap-2 disabled:opacity-40"
         >
           {isAnalyzingMusic
             ? <><Loader2 size={15} className="animate-spin" /> Analyzing…</>
@@ -613,7 +613,7 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
           {selectedSong && (
             <button
               onClick={() => setIsStandMode(true)}
-              className="px-4 py-2 bg-white border border-stone-200 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-50 flex items-center gap-2 shadow-sm"
+              className={`px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium hover:bg-stone-800 flex items-center gap-2 shadow-sm`}
             >
               <MonitorPlay size={15} /> Music Stand
             </button>
@@ -621,7 +621,7 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
           {isAdmin && (
             <button
               onClick={() => setIsAddModal(true)}
-              className={`px-4 py-2 ${theme.bg} text-white rounded-lg text-sm font-medium hover:opacity-90 flex items-center gap-2 shadow-sm`}
+              className="px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium hover:opacity-90 flex items-center gap-2 shadow-sm"
             >
               <Plus size={15} /> Add Song
             </button>
@@ -677,7 +677,7 @@ export default function MusicApp({ theme, isAdmin, songs, setSongs, globalSearch
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={() => setIsAddModal(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-xl text-sm font-medium">Cancel</button>
-                <button onClick={handleAddSong} disabled={!newSong.title || !newSong.artist} className={`px-5 py-2 ${theme.bg} text-white rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-40`}>Add to Library</button>
+                <button onClick={handleAddSong} disabled={!newSong.title || !newSong.artist} className="px-5 py-2 bg-stone-900 text-white rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-40">Add to Library</button>
               </div>
             </div>
           </div>

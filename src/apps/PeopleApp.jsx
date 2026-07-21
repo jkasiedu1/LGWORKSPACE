@@ -60,7 +60,6 @@ export default function PeopleApp({
   const [isImporting, setIsImporting] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [processingSubmissionId, setProcessingSubmissionId] = useState(null);
   const [qrScanActive, setQrScanActive] = useState(false);
   const [qrScanResult, setQrScanResult] = useState(null);
@@ -293,12 +292,10 @@ export default function PeopleApp({
   };
 
   const handleDeleteProfile = async (personId) => {
-    if (deleteConfirmId !== personId) {
-      setDeleteConfirmId(personId);
-      return;
-    }
-    setDeleteConfirmId(null);
     const personData = people.find(p => p.id === personId);
+    const personName = personData ? getDisplayName(personData) : 'this profile';
+    const confirmed = window.confirm(`Delete ${personName}? This action cannot be undone.`);
+    if (!confirmed) return;
 
     try {
       await deletePerson(personId, personData, user?.email);
@@ -431,15 +428,15 @@ export default function PeopleApp({
           </div>
           <div className="flex flex-wrap gap-3 xl:justify-end shrink-0">
             {isAdmin && (
-              <button onClick={copyIntakeLink} className="px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center justify-center gap-2">
+              <button onClick={copyIntakeLink} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
                 <Copy size={16}/> Copy Intake Form Link
               </button>
             )}
-            <button onClick={() => setActiveTab('checkin')} className="px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center justify-center gap-2">
+            <button onClick={() => setActiveTab('checkin')} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
               <UserCheck size={16}/> Launch Check-in Station
             </button>
             {isAdmin && (
-              <button onClick={() => setIsAdding(true)} className={`px-4 py-2.5 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center justify-center gap-2`}>
+              <button onClick={() => setIsAdding(true)} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center justify-center gap-2">
                 <UserPlus size={16}/> Add Profile
               </button>
             )}
@@ -466,26 +463,26 @@ export default function PeopleApp({
               <button
                 onClick={() => mainImportInputRef.current?.click()}
                 disabled={isImporting}
-                className="min-h-16 px-4 py-3 bg-white border border-stone-200 text-stone-700 rounded-xl text-sm font-medium shadow-sm hover:bg-stone-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-center"
+                className="min-h-16 px-4 py-3 bg-stone-700 text-white rounded-xl text-sm font-medium shadow-sm hover:bg-stone-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-center"
               >
                 <Upload size={16}/>{isImporting ? 'Importing...' : 'Import Main Directory'}
               </button>
               <button
                 onClick={() => kidsImportInputRef.current?.click()}
                 disabled={isImporting}
-                className="min-h-16 px-4 py-3 bg-white border border-stone-200 text-stone-700 rounded-xl text-sm font-medium shadow-sm hover:bg-stone-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-center"
+                className="min-h-16 px-4 py-3 bg-stone-700 text-white rounded-xl text-sm font-medium shadow-sm hover:bg-stone-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-center"
               >
                 <Upload size={16}/>{isImporting ? 'Importing...' : 'Import Kids Directory'}
               </button>
               <button
                 onClick={downloadMainDirectoryImportTemplate}
-                className="min-h-16 px-4 py-3 bg-white border border-stone-200 text-stone-700 rounded-xl text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center justify-center gap-2 text-center"
+                className="min-h-16 px-4 py-3 bg-stone-700 text-white rounded-xl text-sm font-medium shadow-sm hover:bg-stone-600 flex items-center justify-center gap-2 text-center"
               >
                 <Download size={16}/> Main Template
               </button>
               <button
                 onClick={downloadKidsDirectoryImportTemplate}
-                className="min-h-16 px-4 py-3 bg-white border border-stone-200 text-stone-700 rounded-xl text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center justify-center gap-2 text-center"
+                className="min-h-16 px-4 py-3 bg-stone-700 text-white rounded-xl text-sm font-medium shadow-sm hover:bg-stone-600 flex items-center justify-center gap-2 text-center"
               >
                 <Download size={16}/> Kids Template
               </button>
@@ -560,7 +557,7 @@ export default function PeopleApp({
               )}
               <div className="flex justify-end gap-2 mt-6">
                 <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
-                <button onClick={handleAdd} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Save Profile</button>
+                <button onClick={handleAdd} className="px-4 py-2 bg-stone-900 text-white rounded-md font-medium text-sm hover:opacity-90">Save Profile</button>
               </div>
             </div>
           </div>
@@ -799,14 +796,7 @@ export default function PeopleApp({
                       {isAdmin ? (
                         <>
                           <button onClick={() => handleStartEdit(person)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">Edit</button>
-                          {deleteConfirmId === person.id ? (
-                            <>
-                              <button onClick={() => handleDeleteProfile(person.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-white bg-rose-600 hover:bg-rose-700">Confirm</button>
-                              <button onClick={() => setDeleteConfirmId(null)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-stone-500 hover:bg-stone-100">Cancel</button>
-                            </>
-                          ) : (
-                            <button onClick={() => handleDeleteProfile(person.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">Delete</button>
-                          )}
+                          <button onClick={() => handleDeleteProfile(person.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">Delete</button>
                         </>
                       ) : (
                         <span className="text-xs text-stone-400">View only</span>
@@ -855,16 +845,9 @@ export default function PeopleApp({
                         <button onClick={() => handleStartEdit(child)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">
                           Edit
                         </button>
-                        {deleteConfirmId === child.id ? (
-                          <>
-                            <button onClick={() => handleDeleteProfile(child.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-white bg-rose-600 hover:bg-rose-700">Confirm</button>
-                            <button onClick={() => setDeleteConfirmId(null)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-stone-500 hover:bg-stone-100">Cancel</button>
-                          </>
-                        ) : (
-                          <button onClick={() => handleDeleteProfile(child.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">
-                            Delete
-                          </button>
-                        )}
+                        <button onClick={() => handleDeleteProfile(child.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">
+                          Delete
+                        </button>
                       </>
                     ) : (
                       <span className="text-xs text-stone-400">View only</span>

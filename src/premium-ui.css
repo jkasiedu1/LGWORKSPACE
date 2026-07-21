@@ -1,0 +1,225 @@
+:root {
+  --app-bg: #f6f2ea;
+  --app-bg-alt: #efe5d6;
+  --surface: rgba(255, 255, 255, 0.74);
+  --surface-strong: rgba(255, 255, 255, 0.9);
+  --surface-border: rgba(106, 76, 46, 0.16);
+  --app-text: #1f1a14;
+  --app-muted: #6d6255;
+  --app-accent: #ea580c;
+  --app-accent-2: #0284c7;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+.font-sans {
+  font-family: 'Manrope', sans-serif !important;
+}
+
+.font-serif {
+  font-family: 'Fraunces', serif !important;
+}
+
+.workspace-v3 {
+  color: var(--app-text);
+  background:
+    radial-gradient(940px 500px at 0% 0%, color-mix(in srgb, var(--app-accent) 16%, transparent), transparent 60%),
+    radial-gradient(940px 520px at 100% 0%, color-mix(in srgb, var(--app-accent-2) 14%, transparent), transparent 62%),
+    linear-gradient(150deg, var(--app-bg), var(--app-bg-alt));
+}
+
+.workspace-v3::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--app-text) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--app-text) 6%, transparent) 1px, transparent 1px);
+  background-size: 34px 34px;
+  opacity: 0.45;
+  mask-image: radial-gradient(circle at center, #000 44%, transparent 95%);
+}
+
+.ws3-header {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  backdrop-filter: blur(14px) saturate(125%);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--app-text) 16%, transparent);
+}
+
+.ws3-panel {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  backdrop-filter: blur(14px) saturate(125%);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--app-text) 12%, transparent);
+}
+
+.ws3-main {
+  max-width: 1720px;
+  margin: 0 auto;
+}
+
+.ws3-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (min-width: 1280px) {
+  .ws3-grid {
+    grid-template-columns: 276px minmax(0, 1fr) 320px;
+  }
+}
+
+.ws3-side,
+.ws3-insights {
+  min-height: calc(100vh - 8rem);
+  position: sticky;
+  top: 6.2rem;
+}
+
+.ws3-text {
+  color: var(--app-text) !important;
+}
+
+.ws3-muted {
+  color: var(--app-muted) !important;
+}
+
+.ws3-border {
+  border-color: var(--surface-border) !important;
+}
+
+.ws3-divide > * + * {
+  border-top: 1px solid var(--surface-border);
+}
+
+.ws3-card {
+  background: var(--surface-strong);
+}
+
+.ws3-brand-icon {
+  color: white;
+  background: linear-gradient(135deg, var(--app-accent), var(--app-accent-2));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--app-accent) 30%, transparent);
+}
+
+.ws3-icon-btn {
+  height: 34px;
+  width: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.7rem;
+  border: 1px solid var(--surface-border);
+  color: var(--app-muted);
+  background: var(--surface-strong);
+}
+
+.ws3-icon-btn:hover {
+  color: var(--app-text);
+  transform: translateY(-1px);
+}
+
+.ws3-icon-btn-active {
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-accent) 16%, white 84%);
+}
+
+.ws3-avatar {
+  color: white;
+  background: linear-gradient(135deg, var(--app-accent), var(--app-accent-2));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--app-accent) 26%, transparent);
+}
+
+.ws3-input {
+  border: 1px solid var(--surface-border);
+  color: var(--app-text);
+  background: var(--surface-strong);
+}
+
+.ws3-input::placeholder {
+  color: color-mix(in srgb, var(--app-muted) 80%, white 20%);
+}
+
+.ws3-btn-solid {
+  color: white;
+  background: linear-gradient(120deg, var(--app-accent), var(--app-accent-2));
+}
+
+.ws3-btn-solid:hover {
+  filter: brightness(1.03);
+}
+
+.ws3-btn-ghost {
+  border: 1px solid var(--surface-border);
+  color: var(--app-text);
+  background: var(--surface-strong);
+}
+
+.ws3-btn-ghost:hover {
+  background: color-mix(in srgb, var(--app-accent) 10%, white 90%);
+}
+
+.ws3-tile,
+.ws3-chip,
+.ws3-studio-tile {
+  border-color: var(--surface-border);
+  background: var(--surface-strong);
+}
+
+.ws3-tile:hover,
+.ws3-chip:hover,
+.ws3-studio-tile:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--app-accent) 10%, white 90%);
+}
+
+.ws3-tile-active,
+.ws3-chip-active,
+.ws3-studio-selected {
+  border-color: color-mix(in srgb, var(--app-accent) 40%, var(--surface-border));
+  background: color-mix(in srgb, var(--app-accent) 14%, white 86%);
+}
+
+.ws3-dot {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #e11d48;
+  border: 1px solid white;
+}
+
+.ws3-toast {
+  color: var(--app-text);
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+}
+
+.ws3-mobile-dock {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  backdrop-filter: blur(14px) saturate(120%);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--app-text) 15%, transparent);
+}
+
+.ws3-dock-item {
+  color: var(--app-muted);
+}
+
+.ws3-dock-item:hover {
+  background: color-mix(in srgb, var(--app-accent) 8%, white 92%);
+}
+
+.ws3-dock-active {
+  color: white;
+  background: linear-gradient(125deg, var(--app-accent), var(--app-accent-2));
+}

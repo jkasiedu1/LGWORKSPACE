@@ -315,7 +315,7 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
         </div>
         <div className="flex gap-2 mt-5">
           <button onClick={onClose} className="flex-1 py-2 text-stone-600 hover:bg-stone-100 rounded-lg font-medium text-sm">Cancel</button>
-          <button onClick={onSave} className={`flex-1 py-2 ${theme.bg} text-white rounded-lg font-semibold text-sm hover:opacity-90`}>Save &amp; Activate</button>
+          <button onClick={onSave} className="flex-1 py-2 bg-stone-900 text-white rounded-lg font-semibold text-sm hover:opacity-90">Save &amp; Activate</button>
         </div>
       </div>
     </div>
@@ -333,9 +333,9 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
         {activeSubTab === 'automations' && (
           <div className="flex gap-2">
             <button onClick={() => setIsAIDrawerOpen(true)} className="px-3 py-2 border border-stone-200 bg-white rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shadow-sm flex items-center gap-1.5">
-              <Sparkles size={14} className={theme.color} /> AI Generate
+              <Sparkles size={14} className="text-stone-700" /> AI Generate
             </button>
-            <button onClick={() => setIsNewWorkflow(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-lg text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-1.5`}>
+            <button onClick={() => setIsNewWorkflow(true)} className="px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-1.5">
               <Plus size={15} /> New Workflow
             </button>
           </div>
@@ -390,7 +390,7 @@ export default function WorkflowsApp({ theme, workflows = [], setWorkflows, show
               <Workflow size={32} className="text-stone-300 mx-auto mb-3" />
               <p className="text-stone-500 font-medium">No automations yet</p>
               <p className="text-stone-400 text-sm mt-1 mb-4">Create your first workflow to automate outreach.</p>
-              <button onClick={() => setIsNewWorkflow(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-lg text-sm font-medium`}><Plus size={14} className="inline mr-1" />New Workflow</button>
+              <button onClick={() => setIsNewWorkflow(true)} className="px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium"><Plus size={14} className="inline mr-1" />New Workflow</button>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

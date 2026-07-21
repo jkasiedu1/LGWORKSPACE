@@ -26,12 +26,14 @@ export default function ReportingApp({ theme, people = [], donations = [], event
   // Stats derived from real people data
   const stats = useMemo(() => {
     const adults = people.filter(p => p.type !== 'Child');
-    const total = adults.length;
+    const adultsCount = adults.length;
+    const kidsCount = people.filter(p => p.type === 'Child').length;
+    const totalPeople = people.length;
     const volunteers = adults.filter(p => p.type === 'Volunteer').length;
     const staff = adults.filter(p => p.type === 'Staff').length;
     const guests = people.filter(p => ['First Time', 'Guest'].includes(p.type)).length;
-    const volunteerRate = total > 0 ? Math.round(((volunteers + staff) / total) * 100) : 0;
-    return { total, guests, volunteerRate, teamsCount: teamsList.length };
+    const volunteerRate = adultsCount > 0 ? Math.round(((volunteers + staff) / adultsCount) * 100) : 0;
+    return { totalPeople, adultsCount, kidsCount, guests, volunteerRate, teamsCount: teamsList.length };
   }, [people, teamsList]);
 
   // Monthly event counts — last 6 months (value normalized 10–90 for chart rendering)
@@ -94,9 +96,12 @@ export default function ReportingApp({ theme, people = [], donations = [], event
 
   const handleExport = () => {
     const adults = people.filter(p => p.type !== 'Child');
+    const kids = people.filter(p => p.type === 'Child');
     const rows = [
       ['Metric', 'Value'],
+      ['Total People', people.length],
       ['Total Adults', adults.length],
+      ['Total Kids', kids.length],
       ['First-Time Guests', people.filter(p => ['First Time', 'Guest'].includes(p.type)).length],
       ['Volunteers', people.filter(p => p.type === 'Volunteer').length],
       ['Staff', people.filter(p => p.type === 'Staff').length],
@@ -168,7 +173,7 @@ export default function ReportingApp({ theme, people = [], donations = [], event
               Overview
             </button>
           </div>
-          <button onClick={handleExport} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center justify-center gap-2`}>
+          <button onClick={handleExport} className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center justify-center gap-2">
             <Download size={16}/> Export Report
           </button>
         </div>
@@ -183,7 +188,7 @@ export default function ReportingApp({ theme, people = [], donations = [], event
             </div>
             <h2 className="mt-3 text-xl sm:text-2xl font-bold text-stone-900">{narrativeHeadline}</h2>
             <p className="mt-2 text-sm text-stone-600">
-              Your directory has {stats.total} adults and {stats.guests} registered guest{stats.guests !== 1 ? 's' : ''}. Volunteers and staff represent {stats.volunteerRate}% of your congregation.
+              Your directory has {stats.totalPeople} people ({stats.adultsCount} adults, {stats.kidsCount} kids) and {stats.guests} registered guest{stats.guests !== 1 ? 's' : ''}. Volunteers and staff represent {stats.volunteerRate}% of adults.
             </p>
           </div>
           <div className="rounded-xl bg-white border border-stone-200 p-4">
@@ -201,14 +206,14 @@ export default function ReportingApp({ theme, people = [], donations = [], event
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-start">
-            <span className="text-sm font-medium text-stone-500">Adults in Directory</span>
+            <span className="text-sm font-medium text-stone-500">People in Directory</span>
             <div className={`p-1.5 rounded-md ${theme.light} ${theme.color}`}><Users size={16}/></div>
           </div>
           <div className="mt-4">
-            <span className="text-3xl font-bold tracking-tight text-stone-900">{stats.total}</span>
-            <div className="flex items-center gap-1 mt-1 text-stone-400 text-xs font-semibold">All congregation adults</div>
+            <span className="text-3xl font-bold tracking-tight text-stone-900">{stats.totalPeople}</span>
+            <div className="flex items-center gap-1 mt-1 text-stone-400 text-xs font-semibold">{stats.adultsCount} adults • {stats.kidsCount} kids</div>
             <div className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wider">Live Data</div>
-            <p className="mt-2 text-[11px] text-stone-500">Count of all non-child profiles in your directory.</p>
+            <p className="mt-2 text-[11px] text-stone-500">Count of all profiles, including kids and adults.</p>
           </div>
         </div>
         <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-sm flex flex-col justify-between">

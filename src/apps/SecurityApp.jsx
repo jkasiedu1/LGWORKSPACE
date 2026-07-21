@@ -209,7 +209,7 @@ export default function SecurityApp({ theme, isSeniorPastor, securitySettings, s
           <p className="text-stone-500 text-sm mt-1">Manage authentication, data loss prevention (DLP), and roles.</p>
         </div>
         {isSeniorPastor && (
-          <button onClick={handleSaveSettings} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
+          <button onClick={handleSaveSettings} className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2">
             <ShieldCheck size={16}/> Save Security Settings
           </button>
         )}

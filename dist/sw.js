@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lifegate-v1';
+const CACHE_NAME = 'lifegate-v2';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -22,7 +22,9 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: network-first for API/Firebase, cache-first for static assets
+// Fetch strategy:
+// - network-first for document navigations to avoid stale shells
+// - cache-first for static assets with network fill
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -34,6 +36,24 @@ self.addEventListener('fetch', (event) => {
     url.hostname.includes('google') ||
     request.method !== 'GET'
   ) {
+    return;
+  }
+
+  // Network-first for app shell/documents so new deployments appear immediately.
+  if (request.mode === 'navigate' || request.destination === 'document') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          return response;
+        })
+        .catch(async () => {
+          const cachedDoc = await caches.match(request);
+          if (cachedDoc) return cachedDoc;
+          return caches.match('/index.html');
+        })
+    );
     return;
   }
 

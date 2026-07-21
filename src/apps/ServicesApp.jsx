@@ -231,8 +231,8 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
           )}
         </div>
         <div className="flex gap-2 shrink-0">
-          <button onClick={() => window.print()} className="px-4 py-2 bg-white border border-stone-200 rounded-md text-sm font-medium text-stone-700 hover:bg-stone-50 shadow-sm">Print</button>
-          {isAdmin && <button onClick={handleSavePlan} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90`}>Save Plan</button>}
+          <button onClick={() => window.print()} className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm font-medium hover:bg-stone-800 shadow-sm">Print</button>
+          {isAdmin && <button onClick={handleSavePlan} className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90">Save Plan</button>}
         </div>
       </div>
 
@@ -301,7 +301,7 @@ export default function ServicesApp({ theme, planItems, setPlanItems, servicePla
                 </div>
                 <div className="flex justify-end gap-2">
                   <button onClick={() => setIsAdding(false)} className="px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-200 rounded">Cancel</button>
-                  <button onClick={() => { if(newItem.title) { setPlanItems([...planItems, { id: Date.now(), ...newItem }]); setIsAdding(false); setNewItem({ time: '', length: '', title: '', type: 'Element', person: '' }); } }} className={`px-3 py-1.5 text-sm text-white ${theme.bg} rounded hover:opacity-90`}>Save Item</button>
+                  <button onClick={() => { if(newItem.title) { setPlanItems([...planItems, { id: Date.now(), ...newItem }]); setIsAdding(false); setNewItem({ time: '', length: '', title: '', type: 'Element', person: '' }); } }} className="px-3 py-1.5 text-sm text-white bg-stone-900 rounded hover:opacity-90">Save Item</button>
                 </div>
               </div>
             ) : (

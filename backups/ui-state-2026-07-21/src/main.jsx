@@ -2,11 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
-import './design/modern-ui.css'
-import { applyTheme, getStoredTheme } from './design/themes'
-
-// Apply theme on initial load
-applyTheme(getStoredTheme());
+import './premium-ui.css'
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }

@@ -375,7 +375,7 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
             </div>
           </div>
           <div className="flex gap-2 shrink-0 flex-wrap">
-            <button onClick={() => setIsChatOpen(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
+            <button onClick={() => setIsChatOpen(true)} className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2">
               <MessageSquare size={16}/> Team Chat
             </button>
             {activePortal.name === 'Lifegate Music' && (
@@ -610,7 +610,7 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
           <p className="text-stone-500 text-sm mt-1">Secure, role-based workspaces restricted by department.</p>
         </div>
         {isAdmin && (
-          <button onClick={() => setIsCreatingPortal(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
+          <button onClick={() => setIsCreatingPortal(true)} className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2">
             <Plus size={16}/> Create New Portal
           </button>
         )}
@@ -670,7 +670,7 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setIsCreatingPortal(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
-              <button onClick={handleCreatePortal} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Create Portal</button>
+              <button onClick={handleCreatePortal} className="px-4 py-2 bg-stone-900 text-white rounded-md font-medium text-sm hover:opacity-90">Create Portal</button>
             </div>
           </div>
         </div>
@@ -711,7 +711,7 @@ export default function TeamsApp({ theme, teamsList, setTeamsList, people, setAc
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setIsEditingPortal(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
-              <button onClick={handleSavePortalEdit} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90 flex items-center gap-2`}><Save size={14}/> Save Changes</button>
+              <button onClick={handleSavePortalEdit} className="px-4 py-2 bg-stone-900 text-white rounded-md font-medium text-sm hover:opacity-90 flex items-center gap-2"><Save size={14}/> Save Changes</button>
             </div>
           </div>
         </div>

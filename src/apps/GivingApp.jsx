@@ -408,10 +408,10 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
           <p className="text-stone-500 text-sm mt-1">Track donations, reconcile Zelle, and export accounting reports.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setShowExportModal(true)} className="px-4 py-2 bg-white border border-stone-200 text-stone-700 rounded-md text-sm font-medium shadow-sm hover:bg-stone-50 flex items-center gap-2">
+          <button onClick={() => setShowExportModal(true)} className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center gap-2">
             <Download size={15} /> Export Report
           </button>
-          <button onClick={() => setIsAdding(true)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2`}>
+          <button onClick={() => setIsAdding(true)} className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2">
             <DollarSign size={15} /> Record Gift
           </button>
         </div>
@@ -438,7 +438,7 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
               </div>
               <div className="flex justify-end gap-2 mt-6">
                 <button onClick={() => setIsAdding(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
-                <button onClick={handleAddDonation} className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90`}>Save Record</button>
+                <button onClick={handleAddDonation} className="px-4 py-2 bg-stone-900 text-white rounded-md font-medium text-sm hover:opacity-90">Save Record</button>
               </div>
             </div>
           </div>
@@ -484,7 +484,7 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
               <button
                 onClick={() => handleExport(exportOpts)}
                 disabled={!exportOpts.summary && !exportOpts.monthlyTrend && !exportOpts.transactionLedger}
-                className={`px-4 py-2 ${theme.bg} text-white rounded-md font-medium text-sm hover:opacity-90 flex items-center gap-2 disabled:opacity-40`}
+                className="px-4 py-2 bg-stone-900 text-white rounded-md font-medium text-sm hover:opacity-90 flex items-center gap-2 disabled:opacity-40"
               >
                 <Download size={14} /> Download
               </button>
