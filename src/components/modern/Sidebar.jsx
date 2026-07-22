@@ -16,7 +16,7 @@ import {
   UserCircle,
 } from 'lucide-react';
 
-export default function Sidebar({ className = '', activeApp, setActiveApp, user, onLogout, isAdmin, isSeniorPastor }) {
+export default function Sidebar({ className = '', activeApp, setActiveApp, user, onLogout, onSettings, isAdmin, isSeniorPastor }) {
   const [collapsed, setCollapsed] = useState(false);
 
   const navigationSections = [
@@ -141,6 +141,7 @@ export default function Sidebar({ className = '', activeApp, setActiveApp, user,
           )}
           <div className="flex gap-2">
             <button
+              onClick={onSettings}
               className="flex-1 p-2 rounded-lg transition-colors"
               style={{
                 color: '#ffffff',

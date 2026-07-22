@@ -95,8 +95,10 @@ export default function App() {
   // Legacy theme for apps that still use it
   const legacyTheme = {
     name: 'Modern',
-    color: 'text-primary-600',
-    bgGradient: 'from-primary-50 to-cyan-50',
+    color: 'text-teal-700',
+    light: 'bg-teal-50',
+    bg: 'bg-teal-600',
+    bgGradient: 'from-teal-50 to-cyan-50',
   };
 
   return (
@@ -106,6 +108,14 @@ export default function App() {
         activeApp={activeApp}
         setActiveApp={(appId) => {
           setActiveApp(appId);
+          if (window.innerWidth <= 1023) setMobileMenuOpen(false);
+        }}
+        onSettings={() => {
+          if (isAdmin || isSeniorPastor) {
+            setActiveApp('security');
+          } else {
+            setActiveApp('people');
+          }
           if (window.innerWidth <= 1023) setMobileMenuOpen(false);
         }}
         user={user}
