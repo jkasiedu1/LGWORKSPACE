@@ -16,7 +16,7 @@ import {
   UserCircle,
 } from 'lucide-react';
 
-export default function Sidebar({ className = '', activeApp, setActiveApp, user, onLogout, onSettings, isAdmin, isSeniorPastor }) {
+export default function Sidebar({ className = '', activeApp, setActiveApp, user, onLogout, onSettings, onProfileClick, isAdmin, isSeniorPastor }) {
   const [collapsed, setCollapsed] = useState(false);
 
   const navigationSections = [
@@ -129,7 +129,15 @@ export default function Sidebar({ className = '', activeApp, setActiveApp, user,
       <div className="modern-sidebar-footer">
         <div className="flex flex-col gap-2">
           {!collapsed && (
-            <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.16)' }}>
+            <button
+              type="button"
+              onClick={onProfileClick}
+              className="w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors"
+              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.16)' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.15)'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+              title="Open profile"
+            >
               <div className="flex items-center justify-center w-8 h-8 rounded-lg text-white font-bold text-sm flex-shrink-0" style={{ background: 'linear-gradient(135deg, #ec4899, #0d9488)' }}>
                 {displayName.charAt(0).toUpperCase()}
               </div>
@@ -137,7 +145,7 @@ export default function Sidebar({ className = '', activeApp, setActiveApp, user,
                 <span className="text-sm font-bold truncate" style={{ color: '#ffffff' }}>{displayName}</span>
                 <span className="text-xs truncate font-medium" style={{ color: 'rgba(255, 255, 255, 0.72)' }}>{userRole}</span>
               </div>
-            </div>
+            </button>
           )}
           <div className="flex gap-2">
             <button

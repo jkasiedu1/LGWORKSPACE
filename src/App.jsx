@@ -118,6 +118,10 @@ export default function App() {
           }
           if (window.innerWidth <= 1023) setMobileMenuOpen(false);
         }}
+        onProfileClick={() => {
+          setActiveApp('people');
+          if (window.innerWidth <= 1023) setMobileMenuOpen(false);
+        }}
         user={user}
         onLogout={logout}
         isAdmin={isAdmin}
