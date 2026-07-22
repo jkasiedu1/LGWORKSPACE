@@ -43,6 +43,8 @@ const fmtDate = (iso) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+const normalizeName = (value) => String(value || '').trim().toLowerCase();
+
 export default function GivingApp({ theme, people = [], donations, setDonations, showToast }) {
   const { user } = useAuth();
 
@@ -116,10 +118,12 @@ export default function GivingApp({ theme, people = [], donations, setDonations,
   const [showFilters, setShowFilters] = useState(false);
   const [filterFund, setFilterFund] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [filterDonor, setFilterDonor] = useState('');
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
   const [sortKey, setSortKey] = useState('date');
   const [sortDir, setSortDir] = useState('desc');
+  const [taxYear, setTaxYear] = useState(String(new Date().getFullYear()));
 
   // ── AI ─────────────────────────────────────────────────────────────────────
   const [reportResult, setReportResult] = useState(null);
@@ -202,8 +206,13 @@ export default function GivingApp({ theme, people = [], donations, setDonations,
       .map(([name, data]) => ({ name, ...data }));
   }, [ytdDonations]);
 
+  const donorOptions = useMemo(() => {
+    const fromDonations = parsedDonations.map((d) => (d.name || '').trim()).filter(Boolean);
+    return [...new Set([...directoryDonorNames, ...fromDonations])].sort((a, b) => a.localeCompare(b));
+  }, [directoryDonorNames, parsedDonations]);
+
   // Active filter count
-  const activeFilterCount = [filterFund, filterType, filterFrom, filterTo].filter(Boolean).length;
+  const activeFilterCount = [filterFund, filterType, filterDonor, filterFrom, filterTo].filter(Boolean).length;
 
   // Filtered + sorted rows
   const filteredDonations = useMemo(() => {
@@ -211,6 +220,7 @@ export default function GivingApp({ theme, people = [], donations, setDonations,
       if (search && !(d.name || '').toLowerCase().includes(search.toLowerCase())) return false;
       if (filterFund && d.fund !== filterFund) return false;
       if (filterType && d.type !== filterType) return false;
+      if (filterDonor && normalizeName(d.name) !== normalizeName(filterDonor)) return false;
       if (filterFrom && d.date < filterFrom) return false;
       if (filterTo && d.date > filterTo) return false;
       return true;
@@ -225,7 +235,7 @@ export default function GivingApp({ theme, people = [], donations, setDonations,
       return 0;
     });
     return rows;
-  }, [parsedDonations, search, filterFund, filterType, filterFrom, filterTo, sortKey, sortDir]);
+  }, [parsedDonations, search, filterFund, filterType, filterDonor, filterFrom, filterTo, sortKey, sortDir]);
 
   const filteredTotal = useMemo(() => filteredDonations.reduce((s, d) => s + d.amountNum, 0), [filteredDonations]);
 
@@ -289,6 +299,77 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
     setReportResult(result);
     setIsGeneratingReport(false);
   };
+
+  const handleExportDonorStatement = useCallback(() => {
+    const selectedDonor = filterDonor.trim();
+    const selectedYear = String(taxYear || '').trim();
+    if (!selectedDonor) {
+      showToast('Select a donor first.');
+      return;
+    }
+    if (!/^\d{4}$/.test(selectedYear)) {
+      showToast('Enter a valid 4-digit tax year.');
+      return;
+    }
+
+    const donorRows = parsedDonations
+      .filter((d) => normalizeName(d.name) === normalizeName(selectedDonor) && String(d.date || '').startsWith(`${selectedYear}-`))
+      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+    if (donorRows.length === 0) {
+      showToast(`No donations found for ${selectedDonor} in ${selectedYear}.`);
+      return;
+    }
+
+    const donorTotal = donorRows.reduce((sum, row) => sum + row.amountNum, 0);
+    const fundTotals = donorRows.reduce((acc, row) => {
+      const key = row.fund || 'Other';
+      acc[key] = (acc[key] || 0) + row.amountNum;
+      return acc;
+    }, {});
+
+    const wb = XLSX.utils.book_new();
+    const summaryRows = [
+      ['LIFEGATE ASSEMBLY OF GOD', '', '', ''],
+      ['Annual Giving Statement', '', '', ''],
+      [`Donor: ${selectedDonor}`, '', '', ''],
+      [`Tax Year: ${selectedYear}`, '', '', ''],
+      [`Generated: ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`, '', '', ''],
+      ['', '', '', ''],
+      ['Summary', '', '', ''],
+      ['Total Contributions', fmt$(donorTotal), '', ''],
+      ['Number of Gifts', donorRows.length, '', ''],
+      ['', '', '', ''],
+      ['By Fund', '', '', ''],
+      ['Fund', 'Amount', '', ''],
+      ...Object.entries(fundTotals)
+        .sort((a, b) => b[1] - a[1])
+        .map(([fund, total]) => [fund, fmt$(total), '', '']),
+    ];
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+    summarySheet['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 8 }, { wch: 8 }];
+    summarySheet['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 3 } },
+      { s: { r: 4, c: 0 }, e: { r: 4, c: 3 } },
+    ];
+    XLSX.utils.book_append_sheet(wb, summarySheet, 'Statement');
+
+    const ledgerRows = [
+      ['Date', 'Fund', 'Method', 'Amount'],
+      ...donorRows.map((row) => [fmtDate(row.date), row.fund || '', row.type || '', fmt$(row.amountNum)]),
+      ['', '', 'Total', fmt$(donorTotal)],
+    ];
+    const ledgerSheet = XLSX.utils.aoa_to_sheet(ledgerRows);
+    ledgerSheet['!cols'] = [{ wch: 18 }, { wch: 24 }, { wch: 20 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, ledgerSheet, 'Ledger');
+
+    const safeDonor = selectedDonor.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
+    XLSX.writeFile(wb, `Lifegate-Giving-Statement-${safeDonor || 'donor'}-${selectedYear}.xlsx`);
+    showToast('Donor giving statement exported');
+  }, [filterDonor, parsedDonations, taxYear, showToast]);
 
   // ── Excel Export (Accounting Style) ───────────────────────────────────────
   const handleExport = useCallback((opts = exportOpts) => {
@@ -387,7 +468,7 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
 
     // ── SHEET 3: Transaction Ledger ─────────────────────────────────────────
     const filtersNote = activeFilterCount > 0
-      ? `Fund: "${filterFund || 'All'}"   Method: "${filterType || 'All'}"   From: "${filterFrom || 'Any'}"   To: "${filterTo || 'Any'}"`
+      ? `Fund: "${filterFund || 'All'}"   Method: "${filterType || 'All'}"   Donor: "${filterDonor || 'All'}"   From: "${filterFrom || 'Any'}"   To: "${filterTo || 'Any'}"`
       : 'None';
     const s3 = [
       ['LIFEGATE ASSEMBLY OF GOD', '', '', '', '', ''],
@@ -426,7 +507,7 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
   }, [
     filteredDonations, filteredTotal, parsedDonations, ytdDonations, ytdTotal, thisMonthTotal, lastMonthTotal,
     uniqueDonors, avgGift, largestGift, fundData, typeBreakdown, topDonors, monthlyChartData,
-    filterFund, filterType, filterFrom, filterTo, activeFilterCount, exportOpts, showToast, annualGoal,
+    filterFund, filterType, filterDonor, filterFrom, filterTo, activeFilterCount, exportOpts, showToast, annualGoal,
   ]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -739,6 +820,35 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
         <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex flex-wrap items-center gap-3 justify-between">
           <h3 className="font-semibold text-stone-800">Transaction Ledger</h3>
           <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1">
+              <select
+                className="px-2 py-1.5 border border-stone-200 rounded-md text-xs outline-none focus:border-teal-500 bg-white min-w-[180px]"
+                value={filterDonor}
+                onChange={(e) => setFilterDonor(e.target.value)}
+              >
+                <option value="">All Donors</option>
+                {donorOptions.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min="2000"
+                max="2100"
+                value={taxYear}
+                onChange={(e) => setTaxYear(e.target.value)}
+                className="w-20 px-2 py-1.5 border border-stone-200 rounded-md text-xs outline-none focus:border-teal-500 bg-white"
+                title="Tax year"
+                aria-label="Tax year"
+              />
+              <button
+                onClick={handleExportDonorStatement}
+                className="px-3 py-1.5 border border-stone-200 rounded-md text-xs font-medium bg-white text-stone-700 hover:bg-stone-50"
+                title="Export donor statement for selected year"
+              >
+                Tax Statement
+              </button>
+            </div>
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
               <input type="text" placeholder="Search donor…" className="pl-7 pr-3 py-1.5 border border-stone-200 rounded-md text-xs outline-none focus:border-teal-500 w-40 bg-white" value={search} onChange={e => setSearch(e.target.value)} />
@@ -766,6 +876,15 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
               </select>
             </div>
             <div>
+              <label className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider block mb-1">Donor</label>
+              <select className="p-1.5 border border-stone-200 rounded text-xs outline-none focus:border-teal-500 bg-white min-w-[180px]" value={filterDonor} onChange={e => setFilterDonor(e.target.value)}>
+                <option value="">All Donors</option>
+                {donorOptions.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider block mb-1">From</label>
               <input type="date" className="p-1.5 border border-stone-200 rounded text-xs outline-none focus:border-teal-500 bg-white" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
             </div>
@@ -774,7 +893,7 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
               <input type="date" className="p-1.5 border border-stone-200 rounded text-xs outline-none focus:border-teal-500 bg-white" value={filterTo} onChange={e => setFilterTo(e.target.value)} />
             </div>
             {activeFilterCount > 0 && (
-              <button onClick={() => { setFilterFund(''); setFilterType(''); setFilterFrom(''); setFilterTo(''); }} className="text-xs text-rose-600 hover:text-rose-700 flex items-center gap-1 pb-1.5">
+              <button onClick={() => { setFilterFund(''); setFilterType(''); setFilterDonor(''); setFilterFrom(''); setFilterTo(''); }} className="text-xs text-rose-600 hover:text-rose-700 flex items-center gap-1 pb-1.5">
                 <X size={12} /> Clear all
               </button>
             )}

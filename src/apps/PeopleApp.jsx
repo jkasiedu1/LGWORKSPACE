@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Search, UserPlus, AlertCircle, X, QrCode, UserCheck,
   CheckCircle2, Printer, Upload, Download, Pencil, Trash2, ScanLine, Copy
@@ -35,6 +36,44 @@ function generateSecurityCode() {
     }
   }
   return code;
+}
+
+function normalizePersonNamePart(value) {
+  return String(value || '').trim();
+}
+
+function getSortableLastName(person) {
+  const explicitLast = normalizePersonNamePart(person.lastName);
+  if (explicitLast) return explicitLast.toLowerCase();
+  const fullNameParts = String(person.name || '').trim().split(/\s+/).filter(Boolean);
+  if (fullNameParts.length <= 1) return '';
+  return fullNameParts.slice(1).join(' ').toLowerCase();
+}
+
+function getSortableFirstName(person) {
+  const explicitFirst = normalizePersonNamePart(person.firstName);
+  if (explicitFirst) return explicitFirst.toLowerCase();
+  return String(person.name || '').trim().split(/\s+/).filter(Boolean)[0]?.toLowerCase() || '';
+}
+
+function sortPeopleByLastName(list) {
+  return [...list].sort((a, b) => {
+    const lastA = getSortableLastName(a);
+    const lastB = getSortableLastName(b);
+    if (lastA < lastB) return -1;
+    if (lastA > lastB) return 1;
+
+    const firstA = getSortableFirstName(a);
+    const firstB = getSortableFirstName(b);
+    if (firstA < firstB) return -1;
+    if (firstA > firstB) return 1;
+
+    const typeA = String(a.type || '').toLowerCase();
+    const typeB = String(b.type || '').toLowerCase();
+    if (typeA < typeB) return -1;
+    if (typeA > typeB) return 1;
+    return String(a.id || '').localeCompare(String(b.id || ''));
+  });
 }
 
 export default function PeopleApp({
@@ -138,6 +177,15 @@ export default function PeopleApp({
     return true;
   }), [people, searchQuery, activeTab]);
 
+  const sortedFilteredPeople = useMemo(() => sortPeopleByLastName(filteredPeople), [filteredPeople]);
+
+  const organizedDirectoryData = useMemo(() => {
+    const directory = sortPeopleByLastName(people.filter((p) => ['Member', 'Staff', 'Volunteer'].includes(p.type)));
+    const visitors = sortPeopleByLastName(people.filter((p) => ['First Time', 'Returning', 'Guest'].includes(p.type)));
+    const kids = sortPeopleByLastName(people.filter((p) => p.type === 'Child'));
+    return { directory, visitors, kids };
+  }, [people]);
+
   const filteredIntakeSubmissions = useMemo(() => intakeSubmissions.filter((submission) => {
     const status = submission.status || 'pending';
     const q = searchQuery.toLowerCase();
@@ -168,6 +216,56 @@ export default function PeopleApp({
     } catch (_) {
       showToast(`Share this link: ${intakeUrl}`);
     }
+  };
+
+  const buildDirectorySheetRows = (list) => [
+    ['Last Name', 'First Name', 'Type', 'Email', 'Phone', 'Address', 'Gender', 'Background Check', 'Parents / Guardians', 'Parent Phone', 'Allergies', 'Security Code', 'Check-in Status'],
+    ...list.map((person) => {
+      const firstName = person.firstName || person.name?.split(' ')[0] || '';
+      const lastName = person.lastName || person.name?.split(' ').slice(1).join(' ') || '';
+      return [
+        lastName,
+        firstName,
+        person.type || '',
+        person.email || '',
+        person.phone || '',
+        person.address || '',
+        person.gender || '',
+        person.bgCheck || '',
+        person.parents || '',
+        person.parentPhone || '',
+        person.allergies || '',
+        person.securityCode || '',
+        person.checkInStatus || '',
+      ];
+    }),
+  ];
+
+  const handleExportOrganizedDirectory = () => {
+    if (!isAdmin) return;
+
+    const wb = XLSX.utils.book_new();
+
+    const sheetConfig = [
+      { name: 'General Directory', rows: organizedDirectoryData.directory },
+      { name: 'Visitors', rows: organizedDirectoryData.visitors },
+      { name: 'Lifegate Kids', rows: organizedDirectoryData.kids },
+    ];
+
+    sheetConfig.forEach(({ name, rows }) => {
+      const sheetRows = buildDirectorySheetRows(rows);
+      const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+      ws['!cols'] = [
+        { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 30 }, { wch: 18 },
+        { wch: 32 }, { wch: 12 }, { wch: 18 }, { wch: 24 }, { wch: 18 },
+        { wch: 24 }, { wch: 14 }, { wch: 14 },
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    });
+
+    const generatedOn = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `Lifegate-Organized-Directory-${generatedOn}.xlsx`);
+    showToast('Organized directory exported');
   };
 
   const handleApproveIntake = async (submission) => {
@@ -428,6 +526,11 @@ export default function PeopleApp({
           </div>
           <div className="flex flex-wrap gap-3 xl:justify-end shrink-0">
             {isAdmin && (
+              <button onClick={handleExportOrganizedDirectory} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
+                <Download size={16}/> Export Directory
+              </button>
+            )}
+            {isAdmin && (
               <button onClick={copyIntakeLink} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
                 <Copy size={16}/> Copy Intake Form Link
               </button>
@@ -658,7 +761,7 @@ export default function PeopleApp({
         </div>
 
         <div className="lg:hidden p-3 space-y-3">
-          {(activeTab === 'directory' || activeTab === 'visitors') && filteredPeople.map((person) => (
+          {(activeTab === 'directory' || activeTab === 'visitors') && sortedFilteredPeople.map((person) => (
             <div key={`m-${person.id}`} className="rounded-xl border border-stone-200 p-3 bg-white">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -681,7 +784,7 @@ export default function PeopleApp({
             </div>
           ))}
 
-          {activeTab === 'kids' && filteredPeople.map((child) => (
+          {activeTab === 'kids' && sortedFilteredPeople.map((child) => (
             <div key={`mk-${child.id}`} className="rounded-xl border border-stone-200 p-3 bg-white">
               <p className="font-semibold text-stone-900 text-sm">{child.firstName} {child.lastName}</p>
               <p className="text-xs text-stone-500 mt-1">Parents: {child.parents ? renderDetailTrigger('Parents / Guardians', child.parents, 'inline-block max-w-[220px] align-bottom') : 'N/A'}</p>
@@ -696,7 +799,7 @@ export default function PeopleApp({
             </div>
           ))}
 
-          {activeTab === 'checkin' && filteredPeople.map((child) => {
+          {activeTab === 'checkin' && sortedFilteredPeople.map((child) => {
             const isCheckedIn = child.checkInStatus === 'Checked In';
             return (
               <div key={`mc-${child.id}`} className={`rounded-xl border p-3 ${isCheckedIn ? 'border-emerald-200 bg-emerald-50/40' : 'border-stone-200 bg-white'}`}>
@@ -770,7 +873,7 @@ export default function PeopleApp({
                 {isAdmin && <div className="text-right">Actions</div>}
                 {!isAdmin && <div className="text-right">Profile</div>}
               </div>
-              {filteredPeople.map((person) => (
+              {sortedFilteredPeople.map((person) => (
                   <div key={person.id} className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto] gap-4 px-5 py-4 items-center hover:bg-stone-50/70 transition-colors">
                     <div className="min-w-0 flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
@@ -816,7 +919,7 @@ export default function PeopleApp({
                 {isAdmin && <div className="text-right">Actions</div>}
                 {!isAdmin && <div className="text-right">Status</div>}
               </div>
-              {filteredPeople.map((child) => (
+              {sortedFilteredPeople.map((child) => (
                 <div key={child.id} className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] gap-4 px-5 py-4 items-center hover:bg-stone-50/70 transition-colors">
                   <div className="min-w-0 flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${theme.light} ${theme.color}`}>
@@ -895,7 +998,7 @@ export default function PeopleApp({
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {filteredPeople.map((child) => {
+                {sortedFilteredPeople.map((child) => {
                   const isCheckedIn = child.checkInStatus === 'Checked In';
                   return (
                     <tr key={child.id} className={`${isCheckedIn ? 'bg-emerald-50/30' : ''} hover:bg-stone-50 transition-colors`}>
