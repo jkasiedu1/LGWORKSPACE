@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { updateProfile } from 'firebase/auth';
 import { useAuth } from './hooks/useAuth';
 import { useAppData } from './hooks/useAppData';
 import { configureAIPolicy } from './lib/gemini';
@@ -43,6 +44,29 @@ export default function App() {
   // UI State
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profileNameInput, setProfileNameInput] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const handleOpenProfile = () => {
+    setProfileNameInput(user?.displayName || '');
+    setIsProfileOpen(true);
+  };
+
+  const handleSaveProfileName = async () => {
+    const name = profileNameInput.trim();
+    if (!name || !user) return;
+    setProfileSaving(true);
+    try {
+      await updateProfile(user, { displayName: name });
+      setIsProfileOpen(false);
+      console.log('Display name updated.');
+    } catch (err) {
+      console.error('Failed to update display name:', err);
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   // Configure AI Policy
   useEffect(() => {
@@ -119,7 +143,7 @@ export default function App() {
           if (window.innerWidth <= 1023) setMobileMenuOpen(false);
         }}
         onProfileClick={() => {
-          setActiveApp('people');
+          handleOpenProfile();
           if (window.innerWidth <= 1023) setMobileMenuOpen(false);
         }}
         user={user}
@@ -260,6 +284,37 @@ export default function App() {
           </ErrorBoundary>
         </main>
       </div>
+
+      {isProfileOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setIsProfileOpen(false)}>
+          <div className="w-full max-w-sm rounded-xl bg-white border border-stone-200 shadow-2xl p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-stone-900">Edit Display Name</h3>
+              <button onClick={() => setIsProfileOpen(false)} className="text-stone-400 hover:text-stone-600" aria-label="Close">x</button>
+            </div>
+            <p className="text-xs text-stone-500 mb-2">{user?.email}</p>
+            <input
+              type="text"
+              value={profileNameInput}
+              onChange={(e) => setProfileNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveProfileName();
+                if (e.key === 'Escape') setIsProfileOpen(false);
+              }}
+              placeholder="Your full name"
+              autoFocus
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-500 mb-3"
+            />
+            <button
+              onClick={handleSaveProfileName}
+              disabled={profileSaving || !profileNameInput.trim()}
+              className="w-full bg-stone-900 text-white text-xs font-semibold py-2 rounded-lg hover:bg-stone-800 disabled:opacity-50 transition-colors"
+            >
+              {profileSaving ? 'Saving...' : 'Save Name'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
