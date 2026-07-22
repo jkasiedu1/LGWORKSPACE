@@ -43,8 +43,23 @@ const fmtDate = (iso) => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
-export default function GivingApp({ theme, donations, setDonations, showToast }) {
+export default function GivingApp({ theme, people = [], donations, setDonations, showToast }) {
   const { user } = useAuth();
+
+  const getPersonDisplayName = (person) => {
+    if (!person) return '';
+    const first = (person.firstName || '').trim();
+    const last = (person.lastName || '').trim();
+    const fullName = `${first} ${last}`.trim();
+    return fullName || person.name || person.email || '';
+  };
+
+  const directoryDonorNames = useMemo(() => {
+    const names = people
+      .map((person) => getPersonDisplayName(person))
+      .filter(Boolean);
+    return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+  }, [people]);
 
   // ── Record form ────────────────────────────────────────────────────────────
   const [isAdding, setIsAdding] = useState(false);
@@ -425,7 +440,22 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
               <DollarSign className="text-teal-600" /> Record New Gift
             </h2>
             <div className="space-y-4">
-              <input type="text" placeholder="Donor Name" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500" value={newDonation.name} onChange={e => setNewDonation({ ...newDonation, name: e.target.value })} />
+              <datalist id="donor-directory-options">
+                {directoryDonorNames.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+              <input
+                type="text"
+                list="donor-directory-options"
+                placeholder="Donor Name"
+                className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500"
+                value={newDonation.name}
+                onChange={e => setNewDonation({ ...newDonation, name: e.target.value })}
+              />
+              <p className="text-[11px] text-stone-400 -mt-2">
+                Start typing to select a member from directory, or type a new donor name.
+              </p>
               <input type="text" placeholder="Amount (e.g. $100.00)" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500" value={newDonation.amount} onChange={e => setNewDonation({ ...newDonation, amount: e.target.value })} />
               <input type="date" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500 text-sm text-stone-600" value={newDonation.date} onChange={e => setNewDonation({ ...newDonation, date: e.target.value })} />
               <div className="grid grid-cols-2 gap-4">

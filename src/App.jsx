@@ -241,6 +241,7 @@ export default function App() {
             {activeApp === 'giving' && (isAdmin || roleAccess.appAccess?.includes('giving')) && (
               <GivingApp
                 theme={legacyTheme}
+                people={appData.people}
                 donations={appData.donations}
                 setDonations={appData.setDonations}
                 showToast={(msg) => console.log(msg)}
