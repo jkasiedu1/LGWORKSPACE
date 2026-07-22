@@ -68,6 +68,25 @@ export default function GivingApp({ theme, people = [], donations, setDonations,
     name: '', amount: '', fund: 'General Tithe', type: 'Zelle',
     date: new Date().toISOString().split('T')[0],
   });
+  const [showDonorSuggestions, setShowDonorSuggestions] = useState(false);
+
+  const filteredDonorSuggestions = useMemo(() => {
+    const query = newDonation.name.trim().toLowerCase();
+    if (!query) return directoryDonorNames.slice(0, 8);
+    return directoryDonorNames
+      .filter((name) => name.toLowerCase().includes(query))
+      .slice(0, 8);
+  }, [directoryDonorNames, newDonation.name]);
+
+  const handleDonorNameChange = (value) => {
+    setNewDonation((prev) => ({ ...prev, name: value }));
+    setShowDonorSuggestions(true);
+  };
+
+  const handleSelectDonorName = (name) => {
+    setNewDonation((prev) => ({ ...prev, name }));
+    setShowDonorSuggestions(false);
+  };
 
   // ── Annual goal (user-settable, persisted in localStorage) ────────────────
   const [annualGoal, setAnnualGoal] = useState(() => {
@@ -440,22 +459,36 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
               <DollarSign className="text-teal-600" /> Record New Gift
             </h2>
             <div className="space-y-4">
-              <datalist id="donor-directory-options">
-                {directoryDonorNames.map((name) => (
-                  <option key={name} value={name} />
-                ))}
-              </datalist>
-              <input
-                type="text"
-                list="donor-directory-options"
-                placeholder="Donor Name"
-                className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500"
-                value={newDonation.name}
-                onChange={e => setNewDonation({ ...newDonation, name: e.target.value })}
-              />
-              <p className="text-[11px] text-stone-400 -mt-2">
-                Start typing to select a member from directory, or type a new donor name.
-              </p>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Donor Name"
+                  className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500"
+                  value={newDonation.name}
+                  onChange={(e) => handleDonorNameChange(e.target.value)}
+                  onFocus={() => setShowDonorSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowDonorSuggestions(false), 120)}
+                  autoComplete="off"
+                />
+                {showDonorSuggestions && filteredDonorSuggestions.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full rounded-md border border-stone-200 bg-white shadow-lg max-h-48 overflow-y-auto">
+                    {filteredDonorSuggestions.map((name) => (
+                      <button
+                        key={name}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm text-stone-700 hover:bg-teal-50"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleSelectDonorName(name);
+                        }}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="text-[11px] text-stone-400 -mt-2">Select a directory name or type a new donor name.</p>
               <input type="text" placeholder="Amount (e.g. $100.00)" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500" value={newDonation.amount} onChange={e => setNewDonation({ ...newDonation, amount: e.target.value })} />
               <input type="date" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500 text-sm text-stone-600" value={newDonation.date} onChange={e => setNewDonation({ ...newDonation, date: e.target.value })} />
               <div className="grid grid-cols-2 gap-4">
