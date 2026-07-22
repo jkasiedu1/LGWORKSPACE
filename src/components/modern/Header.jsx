@@ -1,9 +1,33 @@
 import { Search, Bell, Menu } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ThemeSwitcher from './ThemeSwitcher';
 
 export default function Header({ activeApp, searchQuery, setSearchQuery, onMenuClick }) {
   const [showSearch, setShowSearch] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [hasUnread, setHasUnread] = useState(true);
+  const notificationRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setShowNotifications(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
 
   const appTitles = {
     home: 'Home',
@@ -69,10 +93,36 @@ export default function Header({ activeApp, searchQuery, setSearchQuery, onMenuC
 
         <ThemeSwitcher />
 
-        <button className="btn-ghost p-2 rounded-lg relative" aria-label="Notifications">
-          <Bell size={20} />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-400 rounded-full shadow-lg"></span>
-        </button>
+        <div className="relative" ref={notificationRef}>
+          <button
+            className="btn-ghost p-2 rounded-lg relative"
+            aria-label="Notifications"
+            aria-expanded={showNotifications}
+            onClick={() => {
+              setShowNotifications((prev) => !prev);
+              setHasUnread(false);
+            }}
+          >
+            <Bell size={20} />
+            {hasUnread && <span className="absolute top-1 right-1 w-2 h-2 bg-red-400 rounded-full shadow-lg"></span>}
+          </button>
+
+          {showNotifications && (
+            <div
+              className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-stone-200 overflow-hidden z-50"
+              role="dialog"
+              aria-label="Notifications panel"
+            >
+              <div className="px-4 py-3 border-b border-stone-100 bg-stone-50">
+                <p className="text-sm font-semibold text-stone-800">Notifications</p>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="text-sm text-stone-700">No new notifications right now.</div>
+                <div className="text-xs text-stone-400">You are all caught up.</div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {showSearch && (
