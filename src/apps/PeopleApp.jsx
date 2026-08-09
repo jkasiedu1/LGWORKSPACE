@@ -100,6 +100,7 @@ export default function PeopleApp({
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [processingSubmissionId, setProcessingSubmissionId] = useState(null);
+  const [isIntakeQrOpen, setIsIntakeQrOpen] = useState(false);
   const [qrScanActive, setQrScanActive] = useState(false);
   const [qrScanResult, setQrScanResult] = useState(null);
   const [newPerson, setNewPerson] = useState({
@@ -230,14 +231,13 @@ export default function PeopleApp({
   };
 
   const openIntakeQrCode = () => {
-    const qrCodeUrl = getIntakeQrCodeUrl();
-    if (!qrCodeUrl) {
+    const intakeUrl = getIntakeUrl();
+    if (!intakeUrl) {
       showToast('Unable to generate intake QR code link right now.');
       return;
     }
 
-    window.open(qrCodeUrl, '_blank', 'noopener,noreferrer');
-    showToast('Intake form QR code opened in a new tab.');
+    setIsIntakeQrOpen(true);
   };
 
   const buildDirectorySheetRows = (list) => [
@@ -541,35 +541,37 @@ export default function PeopleApp({
   return (
     <div className="space-y-6 animate-in fade-in duration-500 text-left min-w-0">
       <div className="space-y-4 mb-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 flex-1 max-w-xl">
-          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">People &amp; Check-ins</h1>
-            <p className="text-stone-500 text-sm mt-1 max-w-md">Manage profiles, backgrounds, and secure kids check-in.</p>
-          </div>
-          <div className="flex flex-wrap gap-3 xl:justify-end shrink-0">
-            {isAdmin && (
-              <button onClick={handleExportOrganizedDirectory} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
-                <Download size={16}/> Export Directory
+        <div className="rounded-2xl border border-stone-200 bg-white/90 shadow-sm p-5 md:p-6">
+          <div className="flex flex-col gap-5">
+            <div className="min-w-0">
+              <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight leading-tight">People &amp; Check-ins</h1>
+              <p className="text-stone-500 text-sm mt-2 max-w-2xl">Manage profiles, review intake submissions, and run a secure kids check-in experience.</p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {isAdmin && (
+                <button onClick={handleExportOrganizedDirectory} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
+                  <Download size={16}/> Export Directory
+                </button>
+              )}
+              {isAdmin && (
+                <button onClick={copyIntakeLink} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
+                  <Copy size={16}/> Copy Intake Form Link
+                </button>
+              )}
+              {isAdmin && (
+                <button onClick={openIntakeQrCode} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
+                  <QrCode size={16}/> Open Intake QR Code
+                </button>
+              )}
+              <button onClick={() => setActiveTab('checkin')} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
+                <UserCheck size={16}/> Launch Check-in Station
               </button>
-            )}
-            {isAdmin && (
-              <button onClick={copyIntakeLink} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
-                <Copy size={16}/> Copy Intake Form Link
-              </button>
-            )}
-            {isAdmin && (
-              <button onClick={openIntakeQrCode} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
-                <QrCode size={16}/> Open Intake QR Code
-              </button>
-            )}
-            <button onClick={() => setActiveTab('checkin')} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
-              <UserCheck size={16}/> Launch Check-in Station
-            </button>
-            {isAdmin && (
-              <button onClick={() => setIsAdding(true)} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center justify-center gap-2">
-                <UserPlus size={16}/> Add Profile
-              </button>
-            )}
+              {isAdmin && (
+                <button onClick={() => setIsAdding(true)} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center justify-center gap-2">
+                  <UserPlus size={16}/> Add Profile
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -767,6 +769,45 @@ export default function PeopleApp({
             </div>
             <div className="flex justify-end mt-5">
               <button onClick={() => setSelectedDetail(null)} className={`px-4 py-2 ${theme.bg} text-white rounded-md text-sm font-medium hover:opacity-90`}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isIntakeQrOpen && (
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsIntakeQrOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200" onClick={(event) => event.stopPropagation()}>
+            <div className="flex justify-between items-start gap-4 mb-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-stone-500">Directory Intake</p>
+                <h2 className="text-xl font-bold text-stone-900 mt-1 leading-snug">Lifegate Assemply Of God intake forms</h2>
+              </div>
+              <button onClick={() => setIsIntakeQrOpen(false)} className="text-stone-400 hover:text-rose-500" aria-label="Close intake QR modal"><X size={20}/></button>
+            </div>
+
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 flex justify-center">
+              <img
+                src={getIntakeQrCodeUrl()}
+                alt="QR code for Lifegate directory intake form"
+                className="w-64 h-64 rounded-md bg-white p-2 border border-stone-200"
+              />
+            </div>
+
+            <p className="text-xs text-stone-500 mt-4 break-all">{getIntakeUrl()}</p>
+
+            <div className="mt-4 flex flex-wrap gap-2 justify-end">
+              <button
+                onClick={copyIntakeLink}
+                className="px-3 py-2 text-xs font-semibold rounded-md text-stone-700 bg-stone-100 border border-stone-200 hover:bg-stone-200"
+              >
+                Copy Link
+              </button>
+              <button
+                onClick={() => setIsIntakeQrOpen(false)}
+                className="px-3 py-2 text-xs font-semibold rounded-md text-white bg-stone-900 hover:bg-stone-800"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>
