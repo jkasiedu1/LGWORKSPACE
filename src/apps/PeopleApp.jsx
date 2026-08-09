@@ -780,7 +780,7 @@ export default function PeopleApp({
             <div className="flex justify-between items-start gap-4 mb-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-stone-500">Directory Intake</p>
-                <h2 className="text-xl font-bold text-stone-900 mt-1 leading-snug">Lifegate Assemply Of God intake forms</h2>
+                <h2 className="text-xl font-bold text-stone-900 mt-1 leading-snug">LIFEGATE ASSEMBLY OF GOD INTAKE FORMS</h2>
               </div>
               <button onClick={() => setIsIntakeQrOpen(false)} className="text-stone-400 hover:text-rose-500" aria-label="Close intake QR modal"><X size={20}/></button>
             </div>
