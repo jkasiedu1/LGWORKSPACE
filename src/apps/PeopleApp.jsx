@@ -206,16 +206,38 @@ export default function PeopleApp({
     return false;
   }), [intakeSubmissions, searchQuery, activeTab]);
 
-  const copyIntakeLink = async () => {
-    if (typeof window === 'undefined') return;
+  const getIntakeUrl = () => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/directory-intake`;
+  };
 
-    const intakeUrl = `${window.location.origin}/directory-intake`;
+  const getIntakeQrCodeUrl = () => {
+    const intakeUrl = getIntakeUrl();
+    if (!intakeUrl) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=16&data=${encodeURIComponent(intakeUrl)}`;
+  };
+
+  const copyIntakeLink = async () => {
+    const intakeUrl = getIntakeUrl();
+    if (!intakeUrl) return;
+
     try {
       await navigator.clipboard.writeText(intakeUrl);
       showToast('Intake form link copied to clipboard.');
     } catch (_) {
       showToast(`Share this link: ${intakeUrl}`);
     }
+  };
+
+  const openIntakeQrCode = () => {
+    const qrCodeUrl = getIntakeQrCodeUrl();
+    if (!qrCodeUrl) {
+      showToast('Unable to generate intake QR code link right now.');
+      return;
+    }
+
+    window.open(qrCodeUrl, '_blank', 'noopener,noreferrer');
+    showToast('Intake form QR code opened in a new tab.');
   };
 
   const buildDirectorySheetRows = (list) => [
@@ -533,6 +555,11 @@ export default function PeopleApp({
             {isAdmin && (
               <button onClick={copyIntakeLink} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
                 <Copy size={16}/> Copy Intake Form Link
+              </button>
+            )}
+            {isAdmin && (
+              <button onClick={openIntakeQrCode} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
+                <QrCode size={16}/> Open Intake QR Code
               </button>
             )}
             <button onClick={() => setActiveTab('checkin')} className="px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center justify-center gap-2">
