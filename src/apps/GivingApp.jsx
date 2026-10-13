@@ -16,15 +16,20 @@ import MarkdownRenderer from '../components/MarkdownRenderer.jsx';
 
 const GOAL_STORAGE_KEY = 'lifegate_annual_giving_goal';
 
+const FUND_OPTIONS = ['General Tithe', 'Missions', 'Building Fund', 'Offering', 'Special Offering'];
 const FUND_COLORS = {
   'General Tithe': '#0d9488',
   'Missions': '#6366f1',
   'Building Fund': '#f59e0b',
+  'Offering': '#0ea5e9',
+  'Special Offering': '#ec4899',
 };
 const FUND_DOT = {
   'General Tithe': 'bg-teal-500',
   'Missions': 'bg-indigo-500',
   'Building Fund': 'bg-amber-500',
+  'Offering': 'bg-sky-500',
+  'Special Offering': 'bg-pink-500',
 };
 const TYPE_STYLES = {
   'Zelle': 'bg-purple-100 text-purple-700',
@@ -574,7 +579,7 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
               <input type="date" className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500 text-sm text-stone-600" value={newDonation.date} onChange={e => setNewDonation({ ...newDonation, date: e.target.value })} />
               <div className="grid grid-cols-2 gap-4">
                 <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500 text-sm" value={newDonation.fund} onChange={e => setNewDonation({ ...newDonation, fund: e.target.value })}>
-                  <option>General Tithe</option><option>Missions</option><option>Building Fund</option>
+                  {FUND_OPTIONS.map((fund) => <option key={fund}>{fund}</option>)}
                 </select>
                 <select className="w-full p-2 border border-stone-200 rounded-md outline-none focus:border-teal-500 text-sm" value={newDonation.type} onChange={e => setNewDonation({ ...newDonation, type: e.target.value })}>
                   <option>Zelle</option><option>Cash/Check</option><option>Online Card</option><option>Online Recurring</option>
@@ -866,7 +871,8 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
             <div>
               <label className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider block mb-1">Fund</label>
               <select className="p-1.5 border border-stone-200 rounded text-xs outline-none focus:border-teal-500 bg-white" value={filterFund} onChange={e => setFilterFund(e.target.value)}>
-                <option value="">All Funds</option><option>General Tithe</option><option>Missions</option><option>Building Fund</option>
+                <option value="">All Funds</option>
+                {FUND_OPTIONS.map((fund) => <option key={fund}>{fund}</option>)}
               </select>
             </div>
             <div>
