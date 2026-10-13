@@ -81,6 +81,7 @@ export default function PeopleApp({
   people,
   setPeople,
   isAdmin,
+  isSeniorPastor,
   globalSearch,
   showToast,
   loadingPeople,
@@ -412,7 +413,9 @@ export default function PeopleApp({
   };
 
   const handleDeleteProfile = async (personId) => {
-    const personData = people.find(p => p.id === personId);
+    if (!isSeniorPastor) return;
+
+    const personData = people.find((person) => person.id === personId);
     const personName = personData ? getDisplayName(personData) : 'this profile';
     const confirmed = window.confirm(`Delete ${personName}? This action cannot be undone.`);
     if (!confirmed) return;
@@ -426,7 +429,7 @@ export default function PeopleApp({
 
       showToast('Profile deleted');
     } catch (error) {
-      console.error(error);
+      console.error('[PeopleApp] Failed to delete profile:', error);
       showToast('Failed to delete profile.');
     }
   };
@@ -846,7 +849,7 @@ export default function PeopleApp({
               {isAdmin && (
                 <div className="mt-3 flex justify-end gap-2">
                   <button onClick={() => handleStartEdit(person)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100">Edit</button>
-                  <button onClick={() => handleDeleteProfile(person.id)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100">Delete</button>
+                  {isSeniorPastor && <button onClick={() => handleDeleteProfile(person.id)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100">Delete</button>}
                 </div>
               )}
             </div>
@@ -861,7 +864,7 @@ export default function PeopleApp({
               {isAdmin && (
                 <div className="mt-3 flex justify-end gap-2">
                   <button onClick={() => handleStartEdit(child)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100">Edit</button>
-                  <button onClick={() => handleDeleteProfile(child.id)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100">Delete</button>
+                  {isSeniorPastor && <button onClick={() => handleDeleteProfile(child.id)} className="px-3 py-1.5 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100">Delete</button>}
                 </div>
               )}
             </div>
@@ -967,7 +970,7 @@ export default function PeopleApp({
                       {isAdmin ? (
                         <>
                           <button onClick={() => handleStartEdit(person)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">Edit</button>
-                          <button onClick={() => handleDeleteProfile(person.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">Delete</button>
+                          {isSeniorPastor && <button onClick={() => handleDeleteProfile(person.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">Delete</button>}
                         </>
                       ) : (
                         <span className="text-xs text-stone-400">View only</span>
@@ -1016,9 +1019,7 @@ export default function PeopleApp({
                         <button onClick={() => handleStartEdit(child)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-sky-700 bg-sky-50 border border-sky-100 hover:bg-sky-100" title="Edit Profile">
                           Edit
                         </button>
-                        <button onClick={() => handleDeleteProfile(child.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">
-                          Delete
-                        </button>
+                        {isSeniorPastor && <button onClick={() => handleDeleteProfile(child.id)} className="px-2.5 py-1 text-xs font-semibold rounded-md text-rose-700 bg-rose-50 border border-rose-100 hover:bg-rose-100" title="Delete Profile">Delete</button>}
                       </>
                     ) : (
                       <span className="text-xs text-stone-400">View only</span>

@@ -35,7 +35,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && canWrite();
       allow read: if isAuthenticated();
       allow update: if isAuthenticated() && canWrite();
-      allow delete: if isAuthenticated() && canDelete();
+      allow delete: if isAuthenticated() && isSeniorPastor();
     }
 
     match /directoryIntakeSubmissions/{submissionId} {

@@ -231,6 +231,7 @@ export default function App() {
                 people={appData.people}
                 setPeople={appData.setPeople}
                 isAdmin={isAdmin}
+                isSeniorPastor={isSeniorPastor}
                 globalSearch={searchQuery}
                 showToast={(msg) => console.log(msg)}
                 loadingPeople={appData.loadingPeople}
