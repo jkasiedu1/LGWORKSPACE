@@ -26,6 +26,14 @@ const INITIAL_FORM = () => ({
 });
 const INPUT_CLASS = 'box-border min-h-12 min-w-0 w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100';
 const DATE_AMOUNT_CLASS = `${INPUT_CLASS} h-12 max-w-full`;
+const DATE_AMOUNT_STYLE = {
+  display: 'block',
+  boxSizing: 'border-box',
+  width: '100%',
+  minWidth: 0,
+  maxWidth: '100%',
+  height: '3rem',
+};
 const EMAIL_PATTERN = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
 
 function IntakeField({ label, children }) {
@@ -199,13 +207,13 @@ export default function ExpenseIntakeApp() {
                 <input type="tel" maxLength={30} autoComplete="tel" value={form.submitterPhone} onChange={(event) => updateForm('submitterPhone', event.target.value)} className={INPUT_CLASS} />
               </IntakeField>
               <IntakeField label="Expense date">
-                <input required type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} className={DATE_AMOUNT_CLASS} />
+                <input required type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} className={DATE_AMOUNT_CLASS} style={DATE_AMOUNT_STYLE} />
               </IntakeField>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <IntakeField label="Amount (USD)">
-                <input required type="number" inputMode="decimal" min="0.01" max="10000000" step="0.01" value={form.amount} onChange={(event) => updateForm('amount', event.target.value)} placeholder="0.00" className={DATE_AMOUNT_CLASS} />
+                <input required type="number" inputMode="decimal" min="0.01" max="10000000" step="0.01" value={form.amount} onChange={(event) => updateForm('amount', event.target.value)} placeholder="0.00" className={DATE_AMOUNT_CLASS} style={DATE_AMOUNT_STYLE} />
               </IntakeField>
               <IntakeField label="Expense area">
                 <select value={form.mainCategory} onChange={(event) => handleCategoryChange(event.target.value)} className={INPUT_CLASS}>

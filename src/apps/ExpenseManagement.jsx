@@ -66,6 +66,14 @@ function FormField({ label, children, className = '' }) {
 
 const inputClass = 'min-h-12 w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100';
 const dateAmountInputClass = `${inputClass} box-border h-12 min-w-0 max-w-full`;
+const dateAmountInputStyle = {
+  display: 'block',
+  boxSizing: 'border-box',
+  width: '100%',
+  minWidth: 0,
+  maxWidth: '100%',
+  height: '3rem',
+};
 
 export default function ExpenseManagement({
   expenses = [],
@@ -595,10 +603,10 @@ export default function ExpenseManagement({
             <form onSubmit={submitExpense} className="space-y-4 p-4 sm:p-6">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField label="Expense date">
-                  <input required type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} className={dateAmountInputClass} />
+                  <input required type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} className={dateAmountInputClass} style={dateAmountInputStyle} />
                 </FormField>
                 <FormField label="Amount (USD)">
-                  <input required type="number" inputMode="decimal" min="0.01" step="0.01" value={form.amount} onChange={(event) => updateForm('amount', event.target.value)} placeholder="0.00" className={dateAmountInputClass} />
+                  <input required type="number" inputMode="decimal" min="0.01" step="0.01" value={form.amount} onChange={(event) => updateForm('amount', event.target.value)} placeholder="0.00" className={dateAmountInputClass} style={dateAmountInputStyle} />
                 </FormField>
               </div>
 
