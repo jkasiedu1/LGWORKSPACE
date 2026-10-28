@@ -80,6 +80,7 @@ export default function ExpenseManagement({
 }) {
   const { user } = useAuth();
   const [formOpen, setFormOpen] = useState(false);
+  const [isIntakeMode, setIsIntakeMode] = useState(false);
   const [categorySettingsOpen, setCategorySettingsOpen] = useState(false);
   const [ministryCategories, setMinistryCategories] = useState(DEFAULT_MINISTRY_CATEGORIES);
   const [newCategory, setNewCategory] = useState('');
@@ -112,7 +113,10 @@ export default function ExpenseManagement({
     group.name === 'Ministries' ? { ...group, subcategories: ministryCategories } : group
   )), [ministryCategories]);
 
-  const selectedGroup = groups.find((group) => group.name === form.mainCategory) || groups[0];
+  const availableGroups = isIntakeMode
+    ? groups.filter((group) => ['Travel & Transportation', 'Ministries'].includes(group.name))
+    : groups;
+  const selectedGroup = availableGroups.find((group) => group.name === form.mainCategory) || availableGroups[0];
   const filteredExpenses = useMemo(() => expenses
     .filter((expense) => statusFilter === 'all' || expense.status === statusFilter)
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))), [expenses, statusFilter]);
@@ -133,7 +137,15 @@ export default function ExpenseManagement({
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
-    if (query.get('tab') === 'expenses' && query.get('mode') === 'submit') setFormOpen(true);
+    if (query.get('tab') === 'expenses' && query.get('mode') === 'submit') {
+      setIsIntakeMode(true);
+      setForm((current) => ({
+        ...current,
+        mainCategory: 'Travel & Transportation',
+        subcategory: 'Transport',
+      }));
+      setFormOpen(true);
+    }
   }, []);
 
   const updateForm = (key, value) => setForm((current) => ({ ...current, [key]: value }));
@@ -498,7 +510,7 @@ export default function ExpenseManagement({
             </div>
 
             <form onSubmit={submitExpense} className="space-y-4 p-4 sm:p-6">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-y-6 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-0">
                 <FormField label="Expense date">
                   <input required type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} className={inputClass} />
                 </FormField>
@@ -512,7 +524,7 @@ export default function ExpenseManagement({
                   <select
                     value={form.mainCategory}
                     onChange={(event) => {
-                      const nextGroup = groups.find((group) => group.name === event.target.value);
+                      const nextGroup = availableGroups.find((group) => group.name === event.target.value);
                       setForm((current) => ({
                         ...current,
                         mainCategory: event.target.value,
@@ -521,7 +533,7 @@ export default function ExpenseManagement({
                     }}
                     className={inputClass}
                   >
-                    {groups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
+                    {availableGroups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
                   </select>
                 </FormField>
                 <FormField label={form.mainCategory === 'Ministries' ? 'Ministry category' : 'Expense type'}>
