@@ -8,6 +8,7 @@ import { configureAIPolicy } from './lib/gemini';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoginScreen from './apps/LoginScreen';
 import DirectoryIntakeApp from './apps/DirectoryIntakeApp';
+import ExpenseIntakeApp from './apps/ExpenseIntakeApp';
 
 // Modern Components
 import Sidebar from './components/modern/Sidebar';
@@ -38,6 +39,11 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const isPublicDirectoryIntakeRoute = location.pathname === '/directory-intake';
+  const searchParams = new URLSearchParams(location.search);
+  const isLegacyExpenseIntakeRoute = location.pathname === '/giving'
+    && searchParams.get('tab') === 'expenses'
+    && searchParams.get('mode') === 'submit';
+  const isPublicExpenseIntakeRoute = location.pathname === '/expense-intake' || isLegacyExpenseIntakeRoute;
   const activeApp = location.pathname.replace('/', '') || 'home';
   const setActiveApp = (appId) => navigate(appId === 'home' ? '/' : `/${appId}`);
 
@@ -97,9 +103,12 @@ export default function App() {
     };
   }, [isAuthenticated, user, logout]);
 
-  // Public directory intake route
+  // Public intake routes are rendered without entering the authenticated app.
   if (isPublicDirectoryIntakeRoute) {
     return <DirectoryIntakeApp />;
+  }
+  if (isPublicExpenseIntakeRoute) {
+    return <ExpenseIntakeApp />;
   }
 
   // Loading state
@@ -246,7 +255,9 @@ export default function App() {
                 donations={appData.donations}
                 setDonations={appData.setDonations}
                 expenses={appData.expenses}
+                expenseIntakeSubmissions={appData.expenseIntakeSubmissions}
                 loadingExpenses={appData.loadingExpenses}
+                loadingExpenseIntakeSubmissions={appData.loadingExpenseIntakeSubmissions}
                 canReviewExpenses={isAdmin || isSeniorPastor}
                 showToast={(msg) => console.log(msg)}
               />

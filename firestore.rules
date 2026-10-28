@@ -76,6 +76,85 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /expenseIntakeSubmissions/{submissionId} {
+      allow create: if request.resource.data.keys().hasOnly([
+          'submitterName', 'submitterEmail', 'submitterPhone', 'date', 'amount',
+          'mainCategory', 'subcategory', 'description', 'payee', 'paymentMethod',
+          'fund', 'reference', 'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'submitterName', 'submitterEmail', 'submitterPhone', 'date', 'amount',
+          'mainCategory', 'subcategory', 'description', 'payee', 'paymentMethod',
+          'fund', 'reference', 'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.submitterName is string
+        && request.resource.data.submitterName.size() > 0
+        && request.resource.data.submitterName.size() <= 120
+        && request.resource.data.submitterEmail is string
+        && request.resource.data.submitterEmail.size() <= 254
+        && request.resource.data.submitterPhone is string
+        && request.resource.data.submitterPhone.size() <= 30
+        && (
+          request.resource.data.submitterEmail.size() > 0
+          || request.resource.data.submitterPhone.size() > 0
+        )
+        && request.resource.data.date is string
+        && request.resource.data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 10000000
+        && request.resource.data.mainCategory in ['Travel & Transportation', 'Ministries']
+        && request.resource.data.subcategory is string
+        && request.resource.data.subcategory.size() > 0
+        && request.resource.data.subcategory.size() <= 100
+        && (
+          (
+            request.resource.data.mainCategory == 'Travel & Transportation'
+            && request.resource.data.subcategory in ['Transport', 'Travel']
+          )
+          || request.resource.data.mainCategory == 'Ministries'
+        )
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0
+        && request.resource.data.description.size() <= 500
+        && request.resource.data.payee is string
+        && request.resource.data.payee.size() <= 160
+        && request.resource.data.paymentMethod is string
+        && request.resource.data.paymentMethod.size() <= 60
+        && request.resource.data.fund is string
+        && request.resource.data.fund.size() <= 120
+        && request.resource.data.reference is string
+        && request.resource.data.reference.size() <= 120
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow read: if isAuthenticated() && canWrite();
+      allow update: if isAuthenticated()
+        && canWrite()
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.reviewedBy is string
+        && request.resource.data.reviewedBy.size() <= 120
+        && request.resource.data.reviewedAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && (
+          (
+            request.resource.data.status == 'approved'
+            && request.resource.data.expenseId is string
+            && request.resource.data.expenseId.size() > 0
+            && request.resource.data.expenseId.size() <= 128
+          )
+          || (
+            request.resource.data.status == 'rejected'
+            && !('expenseId' in request.resource.data.keys())
+          )
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'expenseId', 'reviewedBy', 'reviewedAt', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
     match /events/{eventId} {
       allow create: if isAuthenticated() && canWrite();
       allow read: if isAuthenticated();
@@ -103,6 +182,7 @@ service cloud.firestore {
           'date', 'amount', 'mainCategory', 'subcategory', 'description',
           'payee', 'paymentMethod', 'fund', 'reference', 'receiptKey',
           'receiptName', 'submittedBy', 'submittedByUid', 'status',
+          'reviewedBy', 'reviewedAt', 'sourceIntakeId',
           'createdAt', 'updatedAt'
         ])
         && request.resource.data.keys().hasAll([
@@ -131,7 +211,24 @@ service cloud.firestore {
         && request.resource.data.submittedBy is string
         && request.resource.data.submittedBy.size() <= 120
         && request.resource.data.submittedByUid == request.auth.uid
-        && request.resource.data.status == 'pending'
+        && (
+          (
+            request.resource.data.status == 'pending'
+            && !('reviewedBy' in request.resource.data.keys())
+            && !('reviewedAt' in request.resource.data.keys())
+            && !('sourceIntakeId' in request.resource.data.keys())
+          )
+          || (
+            request.resource.data.status == 'approved'
+            && canWrite()
+            && request.resource.data.reviewedBy is string
+            && request.resource.data.reviewedBy.size() <= 120
+            && request.resource.data.reviewedAt == request.time
+            && request.resource.data.sourceIntakeId is string
+            && request.resource.data.sourceIntakeId.size() > 0
+            && request.resource.data.sourceIntakeId.size() <= 128
+          )
+        )
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time
         && request.resource.data.get('payee', '') is string
@@ -243,7 +340,7 @@ service cloud.firestore {
 
     match /settings/{settingId} {
       allow create: if isAuthenticated() && canWrite();
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() || settingId == 'financeExpenseCategories';
       allow update: if isAuthenticated() && canWrite();
       allow delete: if false;
     }

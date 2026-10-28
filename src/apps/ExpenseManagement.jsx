@@ -7,23 +7,17 @@ import {
 import { db } from '../config/firebase';
 import { useAuth } from '../hooks/useAuth';
 import {
+  approvePublicExpenseIntakeSubmission,
   createExpense,
+  rejectPublicExpenseIntakeSubmission,
   saveFinanceExpenseCategories,
   updateExpense,
 } from '../lib/firestoreServices';
 import { downloadPrivateReceipt, uploadMediaToR2 } from '../lib/mediaStorage';
-
-const DEFAULT_MINISTRY_CATEGORIES = ['Children', 'Media & Equipment', 'Hospitality'];
-
-const CATEGORY_GROUPS = [
-  { name: 'Personnel & Compensation', subcategories: ['Payroll', 'Payroll Taxes', 'Pastor Housing Allowance'] },
-  { name: 'Employee Benefits', subcategories: ['Life Insurance', 'Dental & Medical Insurance'] },
-  { name: 'Facilities & Operations', subcategories: ['Utilities', 'Alarm & Security', 'Maintenance & Repairs', 'Office Expenses'] },
-  { name: 'Property Insurance', subcategories: ['Church Building Insurance'] },
-  { name: 'Travel & Transportation', subcategories: ['Transport', 'Travel'] },
-  { name: 'Missions', subcategories: ['Missions'] },
-  { name: 'Ministries', subcategories: DEFAULT_MINISTRY_CATEGORIES },
-];
+import {
+  DEFAULT_MINISTRY_CATEGORIES,
+  EXPENSE_CATEGORY_GROUPS,
+} from '../lib/expenseCategories';
 
 const TODAY = () => new Date().toISOString().slice(0, 10);
 const EMPTY_FORM = () => ({
@@ -74,13 +68,14 @@ const inputClass = 'min-h-12 w-full rounded-xl border border-stone-200 bg-white 
 
 export default function ExpenseManagement({
   expenses = [],
+  expenseIntakeSubmissions = [],
+  loadingExpenseIntakeSubmissions = false,
   loadingExpenses = false,
   canReviewExpenses = false,
   showToast = () => {},
 }) {
   const { user } = useAuth();
   const [formOpen, setFormOpen] = useState(false);
-  const [isIntakeMode, setIsIntakeMode] = useState(false);
   const [categorySettingsOpen, setCategorySettingsOpen] = useState(false);
   const [ministryCategories, setMinistryCategories] = useState(DEFAULT_MINISTRY_CATEGORIES);
   const [newCategory, setNewCategory] = useState('');
@@ -94,6 +89,7 @@ export default function ExpenseManagement({
   const [statusFilter, setStatusFilter] = useState('all');
   const [shareLink, setShareLink] = useState('');
   const [reviewingId, setReviewingId] = useState('');
+  const [reviewingIntakeId, setReviewingIntakeId] = useState('');
   const [receiptError, setReceiptError] = useState('');
   const [actionMessage, setActionMessage] = useState(null);
 
@@ -109,21 +105,22 @@ export default function ExpenseManagement({
     );
   }, [user]);
 
-  const groups = useMemo(() => CATEGORY_GROUPS.map((group) => (
+  const groups = useMemo(() => EXPENSE_CATEGORY_GROUPS.map((group) => (
     group.name === 'Ministries' ? { ...group, subcategories: ministryCategories } : group
   )), [ministryCategories]);
 
-  const availableGroups = isIntakeMode
-    ? groups.filter((group) => ['Travel & Transportation', 'Ministries'].includes(group.name))
-    : groups;
-  const selectedGroup = availableGroups.find((group) => group.name === form.mainCategory) || availableGroups[0];
+  const selectedGroup = groups.find((group) => group.name === form.mainCategory) || groups[0];
   const filteredExpenses = useMemo(() => expenses
     .filter((expense) => statusFilter === 'all' || expense.status === statusFilter)
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))), [expenses, statusFilter]);
+  const filteredIntakeSubmissions = useMemo(() => expenseIntakeSubmissions
+    .filter((submission) => statusFilter === 'all' || (submission.status || 'pending') === statusFilter)
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))), [expenseIntakeSubmissions, statusFilter]);
   const approvedTotal = expenses
     .filter((expense) => expense.status === 'approved')
     .reduce((sum, expense) => sum + amountValue(expense.amount), 0);
-  const pendingCount = expenses.filter((expense) => expense.status === 'pending').length;
+  const pendingCount = expenses.filter((expense) => expense.status === 'pending').length
+    + expenseIntakeSubmissions.filter((submission) => !submission.status || submission.status === 'pending').length;
 
   useEffect(() => {
     if (!receiptFile) {
@@ -135,35 +132,20 @@ export default function ExpenseManagement({
     return () => URL.revokeObjectURL(url);
   }, [receiptFile]);
 
-  useEffect(() => {
-    const query = new URLSearchParams(window.location.search);
-    if (query.get('tab') === 'expenses' && query.get('mode') === 'submit') {
-      setIsIntakeMode(true);
-      setForm((current) => ({
-        ...current,
-        mainCategory: 'Travel & Transportation',
-        subcategory: 'Transport',
-      }));
-      setFormOpen(true);
-    }
-  }, []);
-
   const updateForm = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
   const copyIntakeLink = async () => {
-    const url = new URL('/giving', window.location.origin);
-    url.searchParams.set('tab', 'expenses');
-    url.searchParams.set('mode', 'submit');
+    const url = new URL('/expense-intake', window.location.origin);
     const link = url.toString();
     setShareLink(link);
     try {
       await navigator.clipboard.writeText(link);
-      setActionMessage({ type: 'success', text: 'Expense form link copied. Recipients need to sign in and have Giving access.' });
-      showToast('Expense form link copied');
+      setActionMessage({ type: 'success', text: 'Public expense intake link copied. It does not grant access to the church app.' });
+      showToast('Public expense intake link copied');
     } catch (error) {
       console.warn('[ExpenseManagement] Clipboard access unavailable:', error);
-      setActionMessage({ type: 'error', text: 'Copy the expense form link displayed below.' });
-      showToast('Copy the expense form link shown below');
+      setActionMessage({ type: 'error', text: 'Copy the public expense intake link displayed below.' });
+      showToast('Copy the expense intake link shown below');
     }
   };
 
@@ -317,6 +299,31 @@ export default function ExpenseManagement({
     }
   };
 
+  const reviewIntakeSubmission = async (submission, status) => {
+    setReviewingIntakeId(submission.id);
+    try {
+      const reviewerName = user?.email || user?.displayName || 'Finance reviewer';
+      if (status === 'approved') {
+        await approvePublicExpenseIntakeSubmission(submission, user?.uid, reviewerName);
+      } else {
+        await rejectPublicExpenseIntakeSubmission(submission.id, reviewerName);
+      }
+      setActionMessage({
+        type: 'success',
+        text: status === 'approved'
+          ? 'Public expense approved and added to the financial records.'
+          : 'Public expense intake rejected.',
+      });
+      showToast(status === 'approved' ? 'Expense approved and recorded' : 'Expense intake rejected');
+    } catch (error) {
+      console.error('[ExpenseManagement] Public expense intake review failed:', error);
+      setActionMessage({ type: 'error', text: error.message || 'Could not review this public expense.' });
+      showToast('Could not review public expense');
+    } finally {
+      setReviewingIntakeId('');
+    }
+  };
+
   const openReceipt = async (expense) => {
     try {
       await downloadPrivateReceipt(expense.receiptKey, expense.receiptName);
@@ -365,16 +372,91 @@ export default function ExpenseManagement({
             onClick={copyIntakeLink}
             className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-stone-200 px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-50"
           >
-            <Copy size={15} /> Copy sign-in form link
+            <Copy size={15} /> Copy public intake link
           </button>
         </div>
       </div>
 
       {shareLink && (
         <div className="break-all rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900">
-          <p className="mb-1 font-semibold">Share this link with church-app users who have Giving access.</p>
+          <p className="mb-1 font-semibold">Anyone with this link can submit an expense intake; it does not grant access to the church app.</p>
           <a className="underline underline-offset-2" href={shareLink}>{shareLink}</a>
-          <p className="mt-1 text-xs text-teal-800">Recipients must sign in. Only finance reviewers can see submissions and receipts.</p>
+          <p className="mt-1 text-xs text-teal-800">Only finance reviewers can see or approve submissions.</p>
+        </div>
+      )}
+
+      {canReviewExpenses && (
+        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+          <div className="border-b border-stone-100 p-4 sm:px-5">
+            <h2 className="text-base font-bold text-stone-900">Public intake submissions</h2>
+            <p className="mt-0.5 text-xs text-stone-500">Approve to add the expense directly to the financial records.</p>
+          </div>
+          {loadingExpenseIntakeSubmissions ? (
+            <div className="flex items-center justify-center gap-2 p-8 text-sm text-stone-500">
+              <Loader2 className="animate-spin" size={17} /> Loading public submissions…
+            </div>
+          ) : filteredIntakeSubmissions.length === 0 ? (
+            <div className="p-6 text-center text-sm text-stone-500">No public intake submissions match this filter.</div>
+          ) : (
+            <div className="divide-y divide-stone-100">
+              {filteredIntakeSubmissions.map((submission) => {
+                const status = submission.status || 'pending';
+                const isProcessing = reviewingIntakeId === submission.id;
+                return (
+                  <article key={submission.id} className="space-y-3 p-4 sm:p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words font-semibold text-stone-900">{submission.description}</p>
+                        <p className="mt-1 text-sm text-stone-500">
+                          {submission.mainCategory}{submission.subcategory ? ` · ${submission.subcategory}` : ''}
+                        </p>
+                        <p className="mt-1 text-xs text-stone-500">
+                          {submission.date || 'No date'} · Submitted by {submission.submitterName || 'Unknown'}
+                        </p>
+                      </div>
+                      <div className="ml-auto text-right">
+                        <p className="text-lg font-bold tabular-nums text-stone-900">{money(amountValue(submission.amount))}</p>
+                        <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          status === 'approved' ? 'bg-emerald-50 text-emerald-700'
+                            : status === 'rejected' ? 'bg-rose-50 text-rose-700'
+                              : 'bg-amber-50 text-amber-800'
+                        }`}>
+                          {status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-stone-500">
+                      {submission.submitterEmail && <span>Email: {submission.submitterEmail}</span>}
+                      {submission.submitterPhone && <span>Phone: {submission.submitterPhone}</span>}
+                      {submission.payee && <span>Payee: {submission.payee}</span>}
+                      {submission.fund && <span>Fund: {submission.fund}</span>}
+                    </div>
+                    {status === 'pending' && (
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={isProcessing}
+                          onClick={() => reviewIntakeSubmission(submission, 'rejected')}
+                          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                        >
+                          <X size={15} /> Reject
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isProcessing}
+                          onClick={() => reviewIntakeSubmission(submission, 'approved')}
+                          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
+                        >
+                          {isProcessing ? <Loader2 className="animate-spin" size={15} /> : <Check size={15} />}
+                          Approve &amp; record
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -383,7 +465,7 @@ export default function ExpenseManagement({
           <div>
             <h2 className="text-base font-bold text-stone-900">Expense submissions</h2>
             <p className="mt-0.5 text-xs text-stone-500">
-              {canReviewExpenses ? 'Review receipts and approve eligible expenses.' : 'Your submissions are private until reviewed by finance.'}
+              {canReviewExpenses ? 'Review app submissions, receipts, and expense statuses.' : 'Your submissions are private until reviewed by finance.'}
             </p>
           </div>
           {canReviewExpenses && (
@@ -510,7 +592,7 @@ export default function ExpenseManagement({
             </div>
 
             <form onSubmit={submitExpense} className="space-y-4 p-4 sm:p-6">
-              <div className="grid grid-cols-1 gap-y-6 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-0">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField label="Expense date">
                   <input required type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} className={inputClass} />
                 </FormField>
@@ -524,7 +606,7 @@ export default function ExpenseManagement({
                   <select
                     value={form.mainCategory}
                     onChange={(event) => {
-                      const nextGroup = availableGroups.find((group) => group.name === event.target.value);
+                      const nextGroup = groups.find((group) => group.name === event.target.value);
                       setForm((current) => ({
                         ...current,
                         mainCategory: event.target.value,
@@ -533,7 +615,7 @@ export default function ExpenseManagement({
                     }}
                     className={inputClass}
                   >
-                    {availableGroups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
+                    {groups.map((group) => <option key={group.name} value={group.name}>{group.name}</option>)}
                   </select>
                 </FormField>
                 <FormField label={form.mainCategory === 'Ministries' ? 'Ministry category' : 'Expense type'}>

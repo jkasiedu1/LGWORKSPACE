@@ -64,13 +64,14 @@ RBAC is claims-first: production admin access should come from Firebase custom c
 
 ### Giving Expense Intake
 
-The Giving page includes mobile-friendly expense submissions, receipt image scanning, finance review, editable ministry categories, and combined income/expense exports. Receipt OCR runs in the submitter's browser; submitted receipt files are stored in R2.
+The Giving page includes mobile-friendly expense submissions, receipt image scanning for signed-in Giving users, finance review, editable ministry categories, and combined income/expense exports. Receipt OCR runs in the submitter's browser; private receipt files are stored in R2.
 
-- Submitters must sign in and have the `giving` app-access claim.
-- Only Admin and Senior Pastor accounts can review expenses or retrieve receipt files.
+- The **Copy public intake link** opens `/expense-intake`, a standalone public form modeled after `/directory-intake`. It does not create an account or grant access to the app.
+- Public intake submissions are limited to Travel & Transportation and Ministries, are visible only to finance reviewers, and enter the financial records only after approval. Public intake does not accept receipt attachments.
+- The in-app expense form remains available to signed-in users with Giving access and supports private receipt uploads.
+- Only Admin and Senior Pastor accounts can review expenses or retrieve private receipts.
 - Keep the R2 bucket private; receipt access is enforced by the signer Worker.
-- Deploy the updated Firestore rules and R2 signer Worker before deploying the frontend. The frontend refuses to upload receipts unless the Worker confirms private receipt support.
-- Give each submitter the **Copy sign-in form link** from Giving. The recipient must already have Giving app access.
+- Deploy Firestore rules, the R2 signer Worker, and the frontend before testing private receipt uploads. The frontend refuses to upload receipts unless the Worker confirms private receipt support.
 
 ### Role Management Endpoint
 

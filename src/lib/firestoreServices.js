@@ -329,6 +329,87 @@ export async function createExpense(expense) {
   return { id: docRef.id, ...payload };
 }
 
+export async function createPublicExpenseIntakeSubmission(submission) {
+  const payload = {
+    submitterName: String(submission.submitterName || '').trim(),
+    submitterEmail: String(submission.submitterEmail || '').trim(),
+    submitterPhone: String(submission.submitterPhone || '').trim(),
+    date: String(submission.date || ''),
+    amount: Number(submission.amount),
+    mainCategory: String(submission.mainCategory || ''),
+    subcategory: String(submission.subcategory || ''),
+    description: String(submission.description || '').trim(),
+    payee: String(submission.payee || '').trim(),
+    paymentMethod: String(submission.paymentMethod || '').trim(),
+    fund: String(submission.fund || '').trim(),
+    reference: String(submission.reference || '').trim(),
+    status: 'pending',
+  };
+  if (!db) return { id: Date.now(), ...payload };
+
+  const docRef = await withRetry(() => addDoc(
+    collection(db, 'expenseIntakeSubmissions'),
+    withAuditFields(payload)
+  ));
+  return { id: docRef.id, ...payload };
+}
+
+export async function approvePublicExpenseIntakeSubmission(submission, reviewerUid, reviewerName) {
+  if (!submission?.id || !reviewerUid) {
+    throw new Error('A valid public submission and signed-in reviewer are required.');
+  }
+  if (!db) return { id: submission.id, status: 'approved' };
+
+  const safeReviewerName = String(reviewerName || 'Finance reviewer').slice(0, 120);
+  const expenseRef = doc(collection(db, 'expenses'));
+  const submissionRef = doc(db, 'expenseIntakeSubmissions', submission.id);
+  const expensePayload = {
+    date: String(submission.date || ''),
+    amount: Number(submission.amount),
+    mainCategory: String(submission.mainCategory || ''),
+    subcategory: String(submission.subcategory || ''),
+    description: String(submission.description || '').trim(),
+    payee: String(submission.payee || '').trim(),
+    paymentMethod: String(submission.paymentMethod || '').trim(),
+    fund: String(submission.fund || '').trim(),
+    reference: String(submission.reference || '').trim(),
+    submittedBy: String(submission.submitterName || '').trim(),
+    submittedByUid: reviewerUid,
+    status: 'approved',
+    reviewedBy: safeReviewerName,
+    reviewedAt: serverTimestamp(),
+    sourceIntakeId: submission.id,
+  };
+
+  await withRetry(async () => {
+    const batch = writeBatch(db);
+    batch.set(expenseRef, withAuditFields(expensePayload));
+    batch.update(submissionRef, {
+      status: 'approved',
+      expenseId: expenseRef.id,
+      reviewedBy: safeReviewerName,
+      reviewedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+  });
+
+  return { id: expenseRef.id, intakeId: submission.id, status: 'approved' };
+}
+
+export async function rejectPublicExpenseIntakeSubmission(submissionId, reviewerName) {
+  if (!submissionId) throw new Error('A valid public submission is required.');
+  if (!db) return { id: submissionId, status: 'rejected' };
+
+  await withRetry(() => updateDoc(doc(db, 'expenseIntakeSubmissions', submissionId), {
+    status: 'rejected',
+    reviewedBy: String(reviewerName || 'Finance reviewer').slice(0, 120),
+    reviewedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }));
+  return { id: submissionId, status: 'rejected' };
+}
+
 export async function updateExpense(expenseId, updates) {
   if (!db) return;
   const { id: _id, ...fields } = updates;

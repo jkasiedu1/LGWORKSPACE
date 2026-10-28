@@ -57,7 +57,9 @@ export default function GivingApp({
   donations = [],
   setDonations,
   expenses = [],
+  expenseIntakeSubmissions = [],
   loadingExpenses = false,
+  loadingExpenseIntakeSubmissions = false,
   canReviewExpenses = false,
   showToast,
 }) {
@@ -264,9 +266,20 @@ export default function GivingApp({
   const reportIncome = useMemo(() => filteredDonations.filter((donation) => (
     donation.date >= reportStartDate && donation.date <= reportEndDate
   )), [filteredDonations, reportStartDate, reportEndDate]);
-  const reportExpenses = useMemo(() => expenses.filter((expense) => (
+  const reportableExpenses = useMemo(() => [
+    ...expenses,
+    ...expenseIntakeSubmissions
+      .filter((submission) => submission.status !== 'approved')
+      .map((submission) => ({
+        ...submission,
+        id: `public-intake-${submission.id}`,
+        submittedBy: submission.submitterName || '',
+        source: 'Public intake',
+      })),
+  ], [expenses, expenseIntakeSubmissions]);
+  const reportExpenses = useMemo(() => reportableExpenses.filter((expense) => (
     expense.date >= reportStartDate && expense.date <= reportEndDate
-  )), [expenses, reportStartDate, reportEndDate]);
+  )), [reportableExpenses, reportStartDate, reportEndDate]);
   const approvedReportExpenses = useMemo(() => reportExpenses.filter((expense) => expense.status === 'approved'), [reportExpenses]);
   const reportIncomeTotal = useMemo(() => reportIncome.reduce((sum, donation) => sum + donation.amountNum, 0), [reportIncome]);
   const reportExpenseTotal = useMemo(() => approvedReportExpenses.reduce(
@@ -825,7 +838,7 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
                 { key: 'summary',           label: 'Financial Summary', desc: 'Income, approved expenses, net, and category totals' },
                 { key: 'monthlyTrend',      label: 'Monthly Cash Flow', desc: '12 months of income, approved expenses, and net' },
                 { key: 'transactionLedger', label: 'Income Ledger', desc: `${reportIncome.length} gifts in the report period and current filters` },
-                { key: 'expenseLedger',     label: 'Expense Ledger', desc: `${reportExpenses.length} expense submissions and receipt references` },
+                { key: 'expenseLedger',     label: 'Expense Ledger', desc: `${reportExpenses.length} expense entries and review statuses` },
               ].map(({ key, label, desc }) => (
                 <label key={key} className="flex min-h-12 cursor-pointer items-start gap-3 group">
                   <div
@@ -866,7 +879,9 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
       {activeTab === 'expenses' ? (
         <ExpenseManagement
           expenses={expenses}
+          expenseIntakeSubmissions={expenseIntakeSubmissions}
           loadingExpenses={loadingExpenses}
+          loadingExpenseIntakeSubmissions={loadingExpenseIntakeSubmissions}
           canReviewExpenses={canReviewExpenses}
           showToast={showToast}
         />

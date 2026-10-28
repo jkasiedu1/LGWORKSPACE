@@ -32,6 +32,7 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
   const [communityPosts, setCommunityPosts] = useState(COMMUNITY_POSTS);
   const [intakeSubmissions, setIntakeSubmissions] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [expenseIntakeSubmissions, setExpenseIntakeSubmissions] = useState([]);
   const [securitySettings, setSecuritySettings] = useState({ is2FA: true, isDLP: true, isPII: true, isOptOut: true, isEndpoint: false });
   const [servicePlan, setServicePlan] = useState({
     headerData: { title: 'Ash Wednesday Gathering', date: '2026-02-18', time: '19:00', location: 'Main Auditorium' },
@@ -47,6 +48,7 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [loadingIntakeSubmissions, setLoadingIntakeSubmissions] = useState(false);
   const [loadingExpenses, setLoadingExpenses] = useState(false);
+  const [loadingExpenseIntakeSubmissions, setLoadingExpenseIntakeSubmissions] = useState(false);
 
   /**
    * Subscribe to Firestore collections when authenticated
@@ -55,6 +57,8 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
     if (!isAuthenticated || !db) {
       setLoadingPeople(false);
       setLoadingEvents(false);
+      setExpenseIntakeSubmissions([]);
+      setLoadingExpenseIntakeSubmissions(false);
       return;
     }
 
@@ -67,6 +71,7 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
     let unsubCommunityPosts;
     let unsubIntakeSubmissions;
     let unsubExpenses;
+    let unsubExpenseIntakeSubmissions;
     let unsubSecuritySettings;
     let unsubServicePlan;
 
@@ -143,11 +148,29 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
               setLoadingExpenses(false);
             }
           );
+
+          setLoadingExpenseIntakeSubmissions(true);
+          unsubExpenseIntakeSubmissions = onSnapshot(
+            query(collection(db, 'expenseIntakeSubmissions'), orderBy('createdAt', 'desc')),
+            (snapshot) => {
+              setExpenseIntakeSubmissions(snapshot.docs.map((submissionDoc) => ({
+                id: submissionDoc.id,
+                ...submissionDoc.data(),
+              })));
+              setLoadingExpenseIntakeSubmissions(false);
+            },
+            (error) => {
+              console.error('[useAppData] Public expense intake subscription failed:', error);
+              setLoadingExpenseIntakeSubmissions(false);
+            }
+          );
         } else {
           setIntakeSubmissions([]);
           setLoadingIntakeSubmissions(false);
           setExpenses([]);
           setLoadingExpenses(false);
+          setExpenseIntakeSubmissions([]);
+          setLoadingExpenseIntakeSubmissions(false);
         }
 
         unsubSecuritySettings = onSnapshot(doc(db, 'settings', 'security'), (settingsDoc) => {
@@ -175,6 +198,7 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
       if (unsubCommunityPosts) unsubCommunityPosts();
       if (unsubIntakeSubmissions) unsubIntakeSubmissions();
       if (unsubExpenses) unsubExpenses();
+      if (unsubExpenseIntakeSubmissions) unsubExpenseIntakeSubmissions();
       if (unsubSecuritySettings) unsubSecuritySettings();
       if (unsubServicePlan) unsubServicePlan();
     };
@@ -205,6 +229,8 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
     expenses,
     setExpenses,
     loadingExpenses,
+    expenseIntakeSubmissions,
+    loadingExpenseIntakeSubmissions,
     securitySettings,
     setSecuritySettings,
     servicePlan,
