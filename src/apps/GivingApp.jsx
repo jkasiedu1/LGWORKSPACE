@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import {
   DollarSign, TrendingUp, TrendingDown, Users, CreditCard, Sparkles,
   Loader2, Trash2, Download, Search, Filter, ChevronUp, ChevronDown,
-  Award, X,
+  Award, X, ReceiptText,
 } from 'lucide-react';
 import {
   AreaChart, Area, PieChart, Pie, Cell,
@@ -13,6 +13,7 @@ import { callAI } from '../lib/gemini';
 import { createDonation, deleteDonation } from '../lib/firestoreServices';
 import { useAuth } from '../hooks/useAuth';
 import MarkdownRenderer from '../components/MarkdownRenderer.jsx';
+import ExpenseManagement from './ExpenseManagement.jsx';
 
 const GOAL_STORAGE_KEY = 'lifegate_annual_giving_goal';
 
@@ -50,8 +51,22 @@ const fmtDate = (iso) => {
 
 const normalizeName = (value) => String(value || '').trim().toLowerCase();
 
-export default function GivingApp({ theme, people = [], donations, setDonations, showToast }) {
+export default function GivingApp({
+  theme,
+  people = [],
+  donations = [],
+  setDonations,
+  expenses = [],
+  loadingExpenses = false,
+  canReviewExpenses = false,
+  showToast,
+}) {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState(() => (
+    canReviewExpenses && new URLSearchParams(window.location.search).get('tab') !== 'expenses'
+      ? 'giving'
+      : 'expenses'
+  ));
 
   const getPersonDisplayName = (person) => {
     if (!person) return '';
@@ -141,6 +156,7 @@ export default function GivingApp({ theme, people = [], donations, setDonations,
     summary: true,
     monthlyTrend: true,
     transactionLedger: true,
+    expenseLedger: true,
   });
   const toggleExportOpt = (key) => setExportOpts(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -243,6 +259,20 @@ export default function GivingApp({ theme, people = [], donations, setDonations,
   }, [parsedDonations, search, filterFund, filterType, filterDonor, filterFrom, filterTo, sortKey, sortDir]);
 
   const filteredTotal = useMemo(() => filteredDonations.reduce((s, d) => s + d.amountNum, 0), [filteredDonations]);
+  const reportStartDate = filterFrom || ytdStart;
+  const reportEndDate = filterTo || now.toISOString().slice(0, 10);
+  const reportIncome = useMemo(() => filteredDonations.filter((donation) => (
+    donation.date >= reportStartDate && donation.date <= reportEndDate
+  )), [filteredDonations, reportStartDate, reportEndDate]);
+  const reportExpenses = useMemo(() => expenses.filter((expense) => (
+    expense.date >= reportStartDate && expense.date <= reportEndDate
+  )), [expenses, reportStartDate, reportEndDate]);
+  const approvedReportExpenses = useMemo(() => reportExpenses.filter((expense) => expense.status === 'approved'), [reportExpenses]);
+  const reportIncomeTotal = useMemo(() => reportIncome.reduce((sum, donation) => sum + donation.amountNum, 0), [reportIncome]);
+  const reportExpenseTotal = useMemo(() => approvedReportExpenses.reduce(
+    (sum, expense) => sum + (parseFloat(String(expense.amount ?? 0).replace(/[$,]/g, '')) || 0),
+    0
+  ), [approvedReportExpenses]);
 
   const handleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -383,31 +413,36 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
     const period = filterFrom || filterTo
       ? `${filterFrom ? fmtDate(filterFrom) : 'Beginning'} – ${filterTo ? fmtDate(filterTo) : 'Present'}`
       : 'Year to Date';
-
-    // Pre-format helpers — values are stored as display strings so every
-    // spreadsheet viewer (Apple Files, Numbers, Excel, Google Sheets) shows
-    // them correctly without relying on app-specific format codes.
-    const c = (n) => fmt$(n);                                      // "$1,234.56"
-    const p = (n) => `${(n * 100).toFixed(2)}%`;                   // "12.34%"
+    const c = (n) => fmt$(n);
+    const p = (n) => `${(n * 100).toFixed(2)}%`;
     const BLANK_ROW = ['', '', '', '', '', ''];
     const yearLabel = `Jan 1, ${now.getFullYear()} – ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    const categoryTotals = approvedReportExpenses.reduce((totals, expense) => {
+      const label = [expense.mainCategory, expense.subcategory].filter(Boolean).join(' · ');
+      totals[label] = (totals[label] || 0) + (parseFloat(String(expense.amount ?? 0).replace(/[$,]/g, '')) || 0);
+      return totals;
+    }, {});
 
-    if (!opts.summary && !opts.monthlyTrend && !opts.transactionLedger) {
+    if (!opts.summary && !opts.monthlyTrend && !opts.transactionLedger && !opts.expenseLedger) {
       showToast('Select at least one section to export');
       return;
     }
 
-    // ── SHEET 1: Summary ────────────────────────────────────────────────────
-    // 6 columns so the header merges span full page width
     const s1 = [
       ['LIFEGATE ASSEMBLY OF GOD', '', '', '', '', ''],
-      ['Financial Report', '', '', '', '', ''],
+      ['Income & Expenditure Report', '', '', '', '', ''],
       [`Generated: ${reportDate}`, '', '', '', '', ''],
       [`Reporting Period: ${period}`, '', '', '', '', ''],
       [`YTD Period: ${yearLabel}`, '', '', '', '', ''],
       BLANK_ROW,
       ['KEY PERFORMANCE INDICATORS', '', '', '', '', ''],
       ['Metric', '', 'Amount', '', '', ''],
+      ['Income in Report Period', '', c(reportIncomeTotal), '', '', ''],
+      ['Approved Expenditures', '', c(reportExpenseTotal), '', '', ''],
+      ['Net Income After Approved Expenses', '', c(reportIncomeTotal - reportExpenseTotal), '', '', ''],
+      ['Pending Expenses (not included above)', '', reportExpenses.filter((expense) => expense.status === 'pending').length, '', '', ''],
+      BLANK_ROW,
+      ['GIVING INDICATORS (YTD)', '', '', '', '', ''],
       ['YTD Total Giving',      '', c(ytdTotal),      '', '', ''],
       ['This Month',            '', c(thisMonthTotal), '', '', ''],
       ['Last Month',            '', c(lastMonthTotal), '', '', ''],
@@ -419,6 +454,10 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
       ['Annual Giving Goal',    '', c(annualGoal),    '', '', ''],
       ['Goal Progress',         '', p(ytdTotal / annualGoal), '', '', ''],
       ['Remaining to Goal',     '', c(Math.max(0, annualGoal - ytdTotal)), '', '', ''],  
+      BLANK_ROW,
+      ['APPROVED EXPENDITURES BY CATEGORY', '', '', '', '', ''],
+      ['Category', '', 'Total Spent', '', '', ''],
+      ...Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]).map(([category, total]) => [category, '', c(total), '', '', '']),
       BLANK_ROW,
       ['GIVING BY FUND', '', '', '', '', ''],
       ['Fund', '', 'Total Given', '', '% of Total', ''],
@@ -443,27 +482,48 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
     ];
     if (opts.summary) XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
 
-    // ── SHEET 2: Monthly Trend ──────────────────────────────────────────────
-    const monthTotal = monthlyChartData.reduce((s, m) => s + m.total, 0);
+    const monthlyCashflow = [];
+    for (let i = 11; i >= 0; i -= 1) {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
+      const income = parsedDonations
+        .filter((donation) => donation.date?.startsWith(key))
+        .reduce((sum, donation) => sum + donation.amountNum, 0);
+      const expenditure = expenses
+        .filter((expense) => expense.date?.startsWith(key) && expense.status === 'approved')
+        .reduce((sum, expense) => sum + (parseFloat(String(expense.amount ?? 0).replace(/[$,]/g, '')) || 0), 0);
+      monthlyCashflow.push({
+        month: monthDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+        income,
+        expenditure,
+      });
+    }
+
     const s2 = [
       ['LIFEGATE ASSEMBLY OF GOD', '', '', '', ''],
-      ['Financial Report — Monthly Giving Trend', '', '', '', ''],
+      ['Financial Report — Monthly Cash Flow', '', '', '', ''],
       [`Generated: ${reportDate}  |  Period: ${period}`, '', '', '', ''],
       BLANK_ROW.slice(0, 5),
-      ['MONTHLY GIVING TREND', '', '', '', ''],
-      ['Month', '', 'Total Giving', '', 'Running Total'],
-      ...(() => {
-        let running = 0;
-        return monthlyChartData.map(m => {
-          running += m.total;
-          return [m.month, '', c(m.total), '', c(running)];
-        });
-      })(),
+      ['MONTHLY INCOME & EXPENDITURE', '', '', '', ''],
+      ['Month', 'Income', 'Approved Expenses', 'Net', ''],
+      ...monthlyCashflow.map((month) => [
+        month.month,
+        c(month.income),
+        c(month.expenditure),
+        c(month.income - month.expenditure),
+        '',
+      ]),
       ['', '', '', '', ''],
-      ['TOTAL', '', c(monthTotal), '', ''],
+      [
+        '12-Month Total',
+        c(monthlyCashflow.reduce((sum, month) => sum + month.income, 0)),
+        c(monthlyCashflow.reduce((sum, month) => sum + month.expenditure, 0)),
+        c(monthlyCashflow.reduce((sum, month) => sum + month.income - month.expenditure, 0)),
+        '',
+      ],
     ];
     const ws2 = XLSX.utils.aoa_to_sheet(s2);
-    ws2['!cols'] = [{ wch: 18 }, { wch: 4 }, { wch: 24 }, { wch: 4 }, { wch: 24 }];
+    ws2['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 22 }, { wch: 20 }, { wch: 4 }];
     ws2['!merges'] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
       { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
@@ -471,19 +531,18 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
     ];
     if (opts.monthlyTrend) XLSX.utils.book_append_sheet(wb, ws2, 'Monthly Trend');
 
-    // ── SHEET 3: Transaction Ledger ─────────────────────────────────────────
     const filtersNote = activeFilterCount > 0
       ? `Fund: "${filterFund || 'All'}"   Method: "${filterType || 'All'}"   Donor: "${filterDonor || 'All'}"   From: "${filterFrom || 'Any'}"   To: "${filterTo || 'Any'}"`
       : 'None';
     const s3 = [
       ['LIFEGATE ASSEMBLY OF GOD', '', '', '', '', ''],
-      ['Financial Report — Transaction Ledger', '', '', '', '', ''],
+      ['Income Ledger', '', '', '', '', ''],
       [`Generated: ${reportDate}`, '', '', '', '', ''],
       [`Period: ${period}`, '', '', '', '', ''],
       [`Filters Applied: ${filtersNote}`, '', '', '', '', ''],
       ['', '', '', '', '', ''],
       ['#', 'Date', 'Donor Name', 'Fund', 'Payment Method', 'Amount'],
-      ...filteredDonations.map((d, i) => [
+      ...reportIncome.map((d, i) => [
         i + 1,
         fmtDate(d.date),
         d.name || 'Anonymous',
@@ -492,8 +551,8 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
         c(d.amountNum),
       ]),
       ['', '', '', '', '', ''],
-      ['', '', '', '', 'SUBTOTAL', c(filteredTotal)],
-      ['', '', '', '', 'RECORDS',  filteredDonations.length],
+      ['', '', '', '', 'SUBTOTAL', c(reportIncomeTotal)],
+      ['', '', '', '', 'RECORDS', reportIncome.length],
     ];
     const ws3 = XLSX.utils.aoa_to_sheet(s3);
     ws3['!cols'] = [{ wch: 5 }, { wch: 18 }, { wch: 30 }, { wch: 20 }, { wch: 20 }, { wch: 18 }];
@@ -504,16 +563,140 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
       { s: { r: 3, c: 0 }, e: { r: 3, c: 5 } },
       { s: { r: 4, c: 0 }, e: { r: 4, c: 5 } },
     ];
-    if (opts.transactionLedger) XLSX.utils.book_append_sheet(wb, ws3, 'Transaction Ledger');
+    if (opts.transactionLedger) XLSX.utils.book_append_sheet(wb, ws3, 'Income Ledger');
+
+    const s4 = [
+      ['LIFEGATE ASSEMBLY OF GOD', '', '', '', '', '', ''],
+      ['Expense Ledger', '', '', '', '', '', ''],
+      [`Generated: ${reportDate}`, '', '', '', '', '', ''],
+      [`Period: ${period}`, '', '', '', '', '', ''],
+      ['', '', '', '', '', '', ''],
+      ['#', 'Date', 'Area', 'Category', 'Description', 'Payee', 'Status', 'Fund', 'Payment Method', 'Reference', 'Amount', 'Receipt'],
+      ...reportExpenses.map((expense, index) => [
+        index + 1,
+        fmtDate(expense.date),
+        expense.mainCategory || '',
+        expense.subcategory || '',
+        expense.description || '',
+        expense.payee || '',
+        expense.status || 'pending',
+        expense.fund || '',
+        expense.paymentMethod || '',
+        expense.reference || '',
+        c(parseFloat(String(expense.amount ?? 0).replace(/[$,]/g, '')) || 0),
+        expense.receiptName || (expense.receiptKey ? 'Receipt attached' : ''),
+      ]),
+      ['', '', '', '', '', '', '', '', '', 'APPROVED TOTAL', c(reportExpenseTotal), ''],
+    ];
+    const ws4 = XLSX.utils.aoa_to_sheet(s4);
+    ws4['!cols'] = [
+      { wch: 5 }, { wch: 18 }, { wch: 28 }, { wch: 24 }, { wch: 40 },
+      { wch: 28 }, { wch: 14 }, { wch: 22 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 32 },
+    ];
+    if (opts.expenseLedger) XLSX.utils.book_append_sheet(wb, ws4, 'Expense Ledger');
 
     XLSX.writeFile(wb, `Lifegate-Financial-Report-${new Date().toISOString().slice(0, 10)}.xlsx`);
     showToast('Financial report exported');
     setShowExportModal(false);
   }, [
-    filteredDonations, filteredTotal, parsedDonations, ytdDonations, ytdTotal, thisMonthTotal, lastMonthTotal,
+    filteredDonations, reportIncome, reportExpenses, reportIncomeTotal, reportExpenseTotal, approvedReportExpenses,
+    expenses, parsedDonations, ytdDonations, ytdTotal, thisMonthTotal, lastMonthTotal,
     uniqueDonors, avgGift, largestGift, fundData, typeBreakdown, topDonors, monthlyChartData,
-    filterFund, filterType, filterDonor, filterFrom, filterTo, activeFilterCount, exportOpts, showToast, annualGoal,
+    filterFund, filterType, filterDonor, filterFrom, filterTo, activeFilterCount, exportOpts, showToast, annualGoal, now,
   ]);
+
+  const handleExportCSV = useCallback(() => {
+    const rawRows = [
+      ['Type', 'Date', 'Area', 'Category', 'Description', 'Donor/Payee', 'Fund', 'Payment Method', 'Status', 'Amount', 'Receipt'],
+      ...reportIncome.map((donation) => [
+        'Income', donation.date || '', '', donation.fund || '', 'Gift',
+        donation.name || 'Anonymous', donation.fund || '', donation.type || '',
+        'Recorded', donation.amountNum, '',
+      ]),
+      ...reportExpenses.map((expense) => [
+        'Expense', expense.date || '', expense.mainCategory || '', expense.subcategory || '',
+        expense.description || '', expense.payee || '', expense.fund || '',
+        expense.paymentMethod || '', expense.status || 'pending',
+        parseFloat(String(expense.amount ?? 0).replace(/[$,]/g, '')) || 0,
+        expense.receiptName || (expense.receiptKey ? 'Receipt attached' : ''),
+      ]),
+      [],
+      ['Income total', '', '', '', '', '', '', '', '', reportIncomeTotal],
+      ['Approved expenses total', '', '', '', '', '', '', '', '', reportExpenseTotal],
+      ['Net income after approved expenses', '', '', '', '', '', '', '', '', reportIncomeTotal - reportExpenseTotal],
+    ];
+    const rows = rawRows.map((row) => row.map((value) => (
+      typeof value === 'string' && /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+    )));
+    const csv = XLSX.utils.sheet_to_csv(XLSX.utils.aoa_to_sheet(rows));
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Lifegate-Financial-Report-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('Financial report exported as CSV');
+  }, [reportIncome, reportExpenses, reportIncomeTotal, reportExpenseTotal, showToast]);
+
+  const handlePrintReport = useCallback(() => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showToast('Allow pop-ups to print or save this report as PDF');
+      return;
+    }
+
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[character]));
+    const transactions = [
+      ...reportIncome.map((donation) => ({
+        type: 'Income',
+        date: donation.date,
+        category: donation.fund || 'Giving',
+        description: donation.name || 'Anonymous gift',
+        status: 'Recorded',
+        amount: donation.amountNum,
+      })),
+      ...reportExpenses.map((expense) => ({
+        type: 'Expense',
+        date: expense.date,
+        category: [expense.mainCategory, expense.subcategory].filter(Boolean).join(' · '),
+        description: [expense.description, expense.payee].filter(Boolean).join(' — '),
+        status: expense.status || 'pending',
+        amount: parseFloat(String(expense.amount ?? 0).replace(/[$,]/g, '')) || 0,
+      })),
+    ].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+    printWindow.document.open();
+    printWindow.document.write(`<!doctype html>
+      <html><head><title>Lifegate Income &amp; Expenditure Report</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body{font:14px Arial,sans-serif;color:#1c1917;margin:28px}
+        h1{font-size:22px;margin:0 0 5px}p{color:#57534e;margin:4px 0 18px}
+        .summary{display:flex;gap:12px;margin:20px 0}.card{flex:1;border:1px solid #d6d3d1;border-radius:8px;padding:12px}
+        .label{font-size:11px;color:#78716c}.value{font-size:18px;font-weight:700;margin-top:6px}
+        table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;padding:8px;border-bottom:1px solid #e7e5e4}
+        th{background:#f5f5f4}.amount{text-align:right;white-space:nowrap}
+        @media print{body{margin:12mm}.summary{break-inside:avoid}thead{display:table-header-group}}
+      </style></head><body>
+      <h1>Lifegate Assembly of God</h1>
+      <p>Income &amp; Expenditure Report · ${escapeHtml(filterFrom || 'Year to date')} to ${escapeHtml(filterTo || new Date().toISOString().slice(0, 10))} · Generated ${escapeHtml(new Date().toLocaleDateString())}</p>
+      <div class="summary">
+        <div class="card"><div class="label">Income in period</div><div class="value">${escapeHtml(fmt$(reportIncomeTotal))}</div></div>
+        <div class="card"><div class="label">Approved expenses</div><div class="value">${escapeHtml(fmt$(reportExpenseTotal))}</div></div>
+        <div class="card"><div class="label">Net after approved expenses</div><div class="value">${escapeHtml(fmt$(reportIncomeTotal - reportExpenseTotal))}</div></div>
+      </div>
+      <table><thead><tr><th>Type</th><th>Date</th><th>Category</th><th>Description</th><th>Status</th><th class="amount">Amount</th></tr></thead><tbody>
+      ${transactions.map((row) => `<tr><td>${escapeHtml(row.type)}</td><td>${escapeHtml(fmtDate(row.date))}</td><td>${escapeHtml(row.category)}</td><td>${escapeHtml(row.description)}</td><td>${escapeHtml(row.status)}</td><td class="amount">${escapeHtml(fmt$(row.amount))}</td></tr>`).join('')}
+      </tbody></table>
+      </body></html>`);
+    printWindow.document.close();
+    window.setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 250);
+  }, [filterFrom, filterTo, reportIncome, reportExpenses, reportIncomeTotal, reportExpenseTotal, showToast]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   const goalPct = Math.min((ytdTotal / annualGoal) * 100, 100);
@@ -522,23 +705,48 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
     <div className="space-y-6 animate-in fade-in duration-500 text-left">
 
       {/* Header */}
-      <div className="flex flex-wrap justify-between items-start gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-stone-900 tracking-tight">Financial Analytics &amp; Giving</h1>
-          <p className="text-stone-500 text-sm mt-1">Track donations, reconcile Zelle, and export accounting reports.</p>
+          <h1 className="font-serif text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl">Giving &amp; Expenses</h1>
+          <p className="mt-1 text-sm text-stone-500">Manage church income, expense submissions, and financial reports.</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setShowExportModal(true)} className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:bg-stone-800 flex items-center gap-2">
-            <Download size={15} /> Export Report
-          </button>
-          <button onClick={() => setIsAdding(true)} className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm font-medium shadow-sm hover:opacity-90 flex items-center gap-2">
-            <DollarSign size={15} /> Record Gift
-          </button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          {canReviewExpenses && (
+            <button onClick={() => setShowExportModal(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-stone-800">
+              <Download size={15} /> Export report
+            </button>
+          )}
+          {canReviewExpenses && activeTab === 'giving' && (
+            <button onClick={() => setIsAdding(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-50">
+              <DollarSign size={15} /> Record gift
+            </button>
+          )}
         </div>
       </div>
 
+      <nav aria-label="Finance sections" className="grid grid-cols-2 rounded-xl bg-stone-100 p-1">
+        {canReviewExpenses && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('giving')}
+            aria-current={activeTab === 'giving' ? 'page' : undefined}
+            className={`min-h-11 rounded-lg px-3 text-sm font-semibold transition-colors ${activeTab === 'giving' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
+          >
+            Giving income
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setActiveTab('expenses')}
+          aria-current={activeTab === 'expenses' ? 'page' : undefined}
+          className={`min-h-11 rounded-lg px-3 text-sm font-semibold transition-colors ${activeTab === 'expenses' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'} ${canReviewExpenses ? '' : 'col-span-2'}`}
+        >
+          Expenditures
+        </button>
+      </nav>
+
       {/* Record Gift Modal */}
-      {isAdding && (
+      {canReviewExpenses && activeTab === 'giving' && isAdding && (
         <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
             <h2 className="text-xl font-bold text-stone-900 mb-4 flex items-center gap-2">
@@ -595,20 +803,31 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
       )}
 
       {/* Export Options Modal */}
-      {showExportModal && (
-        <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200">
+      {canReviewExpenses && showExportModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/50 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:max-w-md sm:rounded-2xl sm:p-6">
             <h2 className="text-lg font-bold text-stone-900 mb-1 flex items-center gap-2">
               <Download size={17} className="text-teal-600" /> Export Report
             </h2>
-            <p className="text-xs text-stone-400 mb-5">Choose which sections to include in the Excel file.</p>
+            <p className="mb-5 text-xs text-stone-500">Build a combined income and expense report for the selected date range. Expenses are shown with review status; only approved expenses count toward the net total.</p>
+            <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="space-y-1 text-xs font-semibold text-stone-600">
+                <span>From</span>
+                <input type="date" value={filterFrom} onChange={(event) => setFilterFrom(event.target.value)} className="min-h-11 w-full rounded-xl border border-stone-200 px-3 text-sm font-normal text-stone-800" />
+              </label>
+              <label className="space-y-1 text-xs font-semibold text-stone-600">
+                <span>To</span>
+                <input type="date" value={filterTo} onChange={(event) => setFilterTo(event.target.value)} className="min-h-11 w-full rounded-xl border border-stone-200 px-3 text-sm font-normal text-stone-800" />
+              </label>
+            </div>
             <div className="space-y-3 mb-6">
               {[
-                { key: 'summary',           label: 'Summary',             desc: 'KPIs, fund breakdown, top contributors' },
-                { key: 'monthlyTrend',      label: 'Monthly Trend',       desc: '12-month table with running total' },
-                { key: 'transactionLedger', label: 'Transaction Ledger',  desc: `All ${filteredDonations.length} transactions (current filters)` },
+                { key: 'summary',           label: 'Financial Summary', desc: 'Income, approved expenses, net, and category totals' },
+                { key: 'monthlyTrend',      label: 'Monthly Cash Flow', desc: '12 months of income, approved expenses, and net' },
+                { key: 'transactionLedger', label: 'Income Ledger', desc: `${reportIncome.length} gifts in the report period and current filters` },
+                { key: 'expenseLedger',     label: 'Expense Ledger', desc: `${reportExpenses.length} expense submissions and receipt references` },
               ].map(({ key, label, desc }) => (
-                <label key={key} className="flex items-start gap-3 cursor-pointer group">
+                <label key={key} className="flex min-h-12 cursor-pointer items-start gap-3 group">
                   <div
                     onClick={() => toggleExportOpt(key)}
                     className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center transition-colors ${
@@ -628,20 +847,31 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
                 </label>
               ))}
             </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setShowExportModal(false)} className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-md font-medium text-sm">Cancel</button>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button onClick={() => setShowExportModal(false)} className="min-h-11 rounded-xl px-4 text-sm font-medium text-stone-600 hover:bg-stone-100">Cancel</button>
+              <button onClick={handlePrintReport} className="min-h-11 rounded-xl border border-stone-200 px-4 text-sm font-medium text-stone-700 hover:bg-stone-50">Print / Save PDF</button>
+              <button onClick={handleExportCSV} className="min-h-11 rounded-xl border border-stone-200 px-4 text-sm font-medium text-stone-700 hover:bg-stone-50">Download CSV</button>
               <button
                 onClick={() => handleExport(exportOpts)}
-                disabled={!exportOpts.summary && !exportOpts.monthlyTrend && !exportOpts.transactionLedger}
-                className="px-4 py-2 bg-stone-900 text-white rounded-md font-medium text-sm hover:opacity-90 flex items-center gap-2 disabled:opacity-40"
+                disabled={!exportOpts.summary && !exportOpts.monthlyTrend && !exportOpts.transactionLedger && !exportOpts.expenseLedger}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"
               >
-                <Download size={14} /> Download
+                <Download size={14} /> Excel
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {activeTab === 'expenses' ? (
+        <ExpenseManagement
+          expenses={expenses}
+          loadingExpenses={loadingExpenses}
+          canReviewExpenses={canReviewExpenses}
+          showToast={showToast}
+        />
+      ) : (
+      <>
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* YTD + Goal Progress */}
@@ -1020,6 +1250,8 @@ Format your response with markdown: use ## for main headers, ### for sub-headers
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

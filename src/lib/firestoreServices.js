@@ -318,6 +318,30 @@ export async function deleteDonation(donationId, donationData, actorEmail) {
   }
 }
 
+export async function createExpense(expense) {
+  const payload = {
+    ...expense,
+    status: 'pending',
+  };
+  if (!db) return { id: Date.now(), ...payload };
+
+  const docRef = await withRetry(() => addDoc(collection(db, 'expenses'), withAuditFields(payload)));
+  return { id: docRef.id, ...payload };
+}
+
+export async function updateExpense(expenseId, updates) {
+  if (!db) return;
+  const { id: _id, ...fields } = updates;
+  await withRetry(() => updateDoc(doc(db, 'expenses', expenseId), withUpdatedAuditFields(fields)));
+}
+
+export async function saveFinanceExpenseCategories(ministryCategories) {
+  if (!db) return;
+  await withRetry(() => setDoc(doc(db, 'settings', 'financeExpenseCategories'), withUpdatedAuditFields({
+    ministryCategories,
+  }), { merge: true }));
+}
+
 export async function createSong(song) {
   if (!db) return { id: Date.now(), ...song };
   const docRef = await withRetry(() => addDoc(collection(db, 'songs'), withAuditFields(song)));

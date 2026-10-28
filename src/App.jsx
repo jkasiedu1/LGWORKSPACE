@@ -245,6 +245,9 @@ export default function App() {
                 people={appData.people}
                 donations={appData.donations}
                 setDonations={appData.setDonations}
+                expenses={appData.expenses}
+                loadingExpenses={appData.loadingExpenses}
+                canReviewExpenses={isAdmin || isSeniorPastor}
                 showToast={(msg) => console.log(msg)}
               />
             )}

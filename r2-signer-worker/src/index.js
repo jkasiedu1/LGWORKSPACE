@@ -78,6 +78,10 @@ function hasPrivilegedClaims(claims) {
     || claims?.isSeniorPastor === true;
 }
 
+function hasGivingAppAccess(claims) {
+  return Array.isArray(claims?.appAccess) && claims.appAccess.includes('giving');
+}
+
 // ── Firebase JWKS verification (RFC 7519, OWASP A07) ────────────────────────
 // Google rotates these keys every ~6 h; the module-level cache avoids a
 // JWKS fetch on every request while respecting the rotation window.
@@ -720,13 +724,14 @@ export default {
         const authHeader = request.headers.get('Authorization') || '';
         const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
         const requester = await verifyFirebaseToken(idToken, env);
-        if (!hasPrivilegedClaims(requester.claims)) {
+        const { fileName, fileType, fileSize, folder = 'community' } = await request.json();
+        const canUploadFinancialReceipt = folder === 'financial-receipts'
+          && hasGivingAppAccess(requester.claims);
+        if (!hasPrivilegedClaims(requester.claims) && !canUploadFinancialReceipt) {
           return json({ error: 'Insufficient privileges to sign uploads.' }, 403, origin);
         }
 
         await checkUploadRateLimit(requester.uid, env);
-
-        const { fileName, fileType, fileSize, folder = 'community' } = await request.json();
 
         if (!fileName || !fileType) {
           return json({ error: 'fileName and fileType are required' }, 400, origin);
@@ -735,6 +740,10 @@ export default {
         const isVideo = ALLOWED_VIDEO_TYPES.has(fileType);
         const isImage = ALLOWED_IMAGE_TYPES.has(fileType);
         const isAudio = ALLOWED_AUDIO_TYPES.has(fileType);
+
+        if (canUploadFinancialReceipt && (!isImage || Number(fileSize) > MAX_IMAGE_BYTES)) {
+          return json({ error: 'Financial receipts must be images no larger than 10 MB.' }, 415, origin);
+        }
 
         if (!isImage && !isVideo && !isAudio) {
           return json({ error: `File type ${fileType} is not allowed.` }, 415, origin);
@@ -764,7 +773,12 @@ export default {
 
         const fileUrl = `${url.origin}/media/${encodeURIComponent(key)}`;
 
-        return json({ uploadUrl: signedReq.url, fileUrl, key }, 200, origin);
+        return json({
+          uploadUrl: signedReq.url,
+          fileUrl,
+          key,
+          privateMedia: folder === 'financial-receipts',
+        }, 200, origin);
       } catch (err) {
         console.error('[sign-upload]', err);
         return json({ error: String(err?.message || err) }, 500, origin);
@@ -945,6 +959,25 @@ export default {
           return json({ error: 'Invalid media key.' }, 400, origin);
         }
 
+        if (key.startsWith('financial-receipts/')) {
+          const authHeader = request.headers.get('Authorization') || '';
+          const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+          if (!idToken) {
+            return json({ error: 'Authentication required.' }, 401, origin);
+          }
+
+          let requester;
+          try {
+            requester = await verifyFirebaseToken(idToken, env);
+          } catch (error) {
+            console.warn('[private-media-auth] Token verification failed:', error);
+            return json({ error: 'Authentication required.' }, 401, origin);
+          }
+          if (!hasPrivilegedClaims(requester.claims)) {
+            return json({ error: 'Insufficient privileges to view financial receipts.' }, 403, origin);
+          }
+        }
+
         const object = await env.MEDIA_BUCKET.get(key);
 
         if (!object) {
@@ -956,7 +989,12 @@ export default {
         if (object.httpMetadata?.contentType) {
           headers.set('Content-Type', object.httpMetadata.contentType);
         }
-        headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        headers.set(
+          'Cache-Control',
+          key.startsWith('financial-receipts/')
+            ? 'private, no-store'
+            : 'public, max-age=31536000, immutable'
+        );
 
         return new Response(object.body, { status: 200, headers });
       } catch (err) {

@@ -71,6 +71,9 @@ export async function uploadMediaToR2(file, folder = 'community') {
   if (!uploadUrl || !fileUrl) {
     throw new Error('Invalid R2 upload signature response.');
   }
+  if (folder === 'financial-receipts' && signedUpload.privateMedia !== true) {
+    throw new Error('Secure receipt storage is not available yet. Ask an administrator to deploy the finance upload service.');
+  }
 
   const uploadResponse = await fetch(uploadUrl, {
     method: 'PUT',
@@ -88,11 +91,42 @@ export async function uploadMediaToR2(file, folder = 'community') {
 
   return {
     mediaUrl: fileUrl,
+    mediaKey: signedUpload.key,
+    privateMedia: signedUpload.privateMedia === true,
     mediaType: file.type?.startsWith('video/') ? 'video' : 'image',
     mediaName: file.name,
     mediaSizeBytes: file.size,
     mediaMimeType: file.type,
   };
+}
+
+export async function downloadPrivateReceipt(mediaKey, fileName = 'receipt') {
+  if (!R2_SIGNER_URL) {
+    throw new Error('Cloudflare R2 is not configured. Set VITE_R2_SIGNER_URL.');
+  }
+  if (!mediaKey || !String(mediaKey).startsWith('financial-receipts/')) {
+    throw new Error('Invalid receipt reference.');
+  }
+
+  const token = await getAuthToken();
+  if (!token) throw new Error('Sign in with a finance reviewer account to view receipts.');
+
+  const workerBaseUrl = R2_SIGNER_URL.replace(/\/sign-upload\/?$/, '').replace(/\/$/, '');
+  const response = await fetch(`${workerBaseUrl}/media/${encodeURIComponent(mediaKey)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error(`Receipt download failed (${response.status}).`);
+  }
+
+  const objectUrl = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = fileName || 'receipt';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }
 
 const ALLOWED_AUDIO_MIME_TYPES = new Set([

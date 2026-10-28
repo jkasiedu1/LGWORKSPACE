@@ -31,6 +31,7 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
   ]);
   const [communityPosts, setCommunityPosts] = useState(COMMUNITY_POSTS);
   const [intakeSubmissions, setIntakeSubmissions] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [securitySettings, setSecuritySettings] = useState({ is2FA: true, isDLP: true, isPII: true, isOptOut: true, isEndpoint: false });
   const [servicePlan, setServicePlan] = useState({
     headerData: { title: 'Ash Wednesday Gathering', date: '2026-02-18', time: '19:00', location: 'Main Auditorium' },
@@ -45,6 +46,7 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
   const [loadingPeople, setLoadingPeople] = useState(true);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [loadingIntakeSubmissions, setLoadingIntakeSubmissions] = useState(false);
+  const [loadingExpenses, setLoadingExpenses] = useState(false);
 
   /**
    * Subscribe to Firestore collections when authenticated
@@ -64,6 +66,7 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
     let unsubWorkflows;
     let unsubCommunityPosts;
     let unsubIntakeSubmissions;
+    let unsubExpenses;
     let unsubSecuritySettings;
     let unsubServicePlan;
 
@@ -78,9 +81,15 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
           setLoadingPeople(false);
         });
 
-        unsubDonations = onSnapshot(collection(db, 'donations'), (snapshot) => {
-          setDonations(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-        });
+        if (canReviewIntake) {
+          unsubDonations = onSnapshot(
+            collection(db, 'donations'),
+            (snapshot) => setDonations(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))),
+            (error) => console.error('[useAppData] Donations subscription failed:', error)
+          );
+        } else {
+          setDonations([]);
+        }
 
         unsubSongs = onSnapshot(collection(db, 'songs'), (snapshot) => {
           setSongs(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
@@ -121,9 +130,24 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
               setLoadingIntakeSubmissions(false);
             }
           );
+
+          setLoadingExpenses(true);
+          unsubExpenses = onSnapshot(
+            query(collection(db, 'expenses'), orderBy('date', 'desc')),
+            (snapshot) => {
+              setExpenses(snapshot.docs.map((expenseDoc) => ({ id: expenseDoc.id, ...expenseDoc.data() })));
+              setLoadingExpenses(false);
+            },
+            (error) => {
+              console.error('[useAppData] Expenses subscription failed:', error);
+              setLoadingExpenses(false);
+            }
+          );
         } else {
           setIntakeSubmissions([]);
           setLoadingIntakeSubmissions(false);
+          setExpenses([]);
+          setLoadingExpenses(false);
         }
 
         unsubSecuritySettings = onSnapshot(doc(db, 'settings', 'security'), (settingsDoc) => {
@@ -150,6 +174,7 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
       if (unsubWorkflows) unsubWorkflows();
       if (unsubCommunityPosts) unsubCommunityPosts();
       if (unsubIntakeSubmissions) unsubIntakeSubmissions();
+      if (unsubExpenses) unsubExpenses();
       if (unsubSecuritySettings) unsubSecuritySettings();
       if (unsubServicePlan) unsubServicePlan();
     };
@@ -177,6 +202,9 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
     intakeSubmissions,
     setIntakeSubmissions,
     loadingIntakeSubmissions,
+    expenses,
+    setExpenses,
+    loadingExpenses,
     securitySettings,
     setSecuritySettings,
     servicePlan,

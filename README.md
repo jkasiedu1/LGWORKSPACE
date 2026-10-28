@@ -62,6 +62,16 @@ For the R2 signer worker, configure:
 
 RBAC is claims-first: production admin access should come from Firebase custom claims, not hardcoded email allowlists.
 
+### Giving Expense Intake
+
+The Giving page includes mobile-friendly expense submissions, receipt image scanning, finance review, editable ministry categories, and combined income/expense exports. Receipt OCR runs in the submitter's browser; submitted receipt files are stored in R2.
+
+- Submitters must sign in and have the `giving` app-access claim.
+- Only Admin and Senior Pastor accounts can review expenses or retrieve receipt files.
+- Keep the R2 bucket private; receipt access is enforced by the signer Worker.
+- Deploy the updated Firestore rules and R2 signer Worker before deploying the frontend. The frontend refuses to upload receipts unless the Worker confirms private receipt support.
+- Give each submitter the **Copy sign-in form link** from Giving. The recipient must already have Giving app access.
+
 ### Role Management Endpoint
 
 The existing Cloudflare worker now exposes `POST /roles/grant`.

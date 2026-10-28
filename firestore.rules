@@ -25,6 +25,15 @@ service cloud.firestore {
       return isAdmin();
     }
 
+    function canSubmitExpenses() {
+      let claims = request.auth.token;
+      return isAuthenticated() && (
+        isAdmin()
+        || isSeniorPastor()
+        || (claims.get('appAccess', []) is list && claims.get('appAccess', []).hasAny(['giving']))
+      );
+    }
+
     match /auditLogs/{logId} {
       allow create: if isAuthenticated() && canWrite();
       allow read: if isAuthenticated() && isAdmin();
@@ -86,6 +95,75 @@ service cloud.firestore {
       allow read: if isAuthenticated() && isAdmin();
       allow update: if isAuthenticated() && isAdmin();
       allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    match /expenses/{expenseId} {
+      allow create: if canSubmitExpenses()
+        && request.resource.data.keys().hasOnly([
+          'date', 'amount', 'mainCategory', 'subcategory', 'description',
+          'payee', 'paymentMethod', 'fund', 'reference', 'receiptKey',
+          'receiptName', 'submittedBy', 'submittedByUid', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'date', 'amount', 'mainCategory', 'subcategory', 'description',
+          'submittedBy', 'submittedByUid', 'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.date is string
+        && request.resource.data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 10000000
+        && request.resource.data.mainCategory in [
+          'Personnel & Compensation',
+          'Employee Benefits',
+          'Facilities & Operations',
+          'Property Insurance',
+          'Travel & Transportation',
+          'Missions',
+          'Ministries'
+        ]
+        && request.resource.data.subcategory is string
+        && request.resource.data.subcategory.size() <= 100
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0
+        && request.resource.data.description.size() <= 500
+        && request.resource.data.submittedBy is string
+        && request.resource.data.submittedBy.size() <= 120
+        && request.resource.data.submittedByUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.get('payee', '') is string
+        && request.resource.data.get('payee', '').size() <= 160
+        && request.resource.data.get('paymentMethod', '') is string
+        && request.resource.data.get('paymentMethod', '').size() <= 60
+        && request.resource.data.get('fund', '') is string
+        && request.resource.data.get('fund', '').size() <= 120
+        && request.resource.data.get('reference', '') is string
+        && request.resource.data.get('reference', '').size() <= 120
+        && (!('receiptKey' in request.resource.data.keys())
+          || (
+            request.resource.data.receiptKey is string
+            && request.resource.data.receiptKey.size() <= 500
+            && request.resource.data.receiptKey.matches('^financial-receipts/[A-Za-z0-9._-]+$')
+          ))
+        && (!('receiptName' in request.resource.data.keys())
+          || (request.resource.data.receiptName is string && request.resource.data.receiptName.size() <= 160));
+      allow read: if isAuthenticated() && canWrite();
+      allow update: if isAuthenticated()
+        && canWrite()
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.reviewedBy is string
+        && request.resource.data.reviewedBy.size() <= 120
+        && request.resource.data.reviewedAt == request.time
+        && request.resource.data.get('reviewNote', '') is string
+        && request.resource.data.get('reviewNote', '').size() <= 500
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'reviewedBy', 'reviewedAt', 'reviewNote', 'updatedAt'
+        ]);
+      allow delete: if false;
     }
 
     match /songs/{songId} {
