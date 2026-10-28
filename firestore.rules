@@ -152,7 +152,9 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status', 'expenseId', 'reviewedBy', 'reviewedAt', 'updatedAt'
         ]);
-      allow delete: if false;
+      allow delete: if isAuthenticated()
+        && canWrite()
+        && resource.data.status in ['pending', 'rejected'];
     }
 
     match /events/{eventId} {

@@ -397,6 +397,12 @@ export async function approvePublicExpenseIntakeSubmission(submission, reviewerU
   return { id: expenseRef.id, intakeId: submission.id, status: 'approved' };
 }
 
+export async function deletePublicExpenseIntakeSubmission(submissionId) {
+  if (!submissionId) throw new Error('A valid public submission is required.');
+  if (!db) return;
+  await withRetry(() => deleteDoc(doc(db, 'expenseIntakeSubmissions', submissionId)));
+}
+
 export async function rejectPublicExpenseIntakeSubmission(submissionId, reviewerName) {
   if (!submissionId) throw new Error('A valid public submission is required.');
   if (!db) return { id: submissionId, status: 'rejected' };

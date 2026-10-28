@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import {
   Check, CheckCircle2, Copy, FileText, Loader2, Plus, ReceiptText,
-  ScanLine, Settings2, Upload, X,
+  ScanLine, Settings2, Trash2, Upload, X,
 } from 'lucide-react';
 import { db } from '../config/firebase';
 import { useAuth } from '../hooks/useAuth';
 import {
   approvePublicExpenseIntakeSubmission,
   createExpense,
+  deletePublicExpenseIntakeSubmission,
   rejectPublicExpenseIntakeSubmission,
   saveFinanceExpenseCategories,
   updateExpense,
@@ -334,6 +335,22 @@ export default function ExpenseManagement({
     }
   };
 
+  const deleteIntakeSubmission = async (submission) => {
+    if (!window.confirm('Delete this public expense submission permanently? This cannot be undone.')) return;
+    setReviewingIntakeId(submission.id);
+    try {
+      await deletePublicExpenseIntakeSubmission(submission.id);
+      setActionMessage({ type: 'success', text: 'Public expense submission deleted.' });
+      showToast('Public expense submission deleted');
+    } catch (error) {
+      console.error('[ExpenseManagement] Public expense intake delete failed:', error);
+      setActionMessage({ type: 'error', text: error.message || 'Could not delete this public expense.' });
+      showToast('Could not delete public expense');
+    } finally {
+      setReviewingIntakeId('');
+    }
+  };
+
   const openReceipt = async (expense) => {
     try {
       await downloadPrivateReceipt(expense.receiptKey, expense.receiptName);
@@ -441,8 +458,29 @@ export default function ExpenseManagement({
                       {submission.payee && <span>Payee: {submission.payee}</span>}
                       {submission.fund && <span>Fund: {submission.fund}</span>}
                     </div>
+                    {status === 'rejected' && (
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={isProcessing}
+                          onClick={() => deleteIntakeSubmission(submission)}
+                          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                        >
+                          {isProcessing ? <Loader2 className="animate-spin" size={15} /> : <Trash2 size={15} />}
+                          Delete
+                        </button>
+                      </div>
+                    )}
                     {status === 'pending' && (
                       <div className="flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={isProcessing}
+                          onClick={() => deleteIntakeSubmission(submission)}
+                          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold text-stone-600 hover:bg-stone-50 disabled:opacity-60"
+                        >
+                          <Trash2 size={15} /> Delete
+                        </button>
                         <button
                           type="button"
                           disabled={isProcessing}

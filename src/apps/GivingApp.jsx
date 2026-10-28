@@ -269,7 +269,7 @@ export default function GivingApp({
   const reportableExpenses = useMemo(() => [
     ...expenses,
     ...expenseIntakeSubmissions
-      .filter((submission) => submission.status !== 'approved')
+      .filter((submission) => (submission.status || 'pending') === 'pending')
       .map((submission) => ({
         ...submission,
         id: `public-intake-${submission.id}`,
