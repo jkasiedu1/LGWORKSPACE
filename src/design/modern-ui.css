@@ -496,3 +496,24 @@ body {
     transition: none !important;
   }
 }
+
+/* Expense forms: stop native date pickers from rendering larger than sibling inputs */
+input.expense-date-input {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: 3rem;
+  min-height: 3rem;
+  line-height: 1.5rem;
+}
+input.expense-date-input::-webkit-date-and-time-value {
+  min-height: 0;
+  margin: 0;
+  text-align: left;
+}
+input.expense-date-input::-webkit-datetime-edit,
+input.expense-date-input::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}

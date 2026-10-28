@@ -66,6 +66,7 @@ function FormField({ label, children, className = '' }) {
 
 const inputClass = 'min-h-12 w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100';
 const dateAmountInputClass = `${inputClass} box-border h-12 min-w-0 max-w-full`;
+const dateInputClass = `${dateAmountInputClass} appearance-none [-webkit-appearance:none] leading-6 [&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:min-h-0 [&::-webkit-date-and-time-value]:text-left [&::-webkit-datetime-edit]:p-0 [&::-webkit-datetime-edit-fields-wrapper]:p-0`;
 const dateAmountInputStyle = {
   display: 'block',
   boxSizing: 'border-box',
@@ -603,7 +604,7 @@ export default function ExpenseManagement({
             <form onSubmit={submitExpense} className="space-y-4 p-4 sm:p-6">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField label="Expense date">
-                  <input required type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} className={dateAmountInputClass} style={dateAmountInputStyle} />
+                  <input required type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} className={`${dateInputClass} expense-date-input`} style={dateAmountInputStyle} />
                 </FormField>
                 <FormField label="Amount (USD)">
                   <input required type="number" inputMode="decimal" min="0.01" step="0.01" value={form.amount} onChange={(event) => updateForm('amount', event.target.value)} placeholder="0.00" className={dateAmountInputClass} style={dateAmountInputStyle} />

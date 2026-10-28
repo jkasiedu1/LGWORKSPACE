@@ -26,6 +26,7 @@ const INITIAL_FORM = () => ({
 });
 const INPUT_CLASS = 'box-border min-h-12 min-w-0 w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100';
 const DATE_AMOUNT_CLASS = `${INPUT_CLASS} h-12 max-w-full`;
+const DATE_CLASS = `${DATE_AMOUNT_CLASS} appearance-none [-webkit-appearance:none] leading-6 [&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:min-h-0 [&::-webkit-date-and-time-value]:text-left [&::-webkit-datetime-edit]:p-0 [&::-webkit-datetime-edit-fields-wrapper]:p-0`;
 const DATE_AMOUNT_STYLE = {
   display: 'block',
   boxSizing: 'border-box',
@@ -207,7 +208,7 @@ export default function ExpenseIntakeApp() {
                 <input type="tel" maxLength={30} autoComplete="tel" value={form.submitterPhone} onChange={(event) => updateForm('submitterPhone', event.target.value)} className={INPUT_CLASS} />
               </IntakeField>
               <IntakeField label="Expense date">
-                <input required type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} className={DATE_AMOUNT_CLASS} style={DATE_AMOUNT_STYLE} />
+                <input required type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} className={`${DATE_CLASS} expense-date-input`} style={DATE_AMOUNT_STYLE} />
               </IntakeField>
             </div>
 
