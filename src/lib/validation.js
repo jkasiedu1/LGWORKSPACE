@@ -3,7 +3,7 @@ const VALID_PERSON_TYPES = new Set(['Member', 'Volunteer', 'Staff', 'First Time'
 const VALID_INTAKE_TYPES = new Set(['Member', 'Volunteer', 'First Time', 'Returning', 'Guest', 'Child']);
 const GUEST_AGE_BRACKETS = new Set(['Under 18', '18-24', '25-34', '35-44', '45-54', '55-64', '65+', 'Prefer not to say']);
 const CHILD_AGE_BRACKETS = new Set(['Under 5', '5-12', '13-17']);
-const VALID_GENDERS = new Set(['Female', 'Male', 'Other', 'Prefer not to say']);
+const VALID_GENDERS = new Set(['Female', 'Male']);
 
 export function validateChurchCareGuestIntake(submission) {
   if (!submission?.firstName?.trim()) {
@@ -22,7 +22,7 @@ export function validateChurchCareGuestIntake(submission) {
     return { valid: false, message: 'Select an age bracket.' };
   }
   if (!VALID_GENDERS.has(submission?.gender)) {
-    return { valid: false, message: 'Select a gender or choose “Prefer not to say”.' };
+    return { valid: false, message: 'Select Male or Female.' };
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(submission?.firstVisitDate || '')) {
     return { valid: false, message: 'Enter a valid visit date.' };

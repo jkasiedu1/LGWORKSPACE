@@ -25,6 +25,7 @@ import {
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../hooks/useAuth';
+import ChurchCareGuestFields, { createChurchCareGuestForm } from './ChurchCareGuestFields';
 import {
   addChurchCareNote,
   assignChurchCareTeamMember,
@@ -43,6 +44,7 @@ import {
   updateChurchCareStage,
   updateChurchCareVisitor,
 } from '../lib/churchCareServices';
+import { validateChurchCareGuestIntake } from '../lib/validation';
 
 const STAGES = [
   { value: 'new', label: 'New visitor' },
@@ -148,46 +150,30 @@ function StatCard({ icon: Icon, label, value, tone = 'stone' }) {
 }
 
 function VisitorForm({ onClose, onSave, saving }) {
-  const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    firstVisitDate: localDateValue(),
-    contactConsent: false,
-  });
+  const [form, setForm] = useState(createChurchCareGuestForm);
   const [error, setError] = useState('');
   const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
   const submit = async (event) => {
     event.preventDefault();
     setError('');
-    const firstName = form.firstName.trim();
-    const lastName = form.lastName.trim();
-    const email = form.email.trim();
-    const phone = form.phone.trim();
-    if (!firstName || !lastName) {
-      setError('First and last name are required.');
-      return;
-    }
-    if (!email && !phone) {
-      setError('Add an email address or phone number.');
-      return;
-    }
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError('Enter a valid email address.');
+    const normalizedForm = {
+      ...form,
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      invitedBy: form.invitedBy.trim(),
+      prayerRequest: form.prayerRequest.trim(),
+    };
+    const validation = validateChurchCareGuestIntake(normalizedForm);
+    if (!validation.valid) {
+      setError(validation.message);
       return;
     }
 
     try {
-      await onSave({
-        firstName,
-        lastName,
-        email,
-        phone,
-        firstVisitDate: form.firstVisitDate,
-        contactConsent: form.contactConsent,
-      });
+      await onSave(normalizedForm);
     } catch (saveError) {
       setError(saveError.message || 'Could not add this visitor.');
     }
@@ -198,7 +184,7 @@ function VisitorForm({ onClose, onSave, saving }) {
       <form
         onSubmit={submit}
         onMouseDown={(event) => event.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
@@ -209,35 +195,9 @@ function VisitorForm({ onClose, onSave, saving }) {
             <X size={18} />
           </button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-xs font-semibold text-stone-600">
-            First name
-            <input autoFocus value={form.firstName} onChange={(event) => setField('firstName', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
-          </label>
-          <label className="text-xs font-semibold text-stone-600">
-            Last name
-            <input value={form.lastName} onChange={(event) => setField('lastName', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
-          </label>
-          <label className="text-xs font-semibold text-stone-600">
-            Phone
-            <input type="tel" value={form.phone} onChange={(event) => setField('phone', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
-          </label>
-          <label className="text-xs font-semibold text-stone-600">
-            Email
-            <input type="email" value={form.email} onChange={(event) => setField('email', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
-          </label>
-          <label className="text-xs font-semibold text-stone-600 sm:col-span-2">
-            First visit
-            <input type="date" value={form.firstVisitDate} onChange={(event) => setField('firstVisitDate', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
-          </label>
+        <div className="space-y-5">
+          <ChurchCareGuestFields form={form} onChange={setField} internal />
         </div>
-        <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-lg bg-stone-50 p-3 text-sm text-stone-700">
-          <input type="checkbox" checked={form.contactConsent} onChange={(event) => setField('contactConsent', event.target.checked)} className="mt-0.5 accent-teal-600" />
-          <span>
-            They agreed to be contacted.
-            <span className="mt-0.5 block text-xs text-stone-500">A first follow-up reminder will be scheduled only when this is checked.</span>
-          </span>
-        </label>
         {error && <p className="mt-3 flex items-center gap-2 text-sm text-rose-600"><AlertCircle size={15} />{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-lg px-4 py-2.5 text-sm font-semibold text-stone-600 hover:bg-stone-100">Cancel</button>
@@ -340,8 +300,6 @@ function VisitorEditForm({ visitor, onClose, onSave, saving }) {
               <option value="">Not provided</option>
               <option value="Female">Female</option>
               <option value="Male">Male</option>
-              <option value="Other">Other</option>
-              <option value="Prefer not to say">Prefer not to say</option>
             </select>
           </label>
           <label className="text-xs font-semibold text-stone-600 sm:col-span-2">Who invited them?
@@ -496,9 +454,12 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
   const [noteDraft, setNoteDraft] = useState('');
   const [followUpNote, setFollowUpNote] = useState('');
   const [dueDateDraft, setDueDateDraft] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [assignedMemberDraft, setAssignedMemberDraft] = useState('');
+  const [assignedMemberSearch, setAssignedMemberSearch] = useState('');
+  const [showAssignmentSuggestions, setShowAssignmentSuggestions] = useState(false);
   const canMoveToDirectory = isAdmin || isSeniorPastor;
   const actor = { uid: user?.uid || '', email: user?.email || '' };
   const getGuestIntakeUrl = () => (
@@ -515,6 +476,13 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
     () => people.filter((person) => ['Member', 'Staff', 'Volunteer'].includes(person.type)).sort((a, b) => getPersonName(a).localeCompare(getPersonName(b))),
     [people]
   );
+  const assignmentSuggestions = useMemo(() => {
+    const searchTerm = assignedMemberSearch.trim().toLowerCase();
+    const matchingMembers = searchTerm
+      ? eligibleTeamMembers.filter((person) => getPersonName(person).toLowerCase().includes(searchTerm))
+      : eligibleTeamMembers;
+    return matchingMembers.slice(0, 8);
+  }, [eligibleTeamMembers, assignedMemberSearch]);
   const eligibleTextRecipients = useMemo(
     () => activeVisitors.filter((visitor) => visitor.status === 'active' && visitor.contactConsent && visitor.phone),
     [activeVisitors]
@@ -635,6 +603,9 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
   }, [visitors, dueVisitors, activeVisitors, filter, searchTerm]);
 
   const selectedVisitor = visibleVisitors.find((visitor) => visitor.id === selectedVisitorId) || null;
+  const savedAssignmentName = eligibleTeamMembers.find(
+    (person) => String(person.id) === String(selectedVisitor?.assignedTeamMemberId || '')
+  );
 
   useEffect(() => {
     if (!visibleVisitors.some((visitor) => visitor.id === selectedVisitorId)) {
@@ -659,7 +630,14 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
     setDueDateDraft(selectedVisitor?.nextFollowUpAt ? localDateValue(toDate(selectedVisitor.nextFollowUpAt)) : '');
     setFollowUpNote('');
     setAssignedMemberDraft(selectedVisitor?.assignedTeamMemberId || '');
+    setAssignedMemberSearch('');
+    setShowAssignmentSuggestions(false);
+    setHistoryOpen(false);
   }, [selectedVisitorId, selectedVisitor?.nextFollowUpAt]);
+
+  useEffect(() => {
+    setAssignedMemberSearch(savedAssignmentName ? getPersonName(savedAssignmentName) : '');
+  }, [selectedVisitor?.id, selectedVisitor?.assignedTeamMemberId, savedAssignmentName?.id]);
 
   const handleCreateVisitor = async (visitor) => {
     setSaving(true);
@@ -829,6 +807,10 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
       showToast('Wait for the church directory to finish loading.');
       return;
     }
+    if (assignedMemberSearch.trim() && !assignedMemberDraft) {
+      showToast('Choose a team member from the suggestions before saving.');
+      return;
+    }
     const member = eligibleTeamMembers.find((person) => String(person.id) === assignedMemberDraft) || null;
     if (assignedMemberDraft && !member) {
       showToast('Choose a team member from the church directory.');
@@ -974,8 +956,8 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
         </div>
       )}
 
-      <div className="grid min-h-[520px] gap-4 lg:grid-cols-[minmax(300px,0.82fr)_minmax(0,1.18fr)]">
-        <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(300px,0.82fr)_minmax(0,1.18fr)]">
+        <section className="flex h-[min(680px,75vh)] min-h-[420px] min-w-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white">
           <div className="border-b border-stone-100 p-4">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
@@ -989,7 +971,7 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
               ))}
             </div>
           </div>
-          <div className="max-h-[680px] overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {loading ? (
               <div className="p-8 text-center text-sm text-stone-500">Loading care records…</div>
             ) : visibleVisitors.length === 0 ? (
@@ -1034,7 +1016,7 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
           </div>
         </section>
 
-        <section className="min-w-0 rounded-2xl border border-stone-200 bg-white">
+        <section className="h-[min(680px,75vh)] min-h-[420px] min-w-0 overflow-hidden rounded-2xl border border-stone-200 bg-white">
           {!selectedVisitor ? (
             <div className="flex h-full min-h-[360px] flex-col items-center justify-center p-8 text-center">
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-teal-50 text-teal-700"><Heart size={21} /></div>
@@ -1042,7 +1024,7 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
               <p className="mt-1 max-w-xs text-xs text-stone-500">Select a record to see the care history, update the next step, or log a follow-up.</p>
             </div>
           ) : (
-            <div className="divide-y divide-stone-100">
+            <div className="h-full divide-y divide-stone-100 overflow-y-auto overscroll-contain">
               <div className="p-5">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                   <div className="flex items-start gap-3">
@@ -1134,19 +1116,61 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
               <div className="p-5">
                 <label className="text-xs font-semibold text-stone-600" htmlFor="care-assignee">Assigned follow-up team member</label>
                 <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
-                  <select
+                  <div className="relative min-w-0 flex-1">
+                    <input
                     id="care-assignee"
+                    type="text"
                     disabled={selectedVisitor.status !== 'active' || loadingPeople}
-                    value={assignedMemberDraft}
-                    onChange={(event) => setAssignedMemberDraft(event.target.value)}
-                    className="min-w-0 flex-1 rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-teal-500 disabled:bg-stone-50"
-                  >
-                    <option value="">Unassigned</option>
-                    {eligibleTeamMembers.map((member) => (
-                      <option key={member.id} value={member.id}>{getPersonName(member)}{member.type ? ` · ${member.type}` : ''}</option>
-                    ))}
-                  </select>
-                  <button disabled={saving || loadingPeople || selectedVisitor.status !== 'active' || assignedMemberDraft === (selectedVisitor.assignedTeamMemberId || '')} onClick={handleAssignTeamMember} className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50">
+                    value={assignedMemberSearch}
+                    onFocus={() => setShowAssignmentSuggestions(true)}
+                    onChange={(event) => {
+                      setAssignedMemberSearch(event.target.value);
+                      setAssignedMemberDraft('');
+                      setShowAssignmentSuggestions(true);
+                    }}
+                    placeholder="Type a team member’s name"
+                    autoComplete="off"
+                    aria-controls="care-assignee-suggestions"
+                    aria-expanded={showAssignmentSuggestions}
+                    className="min-w-0 w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 pr-10 text-sm text-stone-800 outline-none focus:border-teal-500 disabled:bg-stone-50"
+                    />
+                    {(assignedMemberSearch || assignedMemberDraft) && selectedVisitor.status === 'active' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAssignedMemberSearch('');
+                          setAssignedMemberDraft('');
+                          setShowAssignmentSuggestions(false);
+                        }}
+                        aria-label="Clear assigned team member"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+                      >
+                        <X size={15} />
+                      </button>
+                    )}
+                    {showAssignmentSuggestions && selectedVisitor.status === 'active' && !loadingPeople && (
+                      <div id="care-assignee-suggestions" className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-stone-200 bg-white py-1 shadow-lg">
+                        {assignmentSuggestions.length > 0 ? assignmentSuggestions.map((member) => (
+                          <button
+                            key={member.id}
+                            type="button"
+                            onClick={() => {
+                              setAssignedMemberDraft(String(member.id));
+                              setAssignedMemberSearch(getPersonName(member));
+                              setShowAssignmentSuggestions(false);
+                            }}
+                            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-teal-50"
+                          >
+                            <span className="truncate font-medium text-stone-800">{getPersonName(member)}</span>
+                            <span className="shrink-0 text-xs text-stone-500">{member.type}</span>
+                          </button>
+                        )) : (
+                          <p className="px-3 py-2 text-xs text-stone-500">No matching directory team members.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <button disabled={saving || loadingPeople || selectedVisitor.status !== 'active' || Boolean(assignedMemberSearch.trim() && !assignedMemberDraft) || assignedMemberDraft === (selectedVisitor.assignedTeamMemberId || '')} onClick={handleAssignTeamMember} className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50">
                     Save assignment
                   </button>
                 </div>
@@ -1186,26 +1210,40 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
               )}
 
               <div className="p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="flex items-center gap-2 text-sm font-semibold text-stone-800"><CalendarClock size={16} className="text-stone-500" /> Care history</h3>
-                  {selectedVisitor.createdAt && <span className="text-[11px] text-stone-400">Added {displayDate(selectedVisitor.createdAt)}</span>}
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setHistoryOpen((open) => !open)}
+                    aria-expanded={historyOpen}
+                    aria-controls="care-history-content"
+                    className="flex min-w-0 items-center gap-2 text-left text-sm font-semibold text-stone-800"
+                  >
+                    <ChevronRight size={16} className={`shrink-0 text-stone-500 transition-transform ${historyOpen ? 'rotate-90' : ''}`} />
+                    <CalendarClock size={16} className="shrink-0 text-stone-500" />
+                    Care history ({activities.length})
+                  </button>
+                  {selectedVisitor.createdAt && <span className="shrink-0 text-[11px] text-stone-400">Added {displayDate(selectedVisitor.createdAt)}</span>}
                 </div>
-                {activities.length === 0 ? (
-                  <p className="py-3 text-xs text-stone-500">No care activity recorded yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {activities.map((activity) => (
-                      <div key={activity.id} className="flex gap-3">
-                        <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-teal-500" />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                            <span className="text-xs font-semibold capitalize text-stone-800">{String(activity.type || 'note').replaceAll('_', ' ')}</span>
-                            <span className="text-[10px] text-stone-400">{displayDate(activity.createdAt)}{activity.actorEmail ? ` · ${activity.actorEmail}` : ''}</span>
+                {historyOpen && (
+                  <div id="care-history-content" className="mt-3">
+                    {activities.length === 0 ? (
+                      <p className="py-3 text-xs text-stone-500">No care activity recorded yet.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {activities.map((activity) => (
+                          <div key={activity.id} className="flex gap-3">
+                            <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-teal-500" />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                                <span className="text-xs font-semibold capitalize text-stone-800">{String(activity.type || 'note').replaceAll('_', ' ')}</span>
+                                <span className="text-[10px] text-stone-400">{displayDate(activity.createdAt)}{activity.actorEmail ? ` · ${activity.actorEmail}` : ''}</span>
+                              </div>
+                              {activity.note && <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-600">{activity.note}</p>}
+                            </div>
                           </div>
-                          {activity.note && <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-stone-600">{activity.note}</p>}
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>

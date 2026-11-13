@@ -112,7 +112,7 @@ service cloud.firestore {
         && request.resource.data.lastContactedAt == null
         && request.resource.data.assignedTeamMemberId == ''
         && (!('gender' in request.resource.data.keys())
-          || request.resource.data.gender in ['', 'Female', 'Male', 'Other', 'Prefer not to say'])
+          || request.resource.data.gender in ['', 'Female', 'Male'])
         && (!('ageBracket' in request.resource.data.keys())
           || request.resource.data.ageBracket == ''
           || validGuestAgeBracket(request.resource.data.ageBracket))
@@ -175,7 +175,10 @@ service cloud.firestore {
             exists(/databases/$(database)/documents/people/$(request.resource.data.assignedTeamMemberId))
             && get(/databases/$(database)/documents/people/$(request.resource.data.assignedTeamMemberId)).data.type in ['Member', 'Staff', 'Volunteer']
           )
-          && request.resource.data.get('gender', '') in ['', 'Female', 'Male', 'Other', 'Prefer not to say']
+          && (
+            request.resource.data.get('gender', '') in ['', 'Female', 'Male']
+            || request.resource.data.get('gender', '') == resource.data.get('gender', '')
+          )
           && (
             request.resource.data.get('ageBracket', '') == ''
             || validGuestAgeBracket(request.resource.data.ageBracket)
@@ -292,7 +295,7 @@ service cloud.firestore {
         && (request.resource.data.email.size() > 0 || request.resource.data.phone.size() > 0)
         && request.resource.data.firstVisitDate is string
         && request.resource.data.firstVisitDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
-        && request.resource.data.gender in ['Female', 'Male', 'Other', 'Prefer not to say']
+        && request.resource.data.gender in ['Female', 'Male']
         && validGuestAgeBracket(request.resource.data.ageBracket)
         && request.resource.data.invitedBy is string
         && request.resource.data.invitedBy.size() <= 120
