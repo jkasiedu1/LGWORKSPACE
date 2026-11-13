@@ -73,6 +73,12 @@ The Giving page includes mobile-friendly expense submissions, receipt image scan
 - Keep the R2 bucket private; receipt access is enforced by the signer Worker.
 - Deploy Firestore rules, the R2 signer Worker, and the frontend before testing private receipt uploads. The frontend refuses to upload receipts unless the Worker confirms private receipt support.
 
+### Church Care
+
+Church Care keeps visitor records in the separate `churchCareVisitors` collection; it does not add visitors to the church directory or use the Workflows app. Authorized users can log care notes and manage a reminder sequence (initial follow-up after 1 day, then 7 and 21 days after completed follow-ups). Reminders appear in the Church Care queue; this feature does not send automated email or SMS.
+
+Visitors are moved to the `people` directory only through the explicit **Move to directory** action after their care stage is set to **Decided to join**. Admin and Senior Pastor access is required for this transfer. Other staff can be granted the `church-care` app access claim to manage care records without directory-transfer permission.
+
 ### Role Management Endpoint
 
 The existing Cloudflare worker now exposes `POST /roles/grant`.

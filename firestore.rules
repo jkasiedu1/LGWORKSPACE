@@ -47,6 +47,126 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isSeniorPastor();
     }
 
+    function canManageChurchCare() {
+      return isAuthenticated() && (
+        canWrite()
+        || (
+          request.auth.token.get('appAccess', []) is list
+          && request.auth.token.get('appAccess', []).hasAny(['church-care'])
+        )
+      );
+    }
+
+    match /churchCareVisitors/{visitorId} {
+      allow create: if canManageChurchCare()
+        && request.resource.data.keys().hasOnly([
+          'firstName', 'lastName', 'email', 'phone', 'firstVisitDate', 'contactConsent',
+          'status', 'stage', 'followUpStep', 'nextFollowUpAt', 'lastContactedAt',
+          'createdByUid', 'createdByEmail', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'firstName', 'lastName', 'email', 'phone', 'firstVisitDate', 'contactConsent',
+          'status', 'stage', 'followUpStep', 'nextFollowUpAt', 'lastContactedAt',
+          'createdByUid', 'createdByEmail', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.firstName is string
+        && request.resource.data.firstName.size() > 0
+        && request.resource.data.firstName.size() <= 80
+        && request.resource.data.lastName is string
+        && request.resource.data.lastName.size() > 0
+        && request.resource.data.lastName.size() <= 80
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() <= 30
+        && (request.resource.data.email.size() > 0 || request.resource.data.phone.size() > 0)
+        && request.resource.data.firstVisitDate is string
+        && request.resource.data.contactConsent is bool
+        && request.resource.data.status == 'active'
+        && request.resource.data.stage == 'new'
+        && request.resource.data.followUpStep == 0
+        && (
+          request.resource.data.nextFollowUpAt == null
+          || request.resource.data.nextFollowUpAt is timestamp
+        )
+        && (request.resource.data.contactConsent || request.resource.data.nextFollowUpAt == null)
+        && request.resource.data.lastContactedAt == null
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdByEmail is string
+        && request.resource.data.createdByEmail.size() <= 254
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow read: if canManageChurchCare();
+      allow update: if canManageChurchCare()
+        && resource.data.status != 'converted'
+        && request.resource.data.keys().hasAll([
+          'firstName', 'lastName', 'email', 'phone', 'firstVisitDate', 'contactConsent',
+          'status', 'stage', 'followUpStep', 'nextFollowUpAt', 'lastContactedAt',
+          'createdByUid', 'createdByEmail', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.firstName is string
+        && request.resource.data.firstName.size() > 0
+        && request.resource.data.firstName.size() <= 80
+        && request.resource.data.lastName is string
+        && request.resource.data.lastName.size() > 0
+        && request.resource.data.lastName.size() <= 80
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() <= 30
+        && request.resource.data.contactConsent is bool
+        && request.resource.data.status in ['active', 'archived', 'converted']
+        && request.resource.data.stage in ['new', 'contacted', 'connected', 'ready-to-join']
+        && request.resource.data.followUpStep is int
+        && request.resource.data.followUpStep >= 0
+        && (
+          request.resource.data.nextFollowUpAt == null
+          || request.resource.data.nextFollowUpAt is timestamp
+        )
+        && (request.resource.data.contactConsent || request.resource.data.nextFollowUpAt == null)
+        && (
+          request.resource.data.lastContactedAt == null
+          || request.resource.data.lastContactedAt is timestamp
+        )
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'firstName', 'lastName', 'email', 'phone', 'firstVisitDate', 'contactConsent',
+          'status', 'stage', 'followUpStep', 'nextFollowUpAt', 'lastContactedAt',
+          'migratedPersonId', 'convertedAt', 'updatedAt'
+        ])
+        && (
+          request.resource.data.status != 'converted'
+          || (
+            canWrite()
+            && request.resource.data.migratedPersonId is string
+            && request.resource.data.migratedPersonId.size() > 0
+            && request.resource.data.convertedAt == request.time
+            && existsAfter(/databases/$(database)/documents/people/$(request.resource.data.migratedPersonId))
+            && getAfter(/databases/$(database)/documents/people/$(request.resource.data.migratedPersonId)).data.type == 'Member'
+          )
+        );
+      allow delete: if false;
+
+      match /activities/{activityId} {
+        allow create: if canManageChurchCare()
+          && existsAfter(/databases/$(database)/documents/churchCareVisitors/$(visitorId))
+          && request.resource.data.keys().hasOnly(['type', 'note', 'actorUid', 'actorEmail', 'createdAt'])
+          && request.resource.data.keys().hasAll(['type', 'note', 'actorUid', 'actorEmail', 'createdAt'])
+          && request.resource.data.type in [
+            'created', 'stage_changed', 'due_date_updated', 'follow_up',
+            'archived', 'restored', 'converted', 'note'
+          ]
+          && request.resource.data.note is string
+          && request.resource.data.note.size() <= 1000
+          && request.resource.data.actorUid == request.auth.uid
+          && request.resource.data.actorEmail is string
+          && request.resource.data.actorEmail.size() <= 254
+          && request.resource.data.createdAt == request.time;
+        allow read: if canManageChurchCare();
+        allow update, delete: if false;
+      }
+    }
+
     match /directoryIntakeSubmissions/{submissionId} {
       allow create: if request.resource.data.firstName is string
         && request.resource.data.lastName is string

@@ -20,6 +20,7 @@ import CommunityApp from './apps/CommunityApp';
 import ServicesApp from './apps/ServicesApp';
 import MusicApp from './apps/MusicApp';
 import PeopleApp from './apps/PeopleApp';
+import ChurchCareApp from './apps/ChurchCareApp';
 import GivingApp from './apps/GivingApp';
 import CalendarApp from './apps/CalendarApp';
 import TeamsApp from './apps/TeamsApp';
@@ -31,6 +32,7 @@ export default function App() {
   // Authentication
   const { user, loading: authLoading, isAuthenticated, roleAccess, logout } = useAuth();
   const { isSeniorPastor, isAdmin } = roleAccess;
+  const canAccessChurchCare = isAdmin || isSeniorPastor || roleAccess.appAccess?.includes('church-care');
   
   // Data
   const appData = useAppData(isAuthenticated, isAdmin || isSeniorPastor);
@@ -159,6 +161,7 @@ export default function App() {
         onLogout={logout}
         isAdmin={isAdmin}
         isSeniorPastor={isSeniorPastor}
+        appAccess={roleAccess.appAccess}
       />
       {mobileMenuOpen && window.innerWidth <= 1023 && (
         <div
@@ -246,6 +249,14 @@ export default function App() {
                 loadingPeople={appData.loadingPeople}
                 intakeSubmissions={appData.intakeSubmissions}
                 loadingIntakeSubmissions={appData.loadingIntakeSubmissions}
+              />
+            )}
+            {activeApp === 'church-care' && canAccessChurchCare && (
+              <ChurchCareApp
+                isAdmin={isAdmin}
+                isSeniorPastor={isSeniorPastor}
+                globalSearch={searchQuery}
+                showToast={(msg) => console.log(msg)}
               />
             )}
             {activeApp === 'giving' && (isAdmin || roleAccess.appAccess?.includes('giving')) && (

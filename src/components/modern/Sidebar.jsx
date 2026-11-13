@@ -14,9 +14,10 @@ import {
   ChevronLeft,
   ChevronRight,
   UserCircle,
+  Heart,
 } from 'lucide-react';
 
-export default function Sidebar({ className = '', activeApp, setActiveApp, user, onLogout, onSettings, onProfileClick, isAdmin, isSeniorPastor }) {
+export default function Sidebar({ className = '', activeApp, setActiveApp, user, onLogout, onSettings, onProfileClick, isAdmin, isSeniorPastor, appAccess = [] }) {
   const [collapsed, setCollapsed] = useState(false);
 
   const navigationSections = [
@@ -30,6 +31,7 @@ export default function Sidebar({ className = '', activeApp, setActiveApp, user,
       title: 'Core Apps',
       items: [
         { id: 'people', label: 'People', icon: Users },
+        { id: 'church-care', label: 'Church Care', icon: Heart, appAccess: 'church-care' },
         { id: 'calendar', label: 'Calendar', icon: Calendar },
         { id: 'giving', label: 'Giving', icon: DollarSign, adminOnly: true },
         { id: 'services', label: 'Services', icon: Briefcase },
@@ -58,6 +60,7 @@ export default function Sidebar({ className = '', activeApp, setActiveApp, user,
     items: section.items.filter(item => {
       if (item.seniorPastorOnly) return isSeniorPastor;
       if (item.adminOnly) return isAdmin || isSeniorPastor;
+      if (item.appAccess) return isAdmin || isSeniorPastor || appAccess.includes(item.appAccess);
       return true;
     }),
   })).filter(section => section.items.length > 0);
