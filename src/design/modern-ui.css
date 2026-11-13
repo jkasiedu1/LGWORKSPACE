@@ -498,22 +498,28 @@ body {
 }
 
 /* Expense forms: stop native date pickers from rendering larger than sibling inputs */
-input.expense-date-input {
+input.expense-date-input,
+input.church-care-date-input {
   -webkit-appearance: none;
   appearance: none;
   box-sizing: border-box;
   display: block;
   width: 100%;
   height: 3rem;
+  min-width: 0;
+  max-width: 100%;
   min-height: 3rem;
   line-height: 1.5rem;
 }
-input.expense-date-input::-webkit-date-and-time-value {
+input.expense-date-input::-webkit-date-and-time-value,
+input.church-care-date-input::-webkit-date-and-time-value {
   min-height: 0;
   margin: 0;
   text-align: left;
 }
 input.expense-date-input::-webkit-datetime-edit,
-input.expense-date-input::-webkit-datetime-edit-fields-wrapper {
+input.expense-date-input::-webkit-datetime-edit-fields-wrapper,
+input.church-care-date-input::-webkit-datetime-edit,
+input.church-care-date-input::-webkit-datetime-edit-fields-wrapper {
   padding: 0;
 }

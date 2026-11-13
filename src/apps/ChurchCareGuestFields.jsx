@@ -3,6 +3,7 @@ import { useState } from 'react';
 const GUEST_AGE_BRACKETS = ['Under 18', '18-24', '25-34', '35-44', '45-54', '55-64', '65+', 'Prefer not to say'];
 const CHILD_AGE_BRACKETS = ['Under 5', '5-12', '13-17'];
 const INPUT_CLASS = 'block h-12 w-full min-w-0 box-border rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100';
+const DATE_INPUT_CLASS = `${INPUT_CLASS} church-care-date-input appearance-none [-webkit-appearance:none] leading-6`;
 
 function getToday() {
   const date = new Date();
@@ -83,7 +84,7 @@ export default function ChurchCareGuestFields({ form, onChange, internal = false
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <IntakeField label="Visit date">
-          <input required type="date" value={form.firstVisitDate} onChange={(event) => onChange('firstVisitDate', event.target.value)} className={INPUT_CLASS} />
+          <input required type="date" value={form.firstVisitDate} onChange={(event) => onChange('firstVisitDate', event.target.value)} className={DATE_INPUT_CLASS} />
         </IntakeField>
         <IntakeField label="Age bracket">
           <select required value={form.ageBracket} onChange={(event) => onChange('ageBracket', event.target.value)} className={INPUT_CLASS}>
