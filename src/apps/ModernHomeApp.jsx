@@ -16,6 +16,9 @@ export default function ModernHomeApp({
   people, 
   isAdmin, 
   isSeniorPastor, 
+  canAccessChurchCare = false,
+  churchCareVisitors = [],
+  loadingChurchCareVisitors = false,
   setActiveApp, 
   loadingPeople, 
   loadingEvents, 
@@ -30,6 +33,14 @@ export default function ModernHomeApp({
   const kidsCount = people.filter(p => p.type === 'Child').length;
   const volunteersCount = people.filter(p => p.type === 'Volunteer').length;
   const upcomingEvents = events.slice(0, 5);
+  const activeCareVisitors = churchCareVisitors.filter((visitor) => visitor.status === 'active');
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+  const dueCareFollowUps = activeCareVisitors.filter((visitor) => {
+    const due = visitor.nextFollowUpAt?.toDate ? visitor.nextFollowUpAt.toDate() : visitor.nextFollowUpAt ? new Date(visitor.nextFollowUpAt) : null;
+    return due && !Number.isNaN(due.getTime()) && due <= todayEnd;
+  }).length;
+  const unassignedCareVisitors = activeCareVisitors.filter((visitor) => !visitor.assignedTeamMemberId).length;
   
   // Quick actions based on role
   const quickActions = isSeniorPastor || isAdmin ? [
@@ -120,6 +131,36 @@ export default function ModernHomeApp({
           />
         </div>
       </section>
+
+      {canAccessChurchCare && (
+        <section className="card">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="mb-1 flex items-center gap-2 text-sm font-bold text-teal-800">
+                <Heart size={17} /> Church Care
+              </div>
+              <p className="text-sm text-secondary">Visitor follow-ups, separate from the church directory.</p>
+            </div>
+            <button onClick={() => setActiveApp('church-care')} className="btn-primary px-4 py-2.5 text-sm rounded-lg">
+              Open Church Care <ArrowRight size={16} />
+            </button>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-lg bg-stone-50 p-3">
+              <div className="text-xl font-bold text-stone-900">{loadingChurchCareVisitors ? '…' : activeCareVisitors.length}</div>
+              <div className="text-xs text-stone-500">Active visitors</div>
+            </div>
+            <div className="rounded-lg bg-amber-50 p-3">
+              <div className="text-xl font-bold text-amber-800">{loadingChurchCareVisitors ? '…' : dueCareFollowUps}</div>
+              <div className="text-xs text-amber-700">Follow-ups due</div>
+            </div>
+            <div className="rounded-lg bg-teal-50 p-3">
+              <div className="text-xl font-bold text-teal-800">{loadingChurchCareVisitors ? '…' : unassignedCareVisitors}</div>
+              <div className="text-xs text-teal-700">Visitors needing a team member</div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

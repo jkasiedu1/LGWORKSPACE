@@ -35,7 +35,7 @@ export default function App() {
   const canAccessChurchCare = isAdmin || isSeniorPastor || roleAccess.appAccess?.includes('church-care');
   
   // Data
-  const appData = useAppData(isAuthenticated, isAdmin || isSeniorPastor);
+  const appData = useAppData(isAuthenticated, isAdmin || isSeniorPastor, canAccessChurchCare);
 
   // Routing
   const navigate = useNavigate();
@@ -186,6 +186,9 @@ export default function App() {
                 people={appData.people}
                 isAdmin={isAdmin}
                 isSeniorPastor={isSeniorPastor}
+                canAccessChurchCare={canAccessChurchCare}
+                churchCareVisitors={appData.churchCareVisitors}
+                loadingChurchCareVisitors={appData.loadingChurchCareVisitors}
                 setActiveApp={setActiveApp}
                 loadingPeople={appData.loadingPeople}
                 loadingEvents={appData.loadingEvents}
@@ -255,6 +258,8 @@ export default function App() {
               <ChurchCareApp
                 isAdmin={isAdmin}
                 isSeniorPastor={isSeniorPastor}
+                people={appData.people}
+                loadingPeople={appData.loadingPeople}
                 globalSearch={searchQuery}
                 showToast={(msg) => console.log(msg)}
               />

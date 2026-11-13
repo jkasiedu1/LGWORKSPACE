@@ -75,7 +75,7 @@ The Giving page includes mobile-friendly expense submissions, receipt image scan
 
 ### Church Care
 
-Church Care keeps visitor records in the separate `churchCareVisitors` collection; it does not add visitors to the church directory or use the Workflows app. Authorized users can log care notes and manage a reminder sequence (initial follow-up after 1 day, then 7 and 21 days after completed follow-ups). Reminders appear in the Church Care queue; this feature does not send automated email or SMS.
+Church Care keeps visitor records in the separate `churchCareVisitors` collection; it does not add visitors to the church directory or use the Workflows app. Users with Church Care portal access can edit visitor contact details, assign follow-ups to an existing Member, Staff, or Volunteer in the directory, log care notes, and manage a reminder sequence (initial follow-up after 1 day, then 7 and 21 days after completed follow-ups). Reminders appear in the Church Care queue; this feature does not send automated email or SMS. The Home overview shows active visitor, due follow-up, and unassigned counts only to users with Church Care access.
 
 Visitors are moved to the `people` directory only through the explicit **Move to directory** action after their care stage is set to **Decided to join**. Admin and Senior Pastor access is required for this transfer. Other staff can be granted the `church-care` app access claim to manage care records without directory-transfer permission.
 

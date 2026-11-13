@@ -10,6 +10,7 @@ import {
   Mail,
   MessageSquareText,
   Phone,
+  Pencil,
   Plus,
   RotateCcw,
   Search,
@@ -22,6 +23,7 @@ import { db } from '../config/firebase';
 import { useAuth } from '../hooks/useAuth';
 import {
   addChurchCareNote,
+  assignChurchCareTeamMember,
   createChurchCareVisitor,
   moveChurchCareVisitorToDirectory,
   recordChurchCareFollowUp,
@@ -29,6 +31,7 @@ import {
   subscribeToChurchCareActivities,
   updateChurchCareFollowUpDate,
   updateChurchCareStage,
+  updateChurchCareVisitor,
 } from '../lib/churchCareServices';
 
 const STAGES = [
@@ -195,7 +198,82 @@ function VisitorForm({ onClose, onSave, saving }) {
   );
 }
 
-export default function ChurchCareApp({ isAdmin, isSeniorPastor, globalSearch = '', showToast }) {
+function VisitorEditForm({ visitor, onClose, onSave, saving }) {
+  const [form, setForm] = useState({
+    firstName: visitor.firstName || '',
+    lastName: visitor.lastName || '',
+    email: visitor.email || '',
+    phone: visitor.phone || '',
+    firstVisitDate: visitor.firstVisitDate || '',
+    contactConsent: Boolean(visitor.contactConsent),
+  });
+  const [error, setError] = useState('');
+  const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setError('');
+    try {
+      await onSave({
+        ...form,
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+      });
+    } catch (saveError) {
+      setError(saveError.message || 'Could not update this visitor.');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/50 p-4" onMouseDown={onClose}>
+      <form onSubmit={submit} onMouseDown={(event) => event.stopPropagation()} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-stone-900">Edit visitor information</h2>
+            <p className="mt-1 text-sm text-stone-500">Changes are saved to Church Care only.</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-stone-400 hover:bg-stone-100" aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-xs font-semibold text-stone-600">First name
+            <input autoFocus value={form.firstName} onChange={(event) => setField('firstName', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
+          </label>
+          <label className="text-xs font-semibold text-stone-600">Last name
+            <input value={form.lastName} onChange={(event) => setField('lastName', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
+          </label>
+          <label className="text-xs font-semibold text-stone-600">Phone
+            <input type="tel" value={form.phone} onChange={(event) => setField('phone', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
+          </label>
+          <label className="text-xs font-semibold text-stone-600">Email
+            <input type="email" value={form.email} onChange={(event) => setField('email', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
+          </label>
+          <label className="text-xs font-semibold text-stone-600 sm:col-span-2">First visit
+            <input type="date" value={form.firstVisitDate} onChange={(event) => setField('firstVisitDate', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
+          </label>
+        </div>
+        <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-lg bg-stone-50 p-3 text-sm text-stone-700">
+          <input type="checkbox" checked={form.contactConsent} onChange={(event) => setField('contactConsent', event.target.checked)} className="mt-0.5 accent-teal-600" />
+          <span>They agreed to be contacted.
+            <span className="mt-0.5 block text-xs text-stone-500">Removing permission will also clear the scheduled follow-up reminder.</span>
+          </span>
+        </label>
+        {error && <p className="mt-3 flex items-center gap-2 text-sm text-rose-600"><AlertCircle size={15} />{error}</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-lg px-4 py-2.5 text-sm font-semibold text-stone-600 hover:bg-stone-100">Cancel</button>
+          <button type="submit" disabled={saving} className="rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-stone-800 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], loadingPeople = false, globalSearch = '', showToast }) {
   const { user } = useAuth();
   const [visitors, setVisitors] = useState([]);
   const [activities, setActivities] = useState([]);
@@ -209,8 +287,14 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, globalSearch = 
   const [followUpNote, setFollowUpNote] = useState('');
   const [dueDateDraft, setDueDateDraft] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [assignedMemberDraft, setAssignedMemberDraft] = useState('');
   const canMoveToDirectory = isAdmin || isSeniorPastor;
   const actor = { uid: user?.uid || '', email: user?.email || '' };
+  const eligibleTeamMembers = useMemo(
+    () => people.filter((person) => ['Member', 'Staff', 'Volunteer'].includes(person.type)).sort((a, b) => getPersonName(a).localeCompare(getPersonName(b))),
+    [people]
+  );
 
   useEffect(() => {
     if (!db) {
@@ -285,6 +369,7 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, globalSearch = 
   useEffect(() => {
     setDueDateDraft(selectedVisitor?.nextFollowUpAt ? localDateValue(toDate(selectedVisitor.nextFollowUpAt)) : '');
     setFollowUpNote('');
+    setAssignedMemberDraft(selectedVisitor?.assignedTeamMemberId || '');
   }, [selectedVisitorId, selectedVisitor?.nextFollowUpAt]);
 
   const handleCreateVisitor = async (visitor) => {
@@ -311,6 +396,44 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, globalSearch = 
     } catch (error) {
       console.error('[ChurchCareApp] Failed to update care stage:', error);
       showToast(error.message || 'Could not update the care stage.');
+    }
+  };
+
+  const handleSaveVisitor = async (updates) => {
+    if (!selectedVisitor) return;
+    setSaving(true);
+    try {
+      await updateChurchCareVisitor(selectedVisitor.id, selectedVisitor, updates, actor);
+      setShowEdit(false);
+      showToast('Visitor information updated.');
+    } catch (error) {
+      console.error('[ChurchCareApp] Failed to update visitor information:', error);
+      throw error;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAssignTeamMember = async () => {
+    if (!selectedVisitor || selectedVisitor.status !== 'active') return;
+    if (loadingPeople) {
+      showToast('Wait for the church directory to finish loading.');
+      return;
+    }
+    const member = eligibleTeamMembers.find((person) => String(person.id) === assignedMemberDraft) || null;
+    if (assignedMemberDraft && !member) {
+      showToast('Choose a team member from the church directory.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await assignChurchCareTeamMember(selectedVisitor.id, member, actor);
+      showToast(member ? `Follow-up assigned to ${getPersonName(member)}.` : 'Follow-up assignment removed.');
+    } catch (error) {
+      console.error('[ChurchCareApp] Failed to assign follow-up:', error);
+      showToast(error.message || 'Could not assign this follow-up.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -506,6 +629,11 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, globalSearch = 
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    {selectedVisitor.status !== 'converted' && (
+                      <button disabled={saving} onClick={() => setShowEdit(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50 disabled:opacity-50">
+                        <Pencil size={13} /> Edit guest
+                      </button>
+                    )}
                     {selectedVisitor.status === 'active' && selectedVisitor.stage === 'ready-to-join' && canMoveToDirectory && (
                       <button disabled={saving} onClick={handleMoveToDirectory} className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50">
                         Move to directory
@@ -546,6 +674,33 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, globalSearch = 
                   </div>
                   {!selectedVisitor.contactConsent && <p className="mt-1.5 text-[11px] text-stone-500">No reminder is scheduled because contact permission was not recorded.</p>}
                 </div>
+              </div>
+
+              <div className="p-5">
+                <label className="text-xs font-semibold text-stone-600" htmlFor="care-assignee">Assigned follow-up team member</label>
+                <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
+                  <select
+                    id="care-assignee"
+                    disabled={selectedVisitor.status !== 'active' || loadingPeople}
+                    value={assignedMemberDraft}
+                    onChange={(event) => setAssignedMemberDraft(event.target.value)}
+                    className="min-w-0 flex-1 rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-teal-500 disabled:bg-stone-50"
+                  >
+                    <option value="">Unassigned</option>
+                    {eligibleTeamMembers.map((member) => (
+                      <option key={member.id} value={member.id}>{getPersonName(member)}{member.type ? ` · ${member.type}` : ''}</option>
+                    ))}
+                  </select>
+                  <button disabled={saving || loadingPeople || selectedVisitor.status !== 'active' || assignedMemberDraft === (selectedVisitor.assignedTeamMemberId || '')} onClick={handleAssignTeamMember} className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-50">
+                    Save assignment
+                  </button>
+                </div>
+                {loadingPeople
+                  ? <p className="mt-1.5 text-[11px] text-stone-500">Loading the church directory…</p>
+                  : eligibleTeamMembers.length === 0 && <p className="mt-1.5 text-[11px] text-stone-500">Add team members as members, staff, or volunteers in the church directory to assign them here.</p>}
+                {selectedVisitor.assignedTeamMemberId && !eligibleTeamMembers.some((person) => String(person.id) === selectedVisitor.assignedTeamMemberId) && (
+                  <p className="mt-1.5 text-[11px] text-amber-700">The assigned person is no longer an active member, staff person, or volunteer in the directory.</p>
+                )}
               </div>
 
               {selectedVisitor.status === 'active' && selectedVisitor.contactConsent && (
@@ -605,6 +760,7 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, globalSearch = 
       </div>
 
       {showCreate && <VisitorForm onClose={() => setShowCreate(false)} onSave={handleCreateVisitor} saving={saving} />}
+      {showEdit && selectedVisitor && <VisitorEditForm visitor={selectedVisitor} onClose={() => setShowEdit(false)} onSave={handleSaveVisitor} saving={saving} />}
     </div>
   );
 }

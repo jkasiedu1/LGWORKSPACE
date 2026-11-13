@@ -44,6 +44,7 @@ export async function createChurchCareVisitor(visitor, actor) {
   const batch = writeBatch(db);
   batch.set(visitorRef, {
     ...visitor,
+    assignedTeamMemberId: '',
     status: 'active',
     stage: 'new',
     followUpStep: 0,
@@ -59,6 +60,49 @@ export async function createChurchCareVisitor(visitor, actor) {
   return { id: visitorRef.id, ...visitor, status: 'active' };
 }
 
+export async function updateChurchCareVisitor(visitorId, currentVisitor, updates, actor) {
+  const firstName = String(updates.firstName || '').trim();
+  const lastName = String(updates.lastName || '').trim();
+  const email = String(updates.email || '').trim();
+  const phone = String(updates.phone || '').trim();
+  if (!firstName || !lastName) {
+    throw new Error('First and last name are required.');
+  }
+  if (!email && !phone) {
+    throw new Error('Add an email address or phone number.');
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Enter a valid email address.');
+  }
+
+  if (!db) return;
+
+  const contactConsent = Boolean(updates.contactConsent);
+  const followUpStep = Number.isInteger(currentVisitor.followUpStep) ? currentVisitor.followUpStep : 0;
+  const nextFollowUpAt = !contactConsent
+    ? null
+    : !currentVisitor.contactConsent && FOLLOW_UP_DAYS[followUpStep]
+      ? dateAfterDays(FOLLOW_UP_DAYS[followUpStep])
+      : currentVisitor.nextFollowUpAt || null;
+  const payload = {
+    firstName,
+    lastName,
+    email,
+    phone,
+    firstVisitDate: String(updates.firstVisitDate || ''),
+    contactConsent,
+    nextFollowUpAt,
+    updatedAt: serverTimestamp(),
+  };
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'churchCareVisitors', String(visitorId)), payload);
+  batch.set(
+    getActivityRef(visitorId),
+    activityPayload('guest_updated', 'Updated visitor contact information or contact permission.', actor)
+  );
+  await batch.commit();
+}
+
 export async function updateChurchCareStage(visitorId, stage, actor) {
   if (!VALID_STAGES.has(stage)) {
     throw new Error('Choose a valid care stage.');
@@ -72,6 +116,34 @@ export async function updateChurchCareStage(visitorId, stage, actor) {
   });
   batch.set(getActivityRef(visitorId), activityPayload('stage_changed', `Care stage changed to ${stage}.`, actor));
   await batch.commit();
+}
+
+export async function assignChurchCareTeamMember(visitorId, member, actor) {
+  if (member && !['Member', 'Staff', 'Volunteer'].includes(member.type)) {
+    throw new Error('Choose a member, staff person, or volunteer from the directory.');
+  }
+  if (!db) return;
+
+  const visitorRef = doc(db, 'churchCareVisitors', String(visitorId));
+  const activityRef = getActivityRef(visitorId);
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(visitorRef);
+    if (!snapshot.exists()) {
+      throw new Error('This visitor record no longer exists.');
+    }
+    if (snapshot.data().status !== 'active') {
+      throw new Error('Only active visitor records can be assigned.');
+    }
+
+    transaction.update(visitorRef, {
+      assignedTeamMemberId: member ? String(member.id) : '',
+      updatedAt: serverTimestamp(),
+    });
+    transaction.set(
+      activityRef,
+      activityPayload('assigned', member ? `Assigned follow-up to ${member.name || `${member.firstName || ''} ${member.lastName || ''}`.trim()}.` : 'Removed the follow-up assignment.', actor)
+    );
+  });
 }
 
 export async function updateChurchCareFollowUpDate(visitorId, dateValue, actor) {

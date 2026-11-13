@@ -62,12 +62,12 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           'firstName', 'lastName', 'email', 'phone', 'firstVisitDate', 'contactConsent',
           'status', 'stage', 'followUpStep', 'nextFollowUpAt', 'lastContactedAt',
-          'createdByUid', 'createdByEmail', 'createdAt', 'updatedAt'
+          'assignedTeamMemberId', 'createdByUid', 'createdByEmail', 'createdAt', 'updatedAt'
         ])
         && request.resource.data.keys().hasAll([
           'firstName', 'lastName', 'email', 'phone', 'firstVisitDate', 'contactConsent',
           'status', 'stage', 'followUpStep', 'nextFollowUpAt', 'lastContactedAt',
-          'createdByUid', 'createdByEmail', 'createdAt', 'updatedAt'
+          'assignedTeamMemberId', 'createdByUid', 'createdByEmail', 'createdAt', 'updatedAt'
         ])
         && request.resource.data.firstName is string
         && request.resource.data.firstName.size() > 0
@@ -91,6 +91,7 @@ service cloud.firestore {
         )
         && (request.resource.data.contactConsent || request.resource.data.nextFollowUpAt == null)
         && request.resource.data.lastContactedAt == null
+        && request.resource.data.assignedTeamMemberId == ''
         && request.resource.data.createdByUid == request.auth.uid
         && request.resource.data.createdByEmail is string
         && request.resource.data.createdByEmail.size() <= 254
@@ -114,6 +115,8 @@ service cloud.firestore {
         && request.resource.data.email.size() <= 254
         && request.resource.data.phone is string
         && request.resource.data.phone.size() <= 30
+        && request.resource.data.firstVisitDate is string
+        && request.resource.data.firstVisitDate.size() <= 10
         && request.resource.data.contactConsent is bool
         && request.resource.data.status in ['active', 'archived', 'converted']
         && request.resource.data.stage in ['new', 'contacted', 'connected', 'ready-to-join']
@@ -128,11 +131,20 @@ service cloud.firestore {
           request.resource.data.lastContactedAt == null
           || request.resource.data.lastContactedAt is timestamp
         )
+        && request.resource.data.get('assignedTeamMemberId', '') is string
+        && request.resource.data.get('assignedTeamMemberId', '').size() <= 128
+        && (
+          request.resource.data.get('assignedTeamMemberId', '') == ''
+          || (
+            exists(/databases/$(database)/documents/people/$(request.resource.data.assignedTeamMemberId))
+            && get(/databases/$(database)/documents/people/$(request.resource.data.assignedTeamMemberId)).data.type in ['Member', 'Staff', 'Volunteer']
+          )
+        )
         && request.resource.data.updatedAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'firstName', 'lastName', 'email', 'phone', 'firstVisitDate', 'contactConsent',
           'status', 'stage', 'followUpStep', 'nextFollowUpAt', 'lastContactedAt',
-          'migratedPersonId', 'convertedAt', 'updatedAt'
+          'assignedTeamMemberId', 'migratedPersonId', 'convertedAt', 'updatedAt'
         ])
         && (
           request.resource.data.status != 'converted'
@@ -154,7 +166,7 @@ service cloud.firestore {
           && request.resource.data.keys().hasAll(['type', 'note', 'actorUid', 'actorEmail', 'createdAt'])
           && request.resource.data.type in [
             'created', 'stage_changed', 'due_date_updated', 'follow_up',
-            'archived', 'restored', 'converted', 'note'
+            'archived', 'restored', 'converted', 'guest_updated', 'assigned', 'note'
           ]
           && request.resource.data.note is string
           && request.resource.data.note.size() <= 1000

@@ -18,7 +18,7 @@ import {
  * @param {boolean} canReviewIntake - Whether the user can review intake submissions
  * @returns {Object} App data: { events, people, donations, songs, teams, planItems }
  */
-export function useAppData(isAuthenticated, canReviewIntake = false) {
+export function useAppData(isAuthenticated, canReviewIntake = false, canAccessChurchCare = false) {
   const [events, setEvents] = useState(UPCOMING_EVENTS);
   const [people, setPeople] = useState(PEOPLE_LIST);
   const [planItems, setPlanItems] = useState(PLAN_ITEMS);
@@ -30,6 +30,8 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
     { id: 2, title: 'Volunteer Reminder', trigger: '3 Days Before Scheduled Date', actions: 'Send Email', iconName: 'Mail' },
   ]);
   const [communityPosts, setCommunityPosts] = useState(COMMUNITY_POSTS);
+  const [churchCareVisitors, setChurchCareVisitors] = useState([]);
+  const [loadingChurchCareVisitors, setLoadingChurchCareVisitors] = useState(false);
   const [intakeSubmissions, setIntakeSubmissions] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [expenseIntakeSubmissions, setExpenseIntakeSubmissions] = useState([]);
@@ -57,6 +59,8 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
     if (!isAuthenticated || !db) {
       setLoadingPeople(false);
       setLoadingEvents(false);
+      setChurchCareVisitors([]);
+      setLoadingChurchCareVisitors(false);
       setExpenseIntakeSubmissions([]);
       setLoadingExpenseIntakeSubmissions(false);
       return;
@@ -74,6 +78,7 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
     let unsubExpenseIntakeSubmissions;
     let unsubSecuritySettings;
     let unsubServicePlan;
+    let unsubChurchCareVisitors;
 
     try {
         unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
@@ -85,6 +90,25 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
           setPeople(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
           setLoadingPeople(false);
         });
+
+        if (canAccessChurchCare) {
+          setLoadingChurchCareVisitors(true);
+          unsubChurchCareVisitors = onSnapshot(
+            collection(db, 'churchCareVisitors'),
+            (snapshot) => {
+              setChurchCareVisitors(snapshot.docs.map((visitorDoc) => ({ id: visitorDoc.id, ...visitorDoc.data() })));
+              setLoadingChurchCareVisitors(false);
+            },
+            (error) => {
+              console.error('[useAppData] Church Care subscription failed:', error);
+              setChurchCareVisitors([]);
+              setLoadingChurchCareVisitors(false);
+            }
+          );
+        } else {
+          setChurchCareVisitors([]);
+          setLoadingChurchCareVisitors(false);
+        }
 
         if (canReviewIntake) {
           unsubDonations = onSnapshot(
@@ -201,8 +225,9 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
       if (unsubExpenseIntakeSubmissions) unsubExpenseIntakeSubmissions();
       if (unsubSecuritySettings) unsubSecuritySettings();
       if (unsubServicePlan) unsubServicePlan();
+      if (unsubChurchCareVisitors) unsubChurchCareVisitors();
     };
-  }, [isAuthenticated, canReviewIntake]);
+  }, [isAuthenticated, canReviewIntake, canAccessChurchCare]);
 
   return {
     events,
@@ -223,6 +248,8 @@ export function useAppData(isAuthenticated, canReviewIntake = false) {
     setWorkflows,
     communityPosts,
     setCommunityPosts,
+    churchCareVisitors,
+    loadingChurchCareVisitors,
     intakeSubmissions,
     setIntakeSubmissions,
     loadingIntakeSubmissions,
