@@ -7,6 +7,7 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  setDoc,
   Timestamp,
   updateDoc,
   writeBatch,
@@ -16,6 +17,7 @@ import { logPersonCreated } from './auditService';
 
 const FOLLOW_UP_DAYS = [1, 7, 21];
 const VALID_STAGES = new Set(['new', 'contacted', 'connected', 'ready-to-join']);
+const MAX_CHURCH_CARE_TEXT_LENGTH = 900;
 
 function dateAfterDays(days) {
   return Timestamp.fromDate(new Date(Date.now() + days * 24 * 60 * 60 * 1000));
@@ -281,6 +283,77 @@ export function subscribeToChurchCareActivities(visitorId, onData, onError) {
     (snapshot) => onData(snapshot.docs.map((activityDoc) => ({ id: activityDoc.id, ...activityDoc.data() }))),
     onError
   );
+}
+
+export function subscribeToChurchCareMessageTemplates(onData, onError) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'churchCareMessageTemplates'),
+    (snapshot) => onData(snapshot.docs.map((templateDoc) => ({ id: templateDoc.id, ...templateDoc.data() }))),
+    onError
+  );
+}
+
+export async function saveChurchCareMessageTemplate(stage, body, actor) {
+  if (!VALID_STAGES.has(stage)) {
+    throw new Error('Choose a valid care stage.');
+  }
+  const trimmedBody = String(body || '').trim();
+  if (!trimmedBody) {
+    throw new Error('Enter a message for this stage.');
+  }
+  if (trimmedBody.length > MAX_CHURCH_CARE_TEXT_LENGTH) {
+    throw new Error(`Keep the template under ${MAX_CHURCH_CARE_TEXT_LENGTH} characters.`);
+  }
+  if (!trimmedBody.includes('{firstName}') && !trimmedBody.includes('{name}')) {
+    throw new Error('Include {firstName} or {name} so each text is personalized.');
+  }
+  if (!db) {
+    throw new Error('Church Care message templates are unavailable because the database is not configured.');
+  }
+
+  await setDoc(doc(db, 'churchCareMessageTemplates', stage), {
+    stage,
+    body: trimmedBody,
+    updatedByUid: actor?.uid || '',
+    updatedByEmail: actor?.email || '',
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function recordChurchCareTextMarkedSent(visitorId, stage, message, actor) {
+  if (!VALID_STAGES.has(stage)) {
+    throw new Error('The visitor has an invalid care stage.');
+  }
+  const text = String(message || '').trim();
+  if (!text || text.length > MAX_CHURCH_CARE_TEXT_LENGTH) {
+    throw new Error(`The personalized message must be between 1 and ${MAX_CHURCH_CARE_TEXT_LENGTH} characters.`);
+  }
+  if (!db) {
+    throw new Error('Church Care message history is unavailable because the database is not configured.');
+  }
+
+  const visitorRef = doc(db, 'churchCareVisitors', String(visitorId));
+  const activityRef = getActivityRef(visitorId);
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(visitorRef);
+    if (!snapshot.exists()) {
+      throw new Error('This visitor record no longer exists.');
+    }
+
+    const visitor = snapshot.data();
+    if (visitor.status !== 'active' || !visitor.contactConsent || !visitor.phone) {
+      throw new Error('This visitor is no longer eligible for a text message.');
+    }
+    if (visitor.stage !== stage) {
+      throw new Error('The visitor stage changed. Prepare the text again to use the current stage message.');
+    }
+
+    transaction.set(
+      activityRef,
+      activityPayload('text_marked_sent', `Sender confirmed this text was sent from their phone (${stage}): ${text}`, actor)
+    );
+  });
 }
 
 export async function addChurchCareNote(visitorId, note, actor) {

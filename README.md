@@ -77,6 +77,8 @@ The Giving page includes mobile-friendly expense submissions, receipt image scan
 
 Church Care keeps visitor records in the separate `churchCareVisitors` collection; it does not add visitors to the church directory or use the Workflows app. Users with Church Care portal access can edit visitor contact details, assign follow-ups to an existing Member, Staff, or Volunteer in the directory, log care notes, and manage a reminder sequence (initial follow-up after 1 day, then 7 and 21 days after completed follow-ups). Reminders appear in the Church Care queue; this feature does not send automated email or SMS. The Home overview shows active visitor, due follow-up, and unassigned counts only to users with Church Care access.
 
+The Church Care **Text messages** section stores stage-specific templates in `churchCareMessageTemplates`. Church Care users can edit templates using `{firstName}` or `{name}` placeholders; the app adds the `Lifegate Follow-up Team` signature. Batch selection opens a personalized SMS draft for one eligible guest at a time in the user's device messaging app. A guest must have an active record, a phone number, and recorded contact permission. The user must review and send each text on their device, then explicitly confirm in Church Care to log it. The app does not send texts itself or guarantee that a phone opened or sent a draft.
+
 Visitors are moved to the `people` directory only through the explicit **Move to directory** action after their care stage is set to **Decided to join**. Admin and Senior Pastor access is required for this transfer. Other staff can be granted the `church-care` app access claim to manage care records without directory-transfer permission.
 
 ### Role Management Endpoint

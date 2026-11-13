@@ -166,7 +166,8 @@ service cloud.firestore {
           && request.resource.data.keys().hasAll(['type', 'note', 'actorUid', 'actorEmail', 'createdAt'])
           && request.resource.data.type in [
             'created', 'stage_changed', 'due_date_updated', 'follow_up',
-            'archived', 'restored', 'converted', 'guest_updated', 'assigned', 'note'
+            'archived', 'restored', 'converted', 'guest_updated', 'assigned',
+            'text_marked_sent', 'note'
           ]
           && request.resource.data.note is string
           && request.resource.data.note.size() <= 1000
@@ -177,6 +178,36 @@ service cloud.firestore {
         allow read: if canManageChurchCare();
         allow update, delete: if false;
       }
+    }
+
+    match /churchCareMessageTemplates/{stageId} {
+      function validTemplate() {
+        return stageId in ['new', 'contacted', 'connected', 'ready-to-join']
+          && request.resource.data.keys().hasOnly([
+            'stage', 'body', 'updatedByUid', 'updatedByEmail', 'updatedAt'
+          ])
+          && request.resource.data.keys().hasAll([
+            'stage', 'body', 'updatedByUid', 'updatedByEmail', 'updatedAt'
+          ])
+          && request.resource.data.stage == stageId
+          && request.resource.data.body is string
+          && request.resource.data.body.size() > 0
+          && request.resource.data.body.size() <= 900
+          && request.resource.data.body.matches('.*\\{(firstName|name)\\}.*')
+          && request.resource.data.updatedByUid == request.auth.uid
+          && request.resource.data.updatedByEmail is string
+          && request.resource.data.updatedByEmail.size() <= 254
+          && request.resource.data.updatedAt == request.time;
+      }
+
+      allow read: if canManageChurchCare();
+      allow create: if canManageChurchCare() && validTemplate();
+      allow update: if canManageChurchCare()
+        && validTemplate()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'stage', 'body', 'updatedByUid', 'updatedByEmail', 'updatedAt'
+        ]);
+      allow delete: if false;
     }
 
     match /directoryIntakeSubmissions/{submissionId} {

@@ -14,6 +14,8 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Send,
+  Smartphone,
   UserRound,
   UsersRound,
   X,
@@ -27,8 +29,11 @@ import {
   createChurchCareVisitor,
   moveChurchCareVisitorToDirectory,
   recordChurchCareFollowUp,
+  recordChurchCareTextMarkedSent,
+  saveChurchCareMessageTemplate,
   setChurchCareArchived,
   subscribeToChurchCareActivities,
+  subscribeToChurchCareMessageTemplates,
   updateChurchCareFollowUpDate,
   updateChurchCareStage,
   updateChurchCareVisitor,
@@ -40,6 +45,13 @@ const STAGES = [
   { value: 'connected', label: 'Connected' },
   { value: 'ready-to-join', label: 'Decided to join' },
 ];
+
+const DEFAULT_MESSAGE_TEMPLATES = {
+  new: 'Hi {firstName}, thanks for visiting Lifegate! We’re glad you joined us. Is there anything we can pray for or help you with?',
+  contacted: 'Hi {firstName}, it was great connecting with you. We’d love to help you find your next step at Lifegate. What questions can we answer?',
+  connected: 'Hi {firstName}, we’re grateful you’ve been connecting with Lifegate. Let us know how we can support you and help you feel at home.',
+  'ready-to-join': 'Hi {firstName}, we’re excited you’re considering becoming part of Lifegate! We’d be glad to talk through membership and next steps.',
+};
 
 const FILTERS = [
   { id: 'follow-up', label: 'Follow-ups' },
@@ -76,6 +88,35 @@ function getDueStatus(value) {
 
 function getPersonName(person) {
   return `${person.firstName || ''} ${person.lastName || ''}`.trim() || 'Unnamed visitor';
+}
+
+function getPersonalizedText(visitor, template) {
+  const firstName = String(visitor.firstName || 'there').trim();
+  const fullName = getPersonName(visitor);
+  const body = String(template || '')
+    .replaceAll('{firstName}', firstName)
+    .replaceAll('{name}', fullName)
+    .trim();
+  const message = `${body}\n\n— Lifegate Follow-up Team`;
+  if (message.length > 900) {
+    throw new Error('This personalized message is too long. Shorten the template and try again.');
+  }
+  return message;
+}
+
+function getTemplatePreview(template) {
+  try {
+    return getPersonalizedText({ firstName: 'Jordan', lastName: 'Guest' }, template);
+  } catch (error) {
+    return error.message || 'Shorten the template to preview the personalized message.';
+  }
+}
+
+function getSmsHref(visitor, message) {
+  const rawPhone = String(visitor.phone || '').trim();
+  const phone = `${rawPhone.startsWith('+') ? '+' : ''}${rawPhone.replace(/\D/g, '')}`;
+  if (!phone) return '';
+  return `sms:${phone}?body=${encodeURIComponent(message)}`;
 }
 
 function StatCard({ icon: Icon, label, value, tone = 'stone' }) {
@@ -273,10 +314,102 @@ function VisitorEditForm({ visitor, onClose, onSave, saving }) {
   );
 }
 
+function TextBatchModal({
+  visitor,
+  position,
+  total,
+  message,
+  messageError,
+  smsHref,
+  opened,
+  error,
+  saving,
+  onOpenText,
+  onMarkSent,
+  onSkip,
+  onClose,
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/60 p-4" onMouseDown={onClose}>
+      <div onMouseDown={(event) => event.stopPropagation()} className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Individual text {position} of {total}</p>
+            <h2 className="mt-1 text-lg font-bold text-stone-900">{visitor ? getPersonName(visitor) : 'Guest is no longer eligible'}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-stone-400 hover:bg-stone-100" aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+        {visitor ? (
+          <>
+            <p className="mb-3 text-xs text-stone-500">{visitor.phone} · {STAGES.find((stage) => stage.value === visitor.stage)?.label || 'Visitor'}</p>
+            <div className="whitespace-pre-wrap rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm leading-relaxed text-stone-800">
+              {messageError || message}
+            </div>
+            {messageError ? (
+              <p className="mt-3 text-xs text-rose-700">{messageError}</p>
+            ) : (
+              <p className="mt-3 text-xs text-stone-500">The text opens in your phone’s messaging app. Review it and tap Send there. The app cannot detect whether it was sent.</p>
+            )}
+            {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
+            <div className="mt-5 flex flex-wrap justify-between gap-2">
+              <button type="button" onClick={onSkip} className="rounded-lg px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100">
+                Skip this guest
+              </button>
+              <div className="flex flex-wrap gap-2">
+                {smsHref && !messageError && (
+                  <a
+                    href={smsHref}
+                    onClick={() => onOpenText(String(visitor.id))}
+                    className="inline-flex items-center gap-2 rounded-lg border border-teal-700 px-3 py-2 text-xs font-semibold text-teal-800 hover:bg-teal-50"
+                  >
+                    <Smartphone size={14} /> Open in Messages
+                  </a>
+                )}
+                <button
+                  type="button"
+                  disabled={saving || !opened || Boolean(messageError)}
+                  onClick={onMarkSent}
+                  className="inline-flex items-center gap-2 rounded-lg bg-stone-900 px-3 py-2 text-xs font-semibold text-white hover:bg-stone-800 disabled:opacity-50"
+                >
+                  <Check size={14} /> {saving ? 'Saving…' : 'I sent it · Next'}
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div>
+            <p className="text-sm text-stone-600">This guest may have been archived, converted, or had contact permission removed.</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100">Close batch</button>
+              <button type="button" onClick={onSkip} className="rounded-lg bg-stone-900 px-3 py-2 text-xs font-semibold text-white hover:bg-stone-800">Next guest</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], loadingPeople = false, globalSearch = '', showToast }) {
   const { user } = useAuth();
+  const [activeSection, setActiveSection] = useState('care');
   const [visitors, setVisitors] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [messageTemplates, setMessageTemplates] = useState(DEFAULT_MESSAGE_TEMPLATES);
+  const [selectedTemplateStage, setSelectedTemplateStage] = useState('new');
+  const [templateDraft, setTemplateDraft] = useState(DEFAULT_MESSAGE_TEMPLATES.new);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [templateError, setTemplateError] = useState('');
+  const [textRecipientStage, setTextRecipientStage] = useState('all');
+  const [textRecipientSearch, setTextRecipientSearch] = useState('');
+  const [selectedTextVisitorIds, setSelectedTextVisitorIds] = useState([]);
+  const [textBatchOpen, setTextBatchOpen] = useState(false);
+  const [textBatchQueue, setTextBatchQueue] = useState([]);
+  const [textBatchIndex, setTextBatchIndex] = useState(0);
+  const [openedTextVisitorId, setOpenedTextVisitorId] = useState('');
+  const [textBatchError, setTextBatchError] = useState('');
   const [selectedVisitorId, setSelectedVisitorId] = useState('');
   const [filter, setFilter] = useState('follow-up');
   const [search, setSearch] = useState('');
@@ -291,10 +424,40 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
   const [assignedMemberDraft, setAssignedMemberDraft] = useState('');
   const canMoveToDirectory = isAdmin || isSeniorPastor;
   const actor = { uid: user?.uid || '', email: user?.email || '' };
+  const activeVisitors = useMemo(() => visitors.filter((visitor) => visitor.status === 'active'), [visitors]);
   const eligibleTeamMembers = useMemo(
     () => people.filter((person) => ['Member', 'Staff', 'Volunteer'].includes(person.type)).sort((a, b) => getPersonName(a).localeCompare(getPersonName(b))),
     [people]
   );
+  const eligibleTextRecipients = useMemo(
+    () => activeVisitors.filter((visitor) => visitor.status === 'active' && visitor.contactConsent && visitor.phone),
+    [activeVisitors]
+  );
+  const visibleTextRecipients = useMemo(() => eligibleTextRecipients.filter((visitor) => {
+    const matchesStage = textRecipientStage === 'all' || visitor.stage === textRecipientStage;
+    const searchTerm = textRecipientSearch.trim().toLowerCase();
+    const matchesSearch = !searchTerm || (
+      `${getPersonName(visitor)} ${visitor.phone || ''} ${visitor.email || ''}`.toLowerCase().includes(searchTerm)
+    );
+    return matchesStage && matchesSearch;
+  }), [eligibleTextRecipients, textRecipientStage, textRecipientSearch]);
+  const selectedTextCount = eligibleTextRecipients.filter((visitor) => selectedTextVisitorIds.includes(String(visitor.id))).length;
+  const currentTextVisitorId = textBatchQueue[textBatchIndex] || '';
+  const currentTextVisitor = eligibleTextRecipients.find((visitor) => String(visitor.id) === currentTextVisitorId) || null;
+  const currentTextPreview = useMemo(() => {
+    if (!currentTextVisitor) return { message: '', error: '' };
+    try {
+      return {
+        message: getPersonalizedText(
+          currentTextVisitor,
+          messageTemplates[currentTextVisitor.stage] || DEFAULT_MESSAGE_TEMPLATES[currentTextVisitor.stage]
+        ),
+        error: '',
+      };
+    } catch (error) {
+      return { message: '', error: error.message || 'Could not prepare this message.' };
+    }
+  }, [currentTextVisitor, messageTemplates]);
 
   useEffect(() => {
     if (!db) {
@@ -317,8 +480,28 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
     );
   }, []);
 
+  useEffect(() => subscribeToChurchCareMessageTemplates(
+    (savedTemplates) => {
+      const nextTemplates = { ...DEFAULT_MESSAGE_TEMPLATES };
+      savedTemplates.forEach((template) => {
+        if (DEFAULT_MESSAGE_TEMPLATES[template.id] && typeof template.body === 'string') {
+          nextTemplates[template.id] = template.body;
+        }
+      });
+      setMessageTemplates(nextTemplates);
+      setTemplateError('');
+    },
+    (error) => {
+      console.error('[ChurchCareApp] Message templates subscription failed:', error);
+      setTemplateError('Could not load saved text templates. You can retry by refreshing this page.');
+    }
+  ), []);
+
+  useEffect(() => {
+    setTemplateDraft(messageTemplates[selectedTemplateStage] || DEFAULT_MESSAGE_TEMPLATES[selectedTemplateStage]);
+  }, [messageTemplates, selectedTemplateStage]);
+
   const searchTerm = (search || globalSearch).trim().toLowerCase();
-  const activeVisitors = useMemo(() => visitors.filter((visitor) => visitor.status === 'active'), [visitors]);
   const dueVisitors = useMemo(() => activeVisitors.filter((visitor) => {
     const due = toDate(visitor.nextFollowUpAt);
     return due && due <= new Date(new Date().setHours(23, 59, 59, 999));
@@ -383,6 +566,87 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
     } catch (error) {
       console.error('[ChurchCareApp] Failed to create visitor:', error);
       throw error;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    setTemplateSaving(true);
+    setTemplateError('');
+    try {
+      await saveChurchCareMessageTemplate(selectedTemplateStage, templateDraft, actor);
+      setMessageTemplates((current) => ({ ...current, [selectedTemplateStage]: templateDraft.trim() }));
+      showToast(`${STAGES.find((stage) => stage.value === selectedTemplateStage)?.label || 'Stage'} text template saved.`);
+    } catch (error) {
+      console.error('[ChurchCareApp] Failed to save text template:', error);
+      setTemplateError(error.message || 'Could not save this text template.');
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
+
+  const toggleTextRecipient = (visitorId) => {
+    const id = String(visitorId);
+    setSelectedTextVisitorIds((current) => (
+      current.includes(id) ? current.filter((selectedId) => selectedId !== id) : [...current, id]
+    ));
+  };
+
+  const toggleVisibleTextRecipients = () => {
+    const visibleIds = visibleTextRecipients.map((visitor) => String(visitor.id));
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedTextVisitorIds.includes(id));
+    setSelectedTextVisitorIds((current) => (
+      allSelected
+        ? current.filter((id) => !visibleIds.includes(id))
+        : [...new Set([...current, ...visibleIds])]
+    ));
+  };
+
+  const handlePrepareTextBatch = () => {
+    const eligibleIds = new Set(eligibleTextRecipients.map((visitor) => String(visitor.id)));
+    const queue = selectedTextVisitorIds.filter((id) => eligibleIds.has(id));
+    if (queue.length === 0) {
+      showToast('Select at least one active guest with a phone number and contact permission.');
+      return;
+    }
+    setTextBatchQueue(queue);
+    setTextBatchIndex(0);
+    setOpenedTextVisitorId('');
+    setTextBatchError('');
+    setTextBatchOpen(true);
+  };
+
+  const advanceTextBatch = () => {
+    setOpenedTextVisitorId('');
+    setTextBatchError('');
+    if (textBatchIndex + 1 >= textBatchQueue.length) {
+      const completedIds = new Set(textBatchQueue);
+      setSelectedTextVisitorIds((current) => current.filter((id) => !completedIds.has(id)));
+      setTextBatchQueue([]);
+      setTextBatchIndex(0);
+      setTextBatchOpen(false);
+      return;
+    }
+    setTextBatchIndex((index) => index + 1);
+  };
+
+  const handleMarkTextSent = async () => {
+    if (!currentTextVisitor || openedTextVisitorId !== String(currentTextVisitor.id)) return;
+    if (!window.confirm(`Did you send the text to ${getPersonName(currentTextVisitor)} from your phone?`)) return;
+    setSaving(true);
+    setTextBatchError('');
+    try {
+      await recordChurchCareTextMarkedSent(
+        currentTextVisitor.id,
+        currentTextVisitor.stage,
+        currentTextPreview.message,
+        actor
+      );
+      advanceTextBatch();
+    } catch (error) {
+      console.error('[ChurchCareApp] Failed to log sent text:', error);
+      setTextBatchError(error.message || 'Could not record this text as sent.');
     } finally {
       setSaving(false);
     }
@@ -518,13 +782,26 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
             <Heart size={13} /> Care, not sales
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-stone-900">Church Care</h1>
-          <p className="mt-1 max-w-2xl text-sm text-stone-500">Keep visitor follow-ups organized. Records stay separate until someone decides to join. Reminders appear here; the app does not send texts or emails automatically.</p>
+          <p className="mt-1 max-w-2xl text-sm text-stone-500">Care for guests, coordinate follow-up, and prepare personal stage-based texts. Visitor records stay separate from the directory.</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-stone-800">
-          <Plus size={16} /> Add visitor
+        {activeSection === 'care' && (
+          <button onClick={() => setShowCreate(true)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-stone-800">
+            <Plus size={16} /> Add visitor
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 border-b border-stone-200 pb-3">
+        <button onClick={() => setActiveSection('care')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${activeSection === 'care' ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 hover:bg-stone-100'}`}>
+          <Heart size={15} /> Guest care
+        </button>
+        <button onClick={() => setActiveSection('messages')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${activeSection === 'messages' ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 hover:bg-stone-100'}`}>
+          <MessageSquareText size={15} /> Text messages
         </button>
       </div>
 
+      {activeSection === 'care' && (
+        <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard icon={UsersRound} label="Active visitors" value={activeVisitors.length} />
         <StatCard icon={UserRound} label="New visitors to welcome" value={newVisitors.length} tone="teal" />
@@ -758,9 +1035,143 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
           )}
         </section>
       </div>
+        </>
+      )}
+
+      {activeSection === 'messages' && (
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <section className="rounded-2xl border border-stone-200 bg-white p-5">
+            <div className="mb-4">
+              <h2 className="text-base font-bold text-stone-900">Stage message templates</h2>
+              <p className="mt-1 text-xs leading-relaxed text-stone-500">Each draft is personalized with the guest’s name and signed “Lifegate Follow-up Team.” Church Care users can edit these templates.</p>
+            </div>
+            {templateError && (
+              <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">{templateError}</div>
+            )}
+            <label htmlFor="care-template-stage" className="text-xs font-semibold text-stone-600">Care stage</label>
+            <select
+              id="care-template-stage"
+              value={selectedTemplateStage}
+              onChange={(event) => setSelectedTemplateStage(event.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-teal-500"
+            >
+              {STAGES.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
+            </select>
+            <label htmlFor="care-template-body" className="mt-4 block text-xs font-semibold text-stone-600">Message text</label>
+            <textarea
+              id="care-template-body"
+              value={templateDraft}
+              maxLength={900}
+              onChange={(event) => setTemplateDraft(event.target.value)}
+              rows={7}
+              className="mt-1.5 w-full resize-y rounded-lg border border-stone-200 px-3 py-2.5 text-sm leading-relaxed text-stone-800 outline-none focus:border-teal-500"
+            />
+            <div className="mt-1 flex flex-wrap justify-between gap-2 text-[11px] text-stone-500">
+              <span>Use {'{firstName}'} or {'{name}'} to personalize.</span>
+              <span>{templateDraft.length}/900</span>
+            </div>
+            <div className="mt-3 rounded-lg bg-stone-50 p-3 text-xs text-stone-600">
+              <p className="font-semibold text-stone-700">Preview</p>
+              <p className="mt-1 whitespace-pre-wrap">{getTemplatePreview(templateDraft || DEFAULT_MESSAGE_TEMPLATES[selectedTemplateStage])}</p>
+            </div>
+            <button
+              onClick={handleSaveTemplate}
+              disabled={templateSaving}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-stone-800 disabled:opacity-50"
+            >
+              <Check size={15} /> {templateSaving ? 'Saving…' : 'Save stage template'}
+            </button>
+          </section>
+
+          <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+            <div className="border-b border-stone-100 p-5">
+              <h2 className="text-base font-bold text-stone-900">Prepare individual texts</h2>
+              <p className="mt-1 text-xs leading-relaxed text-stone-500">Select guests to create one private SMS draft per person. Only active guests with a phone number and recorded contact permission can be selected. Nothing is sent automatically.</p>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <div className="relative min-w-0 flex-1">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+                  <input value={textRecipientSearch} onChange={(event) => setTextRecipientSearch(event.target.value)} placeholder="Find a guest" className="w-full rounded-lg border border-stone-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-teal-500" />
+                </div>
+                <select value={textRecipientStage} onChange={(event) => setTextRecipientStage(event.target.value)} className="rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-teal-500">
+                  <option value="all">All stages</option>
+                  {STAGES.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}
+                </select>
+              </div>
+              <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs font-semibold text-stone-600">
+                <input
+                  type="checkbox"
+                  checked={visibleTextRecipients.length > 0 && visibleTextRecipients.every((visitor) => selectedTextVisitorIds.includes(String(visitor.id)))}
+                  onChange={toggleVisibleTextRecipients}
+                  disabled={visibleTextRecipients.length === 0}
+                  className="accent-teal-700"
+                />
+                Select all {visibleTextRecipients.length} shown
+              </label>
+            </div>
+            <div className="max-h-[440px] divide-y divide-stone-100 overflow-y-auto">
+              {visibleTextRecipients.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Smartphone size={22} className="mx-auto mb-2 text-stone-400" />
+                  <p className="text-sm font-semibold text-stone-700">No eligible guests</p>
+                  <p className="mt-1 text-xs text-stone-500">Guests need an active Church Care record, a phone number, and recorded contact permission.</p>
+                </div>
+              ) : visibleTextRecipients.map((visitor) => {
+                const id = String(visitor.id);
+                const stageLabel = STAGES.find((stage) => stage.value === visitor.stage)?.label || 'New visitor';
+                return (
+                  <label key={id} className="flex cursor-pointer items-start gap-3 p-4 hover:bg-stone-50">
+                    <input type="checkbox" checked={selectedTextVisitorIds.includes(id)} onChange={() => toggleTextRecipient(id)} className="mt-1 accent-teal-700" />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                        <span className="truncate text-sm font-semibold text-stone-900">{getPersonName(visitor)}</span>
+                        <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-700">{stageLabel}</span>
+                      </span>
+                      <span className="mt-1 block text-xs text-stone-500">{visitor.phone}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex flex-col gap-2 border-t border-stone-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-xs text-stone-500">{selectedTextCount} guest{selectedTextCount === 1 ? '' : 's'} selected</span>
+              <button
+                onClick={handlePrepareTextBatch}
+                disabled={selectedTextCount === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
+              >
+                <Send size={15} /> Prepare personal drafts
+              </button>
+            </div>
+          </section>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900 xl:col-span-2">
+            Texts open one guest at a time in your phone’s messaging app. The message includes the Lifegate Follow-up Team signature, but your phone may show your personal number as the sender. Review and send each text on your phone, then confirm here to add it to the guest’s care history.
+          </div>
+        </div>
+      )}
 
       {showCreate && <VisitorForm onClose={() => setShowCreate(false)} onSave={handleCreateVisitor} saving={saving} />}
       {showEdit && selectedVisitor && <VisitorEditForm visitor={selectedVisitor} onClose={() => setShowEdit(false)} onSave={handleSaveVisitor} saving={saving} />}
+      {textBatchOpen && (
+        <TextBatchModal
+          visitor={currentTextVisitor}
+          position={textBatchIndex + 1}
+          total={textBatchQueue.length}
+          message={currentTextPreview.message}
+          messageError={currentTextPreview.error}
+          smsHref={currentTextVisitor && currentTextPreview.message ? getSmsHref(currentTextVisitor, currentTextPreview.message) : ''}
+          opened={Boolean(currentTextVisitor && openedTextVisitorId === String(currentTextVisitor.id))}
+          error={textBatchError}
+          saving={saving}
+          onOpenText={setOpenedTextVisitorId}
+          onMarkSent={handleMarkTextSent}
+          onSkip={advanceTextBatch}
+          onClose={() => {
+            setTextBatchOpen(false);
+            setOpenedTextVisitorId('');
+            setTextBatchError('');
+          }}
+        />
+      )}
     </div>
   );
 }
