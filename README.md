@@ -81,6 +81,8 @@ The Church Care **Text messages** section stores stage-specific templates in `ch
 
 Visitors are moved to the `people` directory only through the explicit **Move to directory** action after their care stage is set to **Decided to join**. Admin and Senior Pastor access is required for this transfer. Other staff can be granted the `church-care` app access claim to manage care records without directory-transfer permission.
 
+The public guest welcome form is available at `/church-care-intake`. Church Care users can copy its link or display a QR code, then review incoming submissions in the **Guest intake** section. Submissions are stored separately in `churchCareGuestIntakeSubmissions`; approval creates a Church Care visitor record only, while rejection never creates a visitor or directory profile. The form collects visit date, age bracket, gender, inviter, prayer request, children’s age brackets, and optional contact permission. Deploy the Firestore rules before enabling the public form.
+
 ### Role Management Endpoint
 
 The existing Cloudflare worker now exposes `POST /roles/grant`.

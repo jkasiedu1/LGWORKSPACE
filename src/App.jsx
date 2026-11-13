@@ -8,6 +8,7 @@ import { configureAIPolicy } from './lib/gemini';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoginScreen from './apps/LoginScreen';
 import DirectoryIntakeApp from './apps/DirectoryIntakeApp';
+import ChurchCareGuestIntakeApp from './apps/ChurchCareGuestIntakeApp';
 import ExpenseIntakeApp from './apps/ExpenseIntakeApp';
 
 // Modern Components
@@ -41,6 +42,7 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const isPublicDirectoryIntakeRoute = location.pathname === '/directory-intake';
+  const isPublicChurchCareGuestIntakeRoute = location.pathname === '/church-care-intake';
   const searchParams = new URLSearchParams(location.search);
   const isLegacyExpenseIntakeRoute = location.pathname === '/giving'
     && searchParams.get('tab') === 'expenses'
@@ -108,6 +110,9 @@ export default function App() {
   // Public intake routes are rendered without entering the authenticated app.
   if (isPublicDirectoryIntakeRoute) {
     return <DirectoryIntakeApp />;
+  }
+  if (isPublicChurchCareGuestIntakeRoute) {
+    return <ChurchCareGuestIntakeApp />;
   }
   if (isPublicExpenseIntakeRoute) {
     return <ExpenseIntakeApp />;

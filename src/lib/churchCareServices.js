@@ -62,6 +62,129 @@ export async function createChurchCareVisitor(visitor, actor) {
   return { id: visitorRef.id, ...visitor, status: 'active' };
 }
 
+export async function createChurchCareGuestIntakeSubmission(submission) {
+  if (!db) {
+    throw new Error('Guest intake is unavailable because the database is not configured.');
+  }
+
+  const payload = {
+    firstName: String(submission.firstName || '').trim(),
+    lastName: String(submission.lastName || '').trim(),
+    email: String(submission.email || '').trim(),
+    phone: String(submission.phone || '').trim(),
+    firstVisitDate: String(submission.firstVisitDate || ''),
+    gender: String(submission.gender || ''),
+    ageBracket: String(submission.ageBracket || ''),
+    invitedBy: String(submission.invitedBy || '').trim(),
+    prayerRequest: String(submission.prayerRequest || '').trim(),
+    childAgeBrackets: Array.isArray(submission.childAgeBrackets) ? submission.childAgeBrackets : [],
+    contactConsent: Boolean(submission.contactConsent),
+    status: 'pending',
+  };
+  const docRef = await addDoc(collection(db, 'churchCareGuestIntakeSubmissions'), {
+    ...payload,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return { id: docRef.id, ...payload };
+}
+
+export function subscribeToChurchCareGuestIntakeSubmissions(onData, onError) {
+  if (!db) return () => {};
+  return onSnapshot(
+    query(collection(db, 'churchCareGuestIntakeSubmissions'), orderBy('createdAt', 'desc')),
+    (snapshot) => onData(snapshot.docs.map((submissionDoc) => ({
+      id: submissionDoc.id,
+      ...submissionDoc.data(),
+    }))),
+    onError
+  );
+}
+
+export async function approveChurchCareGuestIntakeSubmission(submissionId, actor) {
+  if (!db) {
+    throw new Error('Church Care is unavailable because the database is not configured.');
+  }
+
+  const submissionRef = doc(db, 'churchCareGuestIntakeSubmissions', String(submissionId));
+  const visitorRef = doc(collection(db, 'churchCareVisitors'));
+  const activityRef = getActivityRef(visitorRef.id);
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(submissionRef);
+    if (!snapshot.exists()) {
+      throw new Error('This guest intake submission no longer exists.');
+    }
+
+    const submission = snapshot.data();
+    if (submission.status !== 'pending') {
+      throw new Error('This guest intake submission has already been reviewed.');
+    }
+
+    transaction.set(visitorRef, {
+      firstName: submission.firstName,
+      lastName: submission.lastName,
+      email: submission.email || '',
+      phone: submission.phone || '',
+      firstVisitDate: submission.firstVisitDate,
+      gender: submission.gender,
+      ageBracket: submission.ageBracket,
+      invitedBy: submission.invitedBy || '',
+      prayerRequest: submission.prayerRequest || '',
+      childAgeBrackets: submission.childAgeBrackets || [],
+      contactConsent: Boolean(submission.contactConsent),
+      status: 'active',
+      stage: 'new',
+      followUpStep: 0,
+      nextFollowUpAt: submission.contactConsent ? dateAfterDays(FOLLOW_UP_DAYS[0]) : null,
+      lastContactedAt: null,
+      assignedTeamMemberId: '',
+      createdByUid: actor?.uid || '',
+      createdByEmail: actor?.email || '',
+      sourceChurchCareIntakeId: String(submissionId),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    transaction.update(submissionRef, {
+      status: 'approved',
+      approvedVisitorId: visitorRef.id,
+      reviewedByUid: actor?.uid || '',
+      reviewedByEmail: actor?.email || '',
+      reviewedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    transaction.set(
+      activityRef,
+      activityPayload('created', 'Guest intake approved and added to Church Care.', actor)
+    );
+  });
+  return { id: visitorRef.id, status: 'approved' };
+}
+
+export async function rejectChurchCareGuestIntakeSubmission(submissionId, actor) {
+  if (!db) {
+    throw new Error('Church Care is unavailable because the database is not configured.');
+  }
+
+  const submissionRef = doc(db, 'churchCareGuestIntakeSubmissions', String(submissionId));
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(submissionRef);
+    if (!snapshot.exists()) {
+      throw new Error('This guest intake submission no longer exists.');
+    }
+    if (snapshot.data().status !== 'pending') {
+      throw new Error('This guest intake submission has already been reviewed.');
+    }
+
+    transaction.update(submissionRef, {
+      status: 'rejected',
+      reviewedByUid: actor?.uid || '',
+      reviewedByEmail: actor?.email || '',
+      reviewedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
 export async function updateChurchCareVisitor(visitorId, currentVisitor, updates, actor) {
   const firstName = String(updates.firstName || '').trim();
   const lastName = String(updates.lastName || '').trim();
@@ -92,6 +215,11 @@ export async function updateChurchCareVisitor(visitorId, currentVisitor, updates
     email,
     phone,
     firstVisitDate: String(updates.firstVisitDate || ''),
+    gender: String(updates.gender || ''),
+    ageBracket: String(updates.ageBracket || ''),
+    invitedBy: String(updates.invitedBy || '').trim(),
+    prayerRequest: String(updates.prayerRequest || '').trim(),
+    childAgeBrackets: Array.isArray(updates.childAgeBrackets) ? updates.childAgeBrackets : [],
     contactConsent,
     nextFollowUpAt,
     updatedAt: serverTimestamp(),

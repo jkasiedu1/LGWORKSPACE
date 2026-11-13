@@ -57,12 +57,26 @@ service cloud.firestore {
       );
     }
 
+    function validGuestAgeBracket(ageBracket) {
+      return ageBracket in [
+        'Under 18', '18-24', '25-34', '35-44', '45-54', '55-64', '65+', 'Prefer not to say'
+      ];
+    }
+
+    function validChildAgeBrackets(ageBrackets) {
+      return ageBrackets is list
+        && ageBrackets.size() <= 10
+        && ageBrackets.hasOnly(['Under 5', '5-12', '13-17']);
+    }
+
     match /churchCareVisitors/{visitorId} {
       allow create: if canManageChurchCare()
         && request.resource.data.keys().hasOnly([
           'firstName', 'lastName', 'email', 'phone', 'firstVisitDate', 'contactConsent',
           'status', 'stage', 'followUpStep', 'nextFollowUpAt', 'lastContactedAt',
-          'assignedTeamMemberId', 'createdByUid', 'createdByEmail', 'createdAt', 'updatedAt'
+          'assignedTeamMemberId', 'gender', 'ageBracket', 'invitedBy', 'prayerRequest',
+          'childAgeBrackets', 'sourceChurchCareIntakeId',
+          'createdByUid', 'createdByEmail', 'createdAt', 'updatedAt'
         ])
         && request.resource.data.keys().hasAll([
           'firstName', 'lastName', 'email', 'phone', 'firstVisitDate', 'contactConsent',
@@ -77,10 +91,15 @@ service cloud.firestore {
         && request.resource.data.lastName.size() <= 80
         && request.resource.data.email is string
         && request.resource.data.email.size() <= 254
+        && (
+          request.resource.data.email.size() == 0
+          || request.resource.data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')
+        )
         && request.resource.data.phone is string
         && request.resource.data.phone.size() <= 30
         && (request.resource.data.email.size() > 0 || request.resource.data.phone.size() > 0)
         && request.resource.data.firstVisitDate is string
+        && request.resource.data.firstVisitDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
         && request.resource.data.contactConsent is bool
         && request.resource.data.status == 'active'
         && request.resource.data.stage == 'new'
@@ -92,6 +111,22 @@ service cloud.firestore {
         && (request.resource.data.contactConsent || request.resource.data.nextFollowUpAt == null)
         && request.resource.data.lastContactedAt == null
         && request.resource.data.assignedTeamMemberId == ''
+        && (!('gender' in request.resource.data.keys())
+          || request.resource.data.gender in ['', 'Female', 'Male', 'Other', 'Prefer not to say'])
+        && (!('ageBracket' in request.resource.data.keys())
+          || request.resource.data.ageBracket == ''
+          || validGuestAgeBracket(request.resource.data.ageBracket))
+        && (!('invitedBy' in request.resource.data.keys())
+          || (request.resource.data.invitedBy is string && request.resource.data.invitedBy.size() <= 120))
+        && (!('prayerRequest' in request.resource.data.keys())
+          || (request.resource.data.prayerRequest is string && request.resource.data.prayerRequest.size() <= 1000))
+        && (!('childAgeBrackets' in request.resource.data.keys())
+          || validChildAgeBrackets(request.resource.data.childAgeBrackets))
+        && (!('sourceChurchCareIntakeId' in request.resource.data.keys())
+          || (
+            request.resource.data.sourceChurchCareIntakeId is string
+            && request.resource.data.sourceChurchCareIntakeId.size() <= 128
+          ))
         && request.resource.data.createdByUid == request.auth.uid
         && request.resource.data.createdByEmail is string
         && request.resource.data.createdByEmail.size() <= 254
@@ -117,6 +152,7 @@ service cloud.firestore {
         && request.resource.data.phone.size() <= 30
         && request.resource.data.firstVisitDate is string
         && request.resource.data.firstVisitDate.size() <= 10
+        && request.resource.data.firstVisitDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
         && request.resource.data.contactConsent is bool
         && request.resource.data.status in ['active', 'archived', 'converted']
         && request.resource.data.stage in ['new', 'contacted', 'connected', 'ready-to-join']
@@ -139,10 +175,28 @@ service cloud.firestore {
             exists(/databases/$(database)/documents/people/$(request.resource.data.assignedTeamMemberId))
             && get(/databases/$(database)/documents/people/$(request.resource.data.assignedTeamMemberId)).data.type in ['Member', 'Staff', 'Volunteer']
           )
+          && request.resource.data.get('gender', '') in ['', 'Female', 'Male', 'Other', 'Prefer not to say']
+          && (
+            request.resource.data.get('ageBracket', '') == ''
+            || validGuestAgeBracket(request.resource.data.ageBracket)
+          )
+          && request.resource.data.get('invitedBy', '') is string
+          && request.resource.data.get('invitedBy', '').size() <= 120
+          && request.resource.data.get('prayerRequest', '') is string
+          && request.resource.data.get('prayerRequest', '').size() <= 1000
+          && validChildAgeBrackets(request.resource.data.get('childAgeBrackets', []))
+          && (
+            !('sourceChurchCareIntakeId' in request.resource.data.keys())
+            || (
+              request.resource.data.sourceChurchCareIntakeId is string
+              && request.resource.data.sourceChurchCareIntakeId.size() <= 128
+            )
+          )
         )
         && request.resource.data.updatedAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'firstName', 'lastName', 'email', 'phone', 'firstVisitDate', 'contactConsent',
+          'gender', 'ageBracket', 'invitedBy', 'prayerRequest', 'childAgeBrackets',
           'status', 'stage', 'followUpStep', 'nextFollowUpAt', 'lastContactedAt',
           'assignedTeamMemberId', 'migratedPersonId', 'convertedAt', 'updatedAt'
         ])
@@ -206,6 +260,74 @@ service cloud.firestore {
         && validTemplate()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'stage', 'body', 'updatedByUid', 'updatedByEmail', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    match /churchCareGuestIntakeSubmissions/{submissionId} {
+      allow create: if request.resource.data.keys().hasOnly([
+          'firstName', 'lastName', 'email', 'phone', 'firstVisitDate', 'gender',
+          'ageBracket', 'invitedBy', 'prayerRequest', 'childAgeBrackets',
+          'contactConsent', 'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'firstName', 'lastName', 'email', 'phone', 'firstVisitDate', 'gender',
+          'ageBracket', 'invitedBy', 'prayerRequest', 'childAgeBrackets',
+          'contactConsent', 'status', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.firstName is string
+        && request.resource.data.firstName.matches('.*\\S.*')
+        && request.resource.data.firstName.size() <= 80
+        && request.resource.data.lastName is string
+        && request.resource.data.lastName.matches('.*\\S.*')
+        && request.resource.data.lastName.size() <= 80
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && (
+          request.resource.data.email.size() == 0
+          || request.resource.data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')
+        )
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() <= 30
+        && (request.resource.data.email.size() > 0 || request.resource.data.phone.size() > 0)
+        && request.resource.data.firstVisitDate is string
+        && request.resource.data.firstVisitDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && request.resource.data.gender in ['Female', 'Male', 'Other', 'Prefer not to say']
+        && validGuestAgeBracket(request.resource.data.ageBracket)
+        && request.resource.data.invitedBy is string
+        && request.resource.data.invitedBy.size() <= 120
+        && request.resource.data.prayerRequest is string
+        && request.resource.data.prayerRequest.size() <= 1000
+        && validChildAgeBrackets(request.resource.data.childAgeBrackets)
+        && request.resource.data.contactConsent is bool
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow read: if canManageChurchCare();
+      allow update: if canManageChurchCare()
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.reviewedAt == request.time
+        && request.resource.data.reviewedByUid == request.auth.uid
+        && request.resource.data.reviewedByEmail is string
+        && request.resource.data.reviewedByEmail.size() <= 254
+        && (
+          (
+            request.resource.data.status == 'approved'
+            && request.resource.data.approvedVisitorId is string
+            && request.resource.data.approvedVisitorId.size() > 0
+            && existsAfter(/databases/$(database)/documents/churchCareVisitors/$(request.resource.data.approvedVisitorId))
+            && getAfter(/databases/$(database)/documents/churchCareVisitors/$(request.resource.data.approvedVisitorId)).data.sourceChurchCareIntakeId == submissionId
+          )
+          || (
+            request.resource.data.status == 'rejected'
+            && !('approvedVisitorId' in request.resource.data.keys())
+          )
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'approvedVisitorId', 'reviewedByUid', 'reviewedByEmail', 'reviewedAt', 'updatedAt'
         ]);
       allow delete: if false;
     }

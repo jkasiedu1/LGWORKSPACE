@@ -4,6 +4,7 @@ import {
   Archive,
   CalendarClock,
   Check,
+  Clipboard,
   ChevronRight,
   Clock3,
   Heart,
@@ -12,6 +13,7 @@ import {
   Phone,
   Pencil,
   Plus,
+  QrCode,
   RotateCcw,
   Search,
   Send,
@@ -26,13 +28,16 @@ import { useAuth } from '../hooks/useAuth';
 import {
   addChurchCareNote,
   assignChurchCareTeamMember,
+  approveChurchCareGuestIntakeSubmission,
   createChurchCareVisitor,
   moveChurchCareVisitorToDirectory,
+  rejectChurchCareGuestIntakeSubmission,
   recordChurchCareFollowUp,
   recordChurchCareTextMarkedSent,
   saveChurchCareMessageTemplate,
   setChurchCareArchived,
   subscribeToChurchCareActivities,
+  subscribeToChurchCareGuestIntakeSubmissions,
   subscribeToChurchCareMessageTemplates,
   updateChurchCareFollowUpDate,
   updateChurchCareStage,
@@ -45,6 +50,8 @@ const STAGES = [
   { value: 'connected', label: 'Connected' },
   { value: 'ready-to-join', label: 'Decided to join' },
 ];
+const GUEST_AGE_BRACKETS = ['Under 18', '18-24', '25-34', '35-44', '45-54', '55-64', '65+', 'Prefer not to say'];
+const CHILD_AGE_BRACKETS = ['Under 5', '5-12', '13-17'];
 
 const DEFAULT_MESSAGE_TEMPLATES = {
   new: 'Hi {firstName}, thanks for visiting Lifegate! We’re glad you joined us. Is there anything we can pray for or help you with?',
@@ -67,6 +74,10 @@ function localDateValue(date = new Date()) {
 
 function toDate(value) {
   if (!value) return null;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const dateOnly = new Date(`${value}T00:00:00`);
+    return Number.isNaN(dateOnly.getTime()) ? null : dateOnly;
+  }
   const date = value?.toDate ? value.toDate() : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -246,10 +257,33 @@ function VisitorEditForm({ visitor, onClose, onSave, saving }) {
     email: visitor.email || '',
     phone: visitor.phone || '',
     firstVisitDate: visitor.firstVisitDate || '',
+    gender: visitor.gender || '',
+    ageBracket: visitor.ageBracket || '',
+    invitedBy: visitor.invitedBy || '',
+    prayerRequest: visitor.prayerRequest || '',
+    childAgeBrackets: Array.isArray(visitor.childAgeBrackets) ? visitor.childAgeBrackets : [],
     contactConsent: Boolean(visitor.contactConsent),
   });
   const [error, setError] = useState('');
   const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const setChildCount = (value) => {
+    const count = Number(value);
+    setForm((current) => ({
+      ...current,
+      childAgeBrackets: Array.from(
+        { length: count },
+        (_, index) => current.childAgeBrackets[index] || ''
+      ),
+    }));
+  };
+  const setChildAge = (index, age) => {
+    setForm((current) => ({
+      ...current,
+      childAgeBrackets: current.childAgeBrackets.map((currentAge, childIndex) => (
+        childIndex === index ? age : currentAge
+      )),
+    }));
+  };
 
   const submit = async (event) => {
     event.preventDefault();
@@ -269,7 +303,7 @@ function VisitorEditForm({ visitor, onClose, onSave, saving }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/50 p-4" onMouseDown={onClose}>
-      <form onSubmit={submit} onMouseDown={(event) => event.stopPropagation()} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+      <form onSubmit={submit} onMouseDown={(event) => event.stopPropagation()} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold text-stone-900">Edit visitor information</h2>
@@ -295,7 +329,45 @@ function VisitorEditForm({ visitor, onClose, onSave, saving }) {
           <label className="text-xs font-semibold text-stone-600 sm:col-span-2">First visit
             <input type="date" value={form.firstVisitDate} onChange={(event) => setField('firstVisitDate', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
           </label>
+          <label className="text-xs font-semibold text-stone-600">Age bracket
+            <select value={form.ageBracket} onChange={(event) => setField('ageBracket', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500">
+              <option value="">Not provided</option>
+              {GUEST_AGE_BRACKETS.map((age) => <option key={age} value={age}>{age}</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-stone-600">Gender
+            <select value={form.gender} onChange={(event) => setField('gender', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500">
+              <option value="">Not provided</option>
+              <option value="Female">Female</option>
+              <option value="Male">Male</option>
+              <option value="Other">Other</option>
+              <option value="Prefer not to say">Prefer not to say</option>
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-stone-600 sm:col-span-2">Who invited them?
+            <input maxLength={120} value={form.invitedBy} onChange={(event) => setField('invitedBy', event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
+          </label>
         </div>
+        <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4">
+          <label className="text-xs font-semibold text-stone-600">Number of children
+            <select value={form.childAgeBrackets.length} onChange={(event) => setChildCount(event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500">
+              {Array.from({ length: 11 }, (_, count) => <option key={count} value={count}>{count}</option>)}
+            </select>
+          </label>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {form.childAgeBrackets.map((age, index) => (
+              <label key={`edit-child-${index}`} className="text-xs font-semibold text-stone-600">Child {index + 1} age bracket
+                <select required value={age} onChange={(event) => setChildAge(index, event.target.value)} className="mt-1.5 w-full rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500">
+                  <option value="">Select age bracket</option>
+                  {CHILD_AGE_BRACKETS.map((childAge) => <option key={childAge} value={childAge}>{childAge}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+        </div>
+        <label className="mt-4 block text-xs font-semibold text-stone-600">Prayer request
+          <textarea maxLength={1000} rows={3} value={form.prayerRequest} onChange={(event) => setField('prayerRequest', event.target.value)} className="mt-1.5 w-full resize-y rounded-lg border border-stone-200 px-3 py-2.5 text-sm font-normal text-stone-900 outline-none focus:border-teal-500" />
+        </label>
         <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-lg bg-stone-50 p-3 text-sm text-stone-700">
           <input type="checkbox" checked={form.contactConsent} onChange={(event) => setField('contactConsent', event.target.checked)} className="mt-0.5 accent-teal-600" />
           <span>They agreed to be contacted.
@@ -396,6 +468,11 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState('care');
   const [visitors, setVisitors] = useState([]);
+  const [intakeSubmissions, setIntakeSubmissions] = useState([]);
+  const [intakeLoading, setIntakeLoading] = useState(true);
+  const [intakeError, setIntakeError] = useState('');
+  const [reviewingSubmissionId, setReviewingSubmissionId] = useState('');
+  const [isIntakeQrOpen, setIsIntakeQrOpen] = useState(false);
   const [activities, setActivities] = useState([]);
   const [messageTemplates, setMessageTemplates] = useState(DEFAULT_MESSAGE_TEMPLATES);
   const [selectedTemplateStage, setSelectedTemplateStage] = useState('new');
@@ -424,6 +501,15 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
   const [assignedMemberDraft, setAssignedMemberDraft] = useState('');
   const canMoveToDirectory = isAdmin || isSeniorPastor;
   const actor = { uid: user?.uid || '', email: user?.email || '' };
+  const getGuestIntakeUrl = () => (
+    typeof window === 'undefined' ? '' : `${window.location.origin}/church-care-intake`
+  );
+  const getGuestIntakeQrUrl = () => {
+    const url = getGuestIntakeUrl();
+    return url
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=16&data=${encodeURIComponent(url)}`
+      : '';
+  };
   const activeVisitors = useMemo(() => visitors.filter((visitor) => visitor.status === 'active'), [visitors]);
   const eligibleTeamMembers = useMemo(
     () => people.filter((person) => ['Member', 'Staff', 'Volunteer'].includes(person.type)).sort((a, b) => getPersonName(a).localeCompare(getPersonName(b))),
@@ -498,6 +584,26 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
   ), []);
 
   useEffect(() => {
+    if (!db) {
+      setIntakeLoading(false);
+      setIntakeError('Guest intake review is unavailable because the database is not configured.');
+      return undefined;
+    }
+    return subscribeToChurchCareGuestIntakeSubmissions(
+      (submissions) => {
+        setIntakeSubmissions(submissions);
+        setIntakeLoading(false);
+        setIntakeError('');
+      },
+      (error) => {
+        console.error('[ChurchCareApp] Guest intake subscription failed:', error);
+        setIntakeLoading(false);
+        setIntakeError('Could not load guest intake submissions. Check your access and try again.');
+      }
+    );
+  }, []);
+
+  useEffect(() => {
     setTemplateDraft(messageTemplates[selectedTemplateStage] || DEFAULT_MESSAGE_TEMPLATES[selectedTemplateStage]);
   }, [messageTemplates, selectedTemplateStage]);
 
@@ -568,6 +674,45 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
       throw error;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCopyGuestIntakeLink = async () => {
+    const url = getGuestIntakeUrl();
+    if (!url) {
+      showToast('Unable to create the guest intake link right now.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('Guest intake link copied to clipboard.');
+    } catch (error) {
+      console.error('[ChurchCareApp] Could not copy guest intake link:', error);
+      showToast(`Copy unavailable. Share this link: ${url}`);
+    }
+  };
+
+  const handleReviewGuestIntake = async (submission, decision) => {
+    if (decision === 'rejected' && !window.confirm(`Reject the Church Care intake for ${submission.firstName} ${submission.lastName}?`)) {
+      return;
+    }
+    setReviewingSubmissionId(submission.id);
+    try {
+      if (decision === 'approved') {
+        const visitor = await approveChurchCareGuestIntakeSubmission(submission.id, actor);
+        setSelectedVisitorId(visitor.id);
+        setActiveSection('care');
+        setFilter('active');
+        showToast(`${submission.firstName} ${submission.lastName} was added to Church Care.`);
+      } else {
+        await rejectChurchCareGuestIntakeSubmission(submission.id, actor);
+        showToast('Guest intake submission rejected.');
+      }
+    } catch (error) {
+      console.error(`[ChurchCareApp] Failed to ${decision} guest intake:`, error);
+      showToast(error.message || `Could not ${decision} this submission.`);
+    } finally {
+      setReviewingSubmissionId('');
     }
   };
 
@@ -784,11 +929,19 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
           <h1 className="text-2xl font-bold tracking-tight text-stone-900">Church Care</h1>
           <p className="mt-1 max-w-2xl text-sm text-stone-500">Care for guests, coordinate follow-up, and prepare personal stage-based texts. Visitor records stay separate from the directory.</p>
         </div>
-        {activeSection === 'care' && (
-          <button onClick={() => setShowCreate(true)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-stone-800">
-            <Plus size={16} /> Add visitor
+        <div className="flex flex-wrap gap-2">
+          <button onClick={handleCopyGuestIntakeLink} className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-50">
+            <Clipboard size={15} /> Copy intake link
           </button>
-        )}
+          <button onClick={() => setIsIntakeQrOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-sm font-semibold text-stone-700 hover:bg-stone-50">
+            <QrCode size={15} /> Intake QR
+          </button>
+          {activeSection === 'care' && (
+            <button onClick={() => setShowCreate(true)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-stone-800">
+              <Plus size={16} /> Add visitor
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 border-b border-stone-200 pb-3">
@@ -797,6 +950,12 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
         </button>
         <button onClick={() => setActiveSection('messages')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${activeSection === 'messages' ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 hover:bg-stone-100'}`}>
           <MessageSquareText size={15} /> Text messages
+        </button>
+        <button onClick={() => setActiveSection('intake')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${activeSection === 'intake' ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 hover:bg-stone-100'}`}>
+          <Clipboard size={15} /> Guest intake
+          {intakeSubmissions.filter((submission) => submission.status === 'pending').length > 0 && (
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">{intakeSubmissions.filter((submission) => submission.status === 'pending').length}</span>
+          )}
         </button>
       </div>
 
@@ -928,6 +1087,25 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
                   <p className="mt-4 rounded-lg bg-teal-50 p-3 text-xs font-medium text-teal-800">
                     This person was moved to the church directory as a member. Their Church Care history remains here.
                   </p>
+                )}
+                {(selectedVisitor.ageBracket || selectedVisitor.gender || selectedVisitor.invitedBy || selectedVisitor.prayerRequest || selectedVisitor.childAgeBrackets?.length > 0) && (
+                  <div className="mt-4 grid gap-3 rounded-xl bg-stone-50 p-4 sm:grid-cols-2">
+                    {(selectedVisitor.ageBracket || selectedVisitor.gender) && (
+                      <p className="text-xs text-stone-600">
+                        <span className="font-semibold text-stone-800">Guest details: </span>
+                        {[selectedVisitor.ageBracket, selectedVisitor.gender].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                    {selectedVisitor.invitedBy && (
+                      <p className="text-xs text-stone-600"><span className="font-semibold text-stone-800">Invited by: </span>{selectedVisitor.invitedBy}</p>
+                    )}
+                    {selectedVisitor.childAgeBrackets?.length > 0 && (
+                      <p className="text-xs text-stone-600"><span className="font-semibold text-stone-800">Children: </span>{selectedVisitor.childAgeBrackets.join(', ')}</p>
+                    )}
+                    {selectedVisitor.prayerRequest && (
+                      <p className="whitespace-pre-wrap break-words text-xs text-stone-600 sm:col-span-2"><span className="font-semibold text-stone-800">Prayer request: </span>{selectedVisitor.prayerRequest}</p>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -1149,8 +1327,111 @@ export default function ChurchCareApp({ isAdmin, isSeniorPastor, people = [], lo
         </div>
       )}
 
+      {activeSection === 'intake' && (
+        <section className="space-y-4">
+          <div className="rounded-2xl border border-teal-100 bg-teal-50/60 p-5">
+            <h2 className="text-base font-bold text-stone-900">Guest intake submissions</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-stone-600">
+              New form responses stay in a separate review queue. Approving a response creates a Church Care guest record only; it does not add anyone to the church directory.
+            </p>
+          </div>
+          {intakeError && (
+            <div role="alert" className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+              <AlertCircle size={18} className="mt-0.5 shrink-0" />
+              <span>{intakeError}</span>
+            </div>
+          )}
+          {intakeLoading ? (
+            <div className="rounded-2xl border border-stone-200 bg-white p-8 text-center text-sm text-stone-500">Loading guest intake submissions…</div>
+          ) : intakeSubmissions.length === 0 ? (
+            <div className="rounded-2xl border border-stone-200 bg-white p-8 text-center">
+              <Clipboard size={22} className="mx-auto mb-2 text-stone-400" />
+              <p className="text-sm font-semibold text-stone-800">No intake submissions yet</p>
+              <p className="mt-1 text-xs text-stone-500">Share the Church Care intake link or QR code to receive guest details here.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {intakeSubmissions.map((submission) => (
+                <article key={submission.id} className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5">
+                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-bold text-stone-900">{submission.firstName} {submission.lastName}</h3>
+                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${submission.status === 'pending' ? 'bg-amber-100 text-amber-800' : submission.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-600'}`}>
+                          {submission.status}
+                        </span>
+                      </div>
+                      <p className="mt-1 break-words text-xs text-stone-500">
+                        {[submission.phone, submission.email].filter(Boolean).join(' · ') || 'No contact details'}
+                      </p>
+                    </div>
+                    {submission.status === 'pending' && (
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          disabled={reviewingSubmissionId === submission.id}
+                          onClick={() => handleReviewGuestIntake(submission, 'rejected')}
+                          className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50 disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          type="button"
+                          disabled={reviewingSubmissionId === submission.id}
+                          onClick={() => handleReviewGuestIntake(submission, 'approved')}
+                          className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
+                        >
+                          {reviewingSubmissionId === submission.id ? 'Saving…' : 'Approve to Church Care'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-4 grid gap-3 border-t border-stone-100 pt-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div><p className="text-[10px] font-bold uppercase tracking-wide text-stone-400">First visit</p><p className="mt-1 text-sm text-stone-700">{displayDate(submission.firstVisitDate)}</p></div>
+                    <div><p className="text-[10px] font-bold uppercase tracking-wide text-stone-400">Age bracket</p><p className="mt-1 text-sm text-stone-700">{submission.ageBracket || 'Not provided'}</p></div>
+                    <div><p className="text-[10px] font-bold uppercase tracking-wide text-stone-400">Gender</p><p className="mt-1 text-sm text-stone-700">{submission.gender || 'Not provided'}</p></div>
+                    <div><p className="text-[10px] font-bold uppercase tracking-wide text-stone-400">Contact permission</p><p className="mt-1 text-sm text-stone-700">{submission.contactConsent ? 'Yes' : 'No'}</p></div>
+                    <div className="sm:col-span-2"><p className="text-[10px] font-bold uppercase tracking-wide text-stone-400">Invited by</p><p className="mt-1 text-sm text-stone-700">{submission.invitedBy || 'Not provided'}</p></div>
+                    <div className="sm:col-span-2"><p className="text-[10px] font-bold uppercase tracking-wide text-stone-400">Children</p><p className="mt-1 text-sm text-stone-700">{submission.childAgeBrackets?.length ? submission.childAgeBrackets.join(', ') : 'None listed'}</p></div>
+                  </div>
+                  {submission.prayerRequest && (
+                    <div className="mt-3 rounded-xl bg-stone-50 p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-stone-400">Prayer request</p>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-sm text-stone-700">{submission.prayerRequest}</p>
+                    </div>
+                  )}
+                  {submission.status === 'approved' && <p className="mt-3 text-xs text-emerald-700">This guest has been added to the Church Care visitor list.</p>}
+                  {submission.status === 'rejected' && <p className="mt-3 text-xs text-stone-500">This submission was rejected and was not added to Church Care or the directory.</p>}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {showCreate && <VisitorForm onClose={() => setShowCreate(false)} onSave={handleCreateVisitor} saving={saving} />}
       {showEdit && selectedVisitor && <VisitorEditForm visitor={selectedVisitor} onClose={() => setShowEdit(false)} onSave={handleSaveVisitor} saving={saving} />}
+      {isIntakeQrOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/60 p-4" onClick={() => setIsIntakeQrOpen(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-teal-700">Lifegate Church Care</p>
+                <h2 className="mt-1 text-xl font-bold text-stone-900">Guest intake QR code</h2>
+              </div>
+              <button type="button" onClick={() => setIsIntakeQrOpen(false)} className="rounded-lg p-2 text-stone-400 hover:bg-stone-100" aria-label="Close guest intake QR code"><X size={18} /></button>
+            </div>
+            <div className="mt-5 flex justify-center rounded-xl border border-stone-200 bg-stone-50 p-4">
+              <img src={getGuestIntakeQrUrl()} alt="QR code for the Lifegate Church Care guest intake form" className="h-64 w-64 rounded-md border border-stone-200 bg-white p-2" />
+            </div>
+            <p className="mt-4 break-all text-xs text-stone-500">{getGuestIntakeUrl()}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={handleCopyGuestIntakeLink} className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50">Copy link</button>
+              <button type="button" onClick={() => setIsIntakeQrOpen(false)} className="rounded-lg bg-stone-900 px-3 py-2 text-xs font-semibold text-white hover:bg-stone-800">Done</button>
+            </div>
+          </div>
+        </div>
+      )}
       {textBatchOpen && (
         <TextBatchModal
           visitor={currentTextVisitor}
